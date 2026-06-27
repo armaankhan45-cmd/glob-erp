@@ -3,23 +3,16 @@ const router = express.Router();
 const getDb = require('../config/db');
 const { auth, adminOnly } = require('../middleware/auth');
 const multer = require('multer');
-const path = require('path');
-const config = require('../config/env');
 const auditLog = require('../middleware/auditLog');
 
-// Multer for logo uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, config.UPLOAD_DIR || './uploads'),
-  filename: (req, file, cb) => cb(null, `logo-${Date.now()}${path.extname(file.originalname)}`)
-});
+// Multer for logo uploads — store in memory as buffer (not disk)
 const upload = multer({
-  storage,
-  limits: { fileSize: config.MAX_FILE_SIZE || 2097152 },
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB max
   fileFilter: (req, file, cb) => {
-    const allowed = ['.png', '.jpg', '.jpeg'];
-    const ext = path.extname(file.originalname).toLowerCase();
-    if (allowed.includes(ext)) cb(null, true);
-    else cb(new Error('Only PNG/JPG allowed'));
+    const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+    if (allowed.includes(file.mimetype)) cb(null, true);
+    else cb(new Error('Only PNG/JPG/WebP allowed'));
   }
 });
 
@@ -73,19 +66,24 @@ router.post('/', auth, adminOnly, async (req, res) => {
   }
 });
 
-// Upload logo
+// Upload logo — saves as base64 data URI in database (works on Render free tier, no disk needed)
 router.post('/upload/logo', auth, adminOnly, upload.single('logo'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, msg: 'No file uploaded' });
     
     const db = getDb();
-    const logoUrl = `/uploads/${req.file.filename}`;
-    await db('organizations').where({ id: req.user.organization_id }).update({ logo_url: logoUrl });
     
-    res.json({ success: true, logoUrl });
+    // Convert buffer to base64 data URI
+    const b64 = req.file.buffer.toString('base64');
+    const mimeType = req.file.mimetype;
+    const dataUri = `data:${mimeType};base64,${b64}`;
+    
+    await db('organizations').where({ id: req.user.organization_id }).update({ logo_url: dataUri });
+    
+    res.json({ success: true, logoUrl: dataUri });
   } catch (err) {
     console.error('Logo upload error:', err);
-    res.status(500).json({ success: false, msg: 'Upload failed' });
+    res.status(500).json({ success: false, msg: 'Upload failed: ' + err.message });
   }
 });
 
