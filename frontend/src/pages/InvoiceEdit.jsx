@@ -11,9 +11,18 @@ export default function InvoiceEdit() {
   const orgStateCode = user?.organization?.state_code || '27'
 
   const [customers, setCustomers] = useState([])
-  const [form, setForm] = useState({})
-  const [items, setItems] = useState([])
-  const [calculated, setCalculated] = useState({ subtotal: 0, cgst_amount: 0, sgst_amount: 0, igst_amount: 0, total: 0 })
+  const [form, setForm] = useState({
+    customer_id: '',
+    invoice_date: new Date().toISOString().split('T')[0],
+    due_date: new Date(Date.now() + 30*86400000).toISOString().split('T')[0],
+    discount: 0,
+    round_off: 0,
+    notes: '',
+    status: 'Pending',
+    payment_status: 'Unpaid'
+  })
+  const [items, setItems] = useState([{ description: '', hsn_code: '', quantity: 1, unit: 'NOS', rate: 0, cgst_rate: 9, sgst_rate: 9, igst_rate: 0, amount: 0 }])
+  const [calculated, setCalculated] = useState({ subtotal: 0, cgst_amount: 0, sgst_amount: 0, igst_amount: 0, total_amount: 0 })
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
 
@@ -25,50 +34,39 @@ export default function InvoiceEdit() {
       setCustomers(custRes.data.customers || [])
       const inv = invRes.data.invoice
       setForm({
-        customer_id: inv.customer_id,
-        invoice_date: inv.invoice_date,
-        due_date: inv.due_date,
+        customer_id: inv.customer_id || '',
+        invoice_date: inv.invoice_date || '',
+        due_date: inv.due_date || '',
         discount: inv.discount || 0,
         round_off: inv.round_off || 0,
         notes: inv.notes || '',
-        status: inv.status,
-        payment_status: inv.payment_status
+        status: inv.status || 'Pending',
+        payment_status: inv.payment_status || 'Unpaid'
       })
-      setItems(invRes.data.items.length > 0 ? invRes.data.items : [{ description: '', hsn_code: '', quantity: 1, unit: 'NOS', rate: 0, cgst_rate: 9, sgst_rate: 9, igst_rate: 0, amount: 0 }])
-      setCalculated({ subtotal: inv.subtotal, cgst_amount: inv.cgst_amount, sgst_amount: inv.sgst_amount, igst_amount: inv.igst_amount, total: inv.total_amount })
-    }).catch(() => navigate('/app/invoices')).finally(() => setLoading(false))
+      const loadedItems = invRes.data.items?.length > 0 ? invRes.data.items : [{ description: '', hsn_code: '', quantity: 1, unit: 'NOS', rate: 0, cgst_rate: 9, sgst_rate: 9, igst_rate: 0, amount: 0 }]
+      setItems(loadedItems)
+      setCalculated({
+        subtotal: parseFloat(inv.subtotal) || 0,
+        cgst_amount: parseFloat(inv.cgst_amount) || 0,
+        sgst_amount: parseFloat(inv.sgst_amount) || 0,
+        igst_amount: parseFloat(inv.igst_amount) || 0,
+        total_amount: parseFloat(inv.total_amount) || 0
+      })
+    }).catch(err => {
+      console.error('Load error:', err)
+      navigate('/app/invoices')
+    }).finally(() => setLoading(false))
   }, [id])
 
-  useEffect(() => {
-    if (items.length === 0) return
-    const customer = customers.find(c => c.id === parseInt(form.customer_id))
-    const cStateCode = customer?.state_code || customer?.gstin?.substring(0, 2) || orgStateCode
-    const isIntra = cStateCode === orgStateCode
-
-    const updatedItems = items.map(item => {
-      const qty = parseFloat(item.quantity) || 0
-      const rate = parseFloat(item.rate) || 0
-      const amount = qty * rate
-      if (isIntra) {
-        const taxRate = (parseFloat(item.igst_rate) || parseFloat(item.cgst_rate) * 2 || 18)
-        return { ...item, cgst_rate: taxRate / 2, sgst_rate: taxRate / 2, igst_rate: 0, amount }
-      } else {
-        const taxRate = (parseFloat(item.cgst_rate) * 2 || parseFloat(item.igst_rate) || 18)
-        return { ...item, cgst_rate: 0, sgst_rate: 0, igst_rate: taxRate, amount }
-      }
-    })
-
-    const subtotal = updatedItems.reduce((s, i) => s + i.amount, 0)
-    const cgst = updatedItems.reduce((s, i) => s + i.amount * i.cgst_rate / 100, 0)
-    const sgst = updatedItems.reduce((s, i) => s + i.amount * i.sgst_rate / 100, 0)
-    const igst = updatedItems.reduce((s, i) => s + i.amount * i.igst_rate / 100, 0)
-    const discount = parseFloat(form.discount) || 0
-    const roundOff = parseFloat(form.round_off) || 0
-    const total = subtotal + cgst + sgst + igst - discount + roundOff
-
-    setItems(updatedItems)
-    setCalculated({ subtotal, cgst_amount: cgst, sgst_amount: sgst, igst_amount: igst, total })
-  }, [form.customer_id, form.discount, form.round_off])
+  const recalc = (itemsList, discountVal, roundOffVal) => {
+    const subtotal = itemsList.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
+    const cgst = itemsList.reduce((s, i) => s + (parseFloat(i.amount) || 0) * (parseFloat(i.cgst_rate) || 0) / 100, 0)
+    const sgst = itemsList.reduce((s, i) => s + (parseFloat(i.amount) || 0) * (parseFloat(i.sgst_rate) || 0) / 100, 0)
+    const igst = itemsList.reduce((s, i) => s + (parseFloat(i.amount) || 0) * (parseFloat(i.igst_rate) || 0) / 100, 0)
+    const discount = parseFloat(discountVal) || 0
+    const roundOff = parseFloat(roundOffVal) || 0
+    setCalculated({ subtotal, cgst_amount: cgst, sgst_amount: sgst, igst_amount: igst, total_amount: subtotal + cgst + sgst + igst - discount + roundOff })
+  }
 
   const updateItem = (idx, key, val) => {
     const newItems = [...items]
@@ -77,29 +75,40 @@ export default function InvoiceEdit() {
       newItems[idx].amount = (parseFloat(newItems[idx].quantity) || 0) * (parseFloat(newItems[idx].rate) || 0)
     }
     setItems(newItems)
-    recalc(newItems)
-  }
-
-  const recalc = (itemsList) => {
-    const subtotal = itemsList.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
-    const cgst = itemsList.reduce((s, i) => s + (parseFloat(i.amount) || 0) * (parseFloat(i.cgst_rate) || 0) / 100, 0)
-    const sgst = itemsList.reduce((s, i) => s + (parseFloat(i.amount) || 0) * (parseFloat(i.sgst_rate) || 0) / 100, 0)
-    const igst = itemsList.reduce((s, i) => s + (parseFloat(i.amount) || 0) * (parseFloat(i.igst_rate) || 0) / 100, 0)
-    const discount = parseFloat(form.discount) || 0
-    const roundOff = parseFloat(form.round_off) || 0
-    setCalculated({ subtotal, cgst_amount: cgst, sgst_amount: sgst, igst_amount: igst, total: subtotal + cgst + sgst + igst - discount + roundOff })
+    recalc(newItems, form.discount, form.round_off)
   }
 
   const addItem = () => setItems([...items, { description: '', hsn_code: '', quantity: 1, unit: 'NOS', rate: 0, cgst_rate: 9, sgst_rate: 9, igst_rate: 0, amount: 0 }])
-  const removeItem = (idx) => { const n = items.filter((_, i) => i !== idx); setItems(n); recalc(n) }
+  const removeItem = (idx) => { const n = items.filter((_, i) => i !== idx); setItems(n); recalc(n, form.discount, form.round_off) }
 
   const handleSave = async () => {
     setSaving(true)
     try {
       await api.put(`/invoices/${id}/full`, {
-        ...form,
-        ...calculated,
-        items: items.map(i => ({ ...i, quantity: parseFloat(i.quantity), rate: parseFloat(i.rate), amount: parseFloat(i.amount) }))
+        customer_id: form.customer_id,
+        invoice_date: form.invoice_date,
+        due_date: form.due_date,
+        discount: form.discount,
+        round_off: form.round_off,
+        notes: form.notes,
+        status: form.status,
+        payment_status: form.payment_status,
+        subtotal: calculated.subtotal,
+        cgst_amount: calculated.cgst_amount,
+        sgst_amount: calculated.sgst_amount,
+        igst_amount: calculated.igst_amount,
+        total_amount: calculated.total_amount,
+        items: items.map(i => ({
+          description: i.description,
+          hsn_code: i.hsn_code,
+          quantity: parseFloat(i.quantity) || 0,
+          unit: i.unit,
+          rate: parseFloat(i.rate) || 0,
+          cgst_rate: parseFloat(i.cgst_rate) || 0,
+          sgst_rate: parseFloat(i.sgst_rate) || 0,
+          igst_rate: parseFloat(i.igst_rate) || 0,
+          amount: parseFloat(i.amount) || 0
+        }))
       })
       navigate(`/app/invoices/${id}`)
     } catch (err) {
@@ -123,11 +132,12 @@ export default function InvoiceEdit() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Customer</label>
             <select value={form.customer_id} onChange={e => setForm({...form, customer_id: e.target.value})} className="input-field">
+              <option value="">Select Customer</option>
               {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Invoice Date</label><input type="date" value={form.invoice_date} onChange={e => setForm({...form, invoice_date: e.target.value})} className="input-field" /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label><input type="date" value={form.due_date} onChange={e => setForm({...form, due_date: e.target.value})} className="input-field" /></div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Invoice Date</label><input type="date" value={form.invoice_date || ''} onChange={e => setForm({...form, invoice_date: e.target.value})} className="input-field" /></div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label><input type="date" value={form.due_date || ''} onChange={e => setForm({...form, due_date: e.target.value})} className="input-field" /></div>
         </div>
       </div>
 
@@ -141,13 +151,13 @@ export default function InvoiceEdit() {
             <tbody>
               {items.map((item, idx) => (
                 <tr key={idx} className="border-b border-gray-50">
-                  <td className="py-2 pr-2"><input value={item.description} onChange={e => updateItem(idx, 'description', e.target.value)} className="input-field text-sm" /></td>
-                  <td className="py-2 pr-2"><input value={item.hsn_code} onChange={e => updateItem(idx, 'hsn_code', e.target.value)} className="input-field text-sm w-24" /></td>
+                  <td className="py-2 pr-2"><input value={item.description || ''} onChange={e => updateItem(idx, 'description', e.target.value)} className="input-field text-sm" /></td>
+                  <td className="py-2 pr-2"><input value={item.hsn_code || ''} onChange={e => updateItem(idx, 'hsn_code', e.target.value)} className="input-field text-sm w-24" /></td>
                   <td className="py-2 pr-2"><input type="number" value={item.quantity} onChange={e => updateItem(idx, 'quantity', e.target.value)} className="input-field text-sm" /></td>
                   <td className="py-2 pr-2"><select value={item.unit} onChange={e => updateItem(idx, 'unit', e.target.value)} className="input-field text-sm">{['NOS','KG','MTR','SET','LOT','PCS'].map(u=><option key={u}>{u}</option>)}</select></td>
                   <td className="py-2 pr-2"><input type="number" value={item.rate} onChange={e => updateItem(idx, 'rate', e.target.value)} className="input-field text-sm" /></td>
-                  <td className="py-2 pr-2"><input type="number" value={item.igst_rate > 0 ? item.igst_rate : (item.cgst_rate + item.sgst_rate)} onChange={e => { const r = parseFloat(e.target.value)||0; const cust = customers.find(c=>c.id===parseInt(form.customer_id)); const cs = cust?.state_code||orgStateCode; if(cs===orgStateCode){updateItem(idx,'cgst_rate',r/2);updateItem(idx,'sgst_rate',r/2);updateItem(idx,'igst_rate',0)}else{updateItem(idx,'igst_rate',r);updateItem(idx,'cgst_rate',0);updateItem(idx,'sgst_rate',0)} }} className="input-field text-sm" /></td>
-                  <td className="py-2 text-right font-medium">{(item.amount||0).toFixed(2)}</td>
+                  <td className="py-2 pr-2"><input type="number" value={item.igst_rate > 0 ? item.igst_rate : (parseFloat(item.cgst_rate) + parseFloat(item.sgst_rate))} onChange={e => { const r = parseFloat(e.target.value)||0; const cust = customers.find(c=>c.id===parseInt(form.customer_id)); const cs = cust?.state_code||orgStateCode; if(cs===orgStateCode){updateItem(idx,'cgst_rate',r/2);updateItem(idx,'sgst_rate',r/2);updateItem(idx,'igst_rate',0)}else{updateItem(idx,'igst_rate',r);updateItem(idx,'cgst_rate',0);updateItem(idx,'sgst_rate',0)} }} className="input-field text-sm" /></td>
+                  <td className="py-2 text-right font-medium">{(parseFloat(item.amount)||0).toFixed(2)}</td>
                   <td className="py-2">{items.length > 1 && <button onClick={() => removeItem(idx)} className="text-red-400"><X size={16} /></button>}</td>
                 </tr>
               ))}
@@ -163,16 +173,16 @@ export default function InvoiceEdit() {
           <div className="flex justify-between"><span>CGST</span><span>₹{calculated.cgst_amount.toFixed(2)}</span></div>
           <div className="flex justify-between"><span>SGST</span><span>₹{calculated.sgst_amount.toFixed(2)}</span></div>
           <div className="flex justify-between"><span>IGST</span><span>₹{calculated.igst_amount.toFixed(2)}</span></div>
-          <div className="flex justify-between items-center"><span>Discount</span><input type="number" value={form.discount} onChange={e => setForm({...form, discount: e.target.value})} className="input-field w-28 text-right text-sm" /></div>
-          <div className="flex justify-between items-center"><span>Round Off</span><input type="number" step="0.01" value={form.round_off} onChange={e => setForm({...form, round_off: e.target.value})} className="input-field w-28 text-right text-sm" /></div>
+          <div className="flex justify-between items-center"><span>Discount</span><input type="number" value={form.discount} onChange={e => {setForm({...form, discount: e.target.value}); recalc(items, e.target.value, form.round_off)}} className="input-field w-28 text-right text-sm" /></div>
+          <div className="flex justify-between items-center"><span>Round Off</span><input type="number" step="0.01" value={form.round_off} onChange={e => {setForm({...form, round_off: e.target.value}); recalc(items, form.discount, e.target.value)}} className="input-field w-28 text-right text-sm" /></div>
           <hr />
-          <div className="flex justify-between text-base font-bold"><span>TOTAL</span><span>₹{calculated.total.toFixed(2)}</span></div>
+          <div className="flex justify-between text-base font-bold"><span>TOTAL</span><span>₹{calculated.total_amount.toFixed(2)}</span></div>
         </div>
       </div>
 
       <div className="card">
         <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-        <textarea value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} className="input-field" rows={3} />
+        <textarea value={form.notes || ''} onChange={e => setForm({...form, notes: e.target.value})} className="input-field" rows={3} />
       </div>
 
       <div className="flex justify-end gap-3">
