@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../api/client'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../api/client'
 import { Save, Plus, X, ArrowLeft } from 'lucide-react'
 
 const HSN_CODES = [
@@ -40,7 +40,7 @@ export default function InvoiceNew() {
 
   const [items, setItems] = useState([{ description: '', hsn_code: '', quantity: 1, unit: 'NOS', rate: 0, cgst_rate: 9, sgst_rate: 9, igst_rate: 0, amount: 0 }])
   const [manualOverride, setManualOverride] = useState({ cgst: false, sgst: false, igst: false, total: false })
-  const [calculated, setCalculated] = useState({ subtotal: 0, cgst_amount: 0, sgst_amount: 0, igst_amount: 0, total: 0 })
+  const [calculated, setCalculated] = useState({ subtotal: 0, cgst_amount: 0, sgst_amount: 0, igst_amount: 0, total_amount: 0 })
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -72,9 +72,9 @@ export default function InvoiceNew() {
     const igst = manualOverride.igst ? calculated.igst_amount : updatedItems.reduce((s, i) => s + i.amount * i.igst_rate / 100, 0)
     const discount = parseFloat(form.discount) || 0
     const roundOff = parseFloat(form.round_off) || 0
-    const total = manualOverride.total ? calculated.total : subtotal + cgst + sgst + igst - discount + roundOff
+    const total = manualOverride.total ? calculated.total_amount : subtotal + cgst + sgst + igst - discount + roundOff
 
-    setCalculated({ subtotal, cgst_amount: cgst, sgst_amount: sgst, igst_amount: igst, total })
+    setCalculated({ subtotal, cgst_amount: cgst, sgst_amount: sgst, igst_amount: igst, total_amount: total })
   }, [items, form.customer_id, form.discount, form.round_off, customers])
 
   const updateItem = (idx, key, val) => {
@@ -225,7 +225,7 @@ export default function InvoiceNew() {
             <input type="number" step="0.01" value={form.round_off} onChange={e => setForm({...form, round_off: e.target.value})} className="input-field w-28 text-right text-sm" />
           </div>
           <hr />
-          <div className="flex justify-between text-base font-bold"><span>TOTAL</span><span>₹{calculated.total.toFixed(2)}</span></div>
+          <div className="flex justify-between text-base font-bold"><span>TOTAL</span><span>₹{calculated.total_amount.toFixed(2)}</span></div>
         </div>
       </div>
 
