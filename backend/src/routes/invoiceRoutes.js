@@ -41,7 +41,6 @@ router.get('/', auth, async (req, res) => {
 
     const invoices = await query.orderBy('invoices.created_at', 'desc');
     
-    // Stats
     const stats = await db('invoices')
       .where({ organization_id: req.user.organization_id })
       .select(
@@ -90,7 +89,6 @@ router.post('/', auth, async (req, res) => {
     const { items, ...invoiceData } = req.body;
     const orgId = req.user.organization_id;
 
-    // Generate invoice number
     const org = await db('organizations').where({ id: orgId }).first();
     const prefix = org.invoice_prefix || 'GST-';
     const last = await db('invoices').where({ organization_id: orgId }).orderBy('id', 'desc').first('id');
@@ -107,7 +105,6 @@ router.post('/', auth, async (req, res) => {
     const [invoice] = await db('invoices').insert(data).returning('id');
     const invoiceId = invoice.id || invoice;
 
-    // Insert items
     if (items && items.length > 0) {
       const itemRows = items.map(item => ({ ...item, invoice_id: invoiceId }));
       await db('invoice_items').insert(itemRows);
@@ -134,7 +131,6 @@ router.put('/:id/full', auth, async (req, res) => {
 
     await db('invoices').where({ id: req.params.id }).update(invoiceData);
 
-    // Replace items
     await db('invoice_items').where({ invoice_id: req.params.id }).del();
     if (items && items.length > 0) {
       const itemRows = items.map(item => ({ ...item, invoice_id: req.params.id }));
@@ -212,7 +208,6 @@ router.get('/:id/pdf', auth, async (req, res) => {
       await page.setContent(html, { waitUntil: 'networkidle0' });
       const pdf = await page.pdf({ format: 'A4', margin: { top: 0, right: 0, bottom: 0, left: 0 }, printBackground: true });
       await browser.close();
-
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `inline; filename="${invoice.invoice_number}.pdf"`);
       res.send(pdf);
@@ -263,7 +258,6 @@ function generateInvoiceHTML(invoice, items, org) {
   const invoiceDate = formatDate(invoice.invoice_date);
   const dueDate = formatDate(invoice.due_date);
 
-  // HSN summary
   const hsnMap = {};
   items.forEach(item => {
     const hsn = item.hsn_code || 'Others';
@@ -330,7 +324,6 @@ function generateInvoiceHTML(invoice, items, org) {
     th { border: 1px solid #000; padding: 3px 2px; background: #f0f0f0; text-align: center; font-size: 8pt; }
   </style></head><body>
     <div class="page">
-      <!-- Company Header -->
       <div style="border:2px solid #000;padding:6px 10px;flex-shrink:0;display:flex;align-items:center">
         <div style="width:60px;height:60px;border:1px solid #999;display:flex;align-items:center;justify-content:center;margin-right:12px;flex-shrink:0">
           ${org.logo_url ? `<img src="${org.logo_url}" style="max-width:54px;max-height:54px">` : '<span style="font-size:7px;color:#999">LOGO</span>'}
@@ -346,13 +339,11 @@ function generateInvoiceHTML(invoice, items, org) {
         </div>
       </div>
 
-      <!-- Tax Invoice Title -->
       <div style="text-align:center;padding:3px 0;border-top:1px solid #000;border-bottom:2px solid #000;flex-shrink:0">
         <div style="font-size:12pt;font-weight:bold;letter-spacing:1.5px">TAX INVOICE</div>
         <div style="font-size:7pt;font-weight:bold;color:#555">ORIGINAL FOR RECIPIENT</div>
       </div>
 
-      <!-- Invoice + Customer Info -->
       <div style="display:flex;border-bottom:1px solid #000;flex-shrink:0">
         <div style="width:38%;border-right:1px solid #000;padding:4px 8px;font-size:8pt">
           <div style="margin-bottom:1px"><strong>Invoice #:</strong> ${invNum}</div>
@@ -368,7 +359,6 @@ function generateInvoiceHTML(invoice, items, org) {
         </div>
       </div>
 
-      <!-- Items Table (fills space) -->
       <div style="flex:1;display:flex;flex-direction:column">
         <table style="font-size:8pt;flex:1">
           <thead><tr>
@@ -379,26 +369,23 @@ function generateInvoiceHTML(invoice, items, org) {
           <tbody>${itemsHTML}${emptyRows}</tbody>
         </table>
 
-        <!-- Totals -->
         <table style="font-size:8.5pt;flex-shrink:0">
-          <tr><td style="border:1px solid #000;padding:3px;text-align:right;width:70%">Taxable Amount</td><td style="border:1px solid #000;padding:3px;text-align:right">₹${formatIndian(invoice.subtotal)}</td></tr>
+          <tr><td style="border:1px solid #000;padding:3px;text-align:right;width:70%">Taxable Amount</td><td style="border:1px solid #000;padding:3px;text-align:right">&#8377;${formatIndian(invoice.subtotal)}</td></tr>
           ${hasCGST ? `
-            <tr><td style="border:1px solid #000;padding:3px;text-align:right">CGST @ ${parseFloat(items[0]?.cgst_rate||0).toFixed(1)}%</td><td style="border:1px solid #000;padding:3px;text-align:right">₹${formatIndian(invoice.cgst_amount)}</td></tr>
-            <tr><td style="border:1px solid #000;padding:3px;text-align:right">SGST @ ${parseFloat(items[0]?.sgst_rate||0).toFixed(1)}%</td><td style="border:1px solid #000;padding:3px;text-align:right">₹${formatIndian(invoice.sgst_amount)}</td></tr>
+            <tr><td style="border:1px solid #000;padding:3px;text-align:right">CGST @ ${parseFloat(items[0]?.cgst_rate||0).toFixed(1)}%</td><td style="border:1px solid #000;padding:3px;text-align:right">&#8377;${formatIndian(invoice.cgst_amount)}</td></tr>
+            <tr><td style="border:1px solid #000;padding:3px;text-align:right">SGST @ ${parseFloat(items[0]?.sgst_rate||0).toFixed(1)}%</td><td style="border:1px solid #000;padding:3px;text-align:right">&#8377;${formatIndian(invoice.sgst_amount)}</td></tr>
           ` : ''}
-          ${hasIGST ? `<tr><td style="border:1px solid #000;padding:3px;text-align:right">IGST @ ${parseFloat(items[0]?.igst_rate||0).toFixed(1)}%</td><td style="border:1px solid #000;padding:3px;text-align:right">₹${formatIndian(invoice.igst_amount)}</td></tr>` : ''}
-          ${parseFloat(invoice.round_off) !== 0 ? `<tr><td style="border:1px solid #000;padding:3px;text-align:right">Round Off</td><td style="border:1px solid #000;padding:3px;text-align:right">₹${formatIndian(invoice.round_off)}</td></tr>` : ''}
-          <tr style="background:#f0f0f0"><td style="border:2px solid #000;padding:4px;text-align:right;font-size:10pt"><strong>Total</strong></td><td style="border:2px solid #000;padding:4px;text-align:right;font-size:10pt;font-weight:bold">₹${formatIndian(invoice.total_amount)}</td></tr>
+          ${hasIGST ? `<tr><td style="border:1px solid #000;padding:3px;text-align:right">IGST @ ${parseFloat(items[0]?.igst_rate||0).toFixed(1)}%</td><td style="border:1px solid #000;padding:3px;text-align:right">&#8377;${formatIndian(invoice.igst_amount)}</td></tr>` : ''}
+          ${parseFloat(invoice.round_off) !== 0 ? `<tr><td style="border:1px solid #000;padding:3px;text-align:right">Round Off</td><td style="border:1px solid #000;padding:3px;text-align:right">&#8377;${formatIndian(invoice.round_off)}</td></tr>` : ''}
+          <tr style="background:#f0f0f0"><td style="border:2px solid #000;padding:4px;text-align:right;font-size:10pt"><strong>Total</strong></td><td style="border:2px solid #000;padding:4px;text-align:right;font-size:10pt;font-weight:bold">&#8377;${formatIndian(invoice.total_amount)}</td></tr>
         </table>
       </div>
 
-      <!-- Amount in Words -->
       <div style="padding:3px 0;font-size:8pt;flex-shrink:0">
         <strong>Amount Chargeable (in words):</strong> INR ${numberToWords(invoice.total_amount)}
         <span style="float:right;font-size:7pt;color:#666">E & O.E</span>
       </div>
 
-      <!-- HSN Summary -->
       <table style="font-size:7.5pt;flex-shrink:0">
         <thead>
           <tr style="background:#f0f0f0"><th>HSN/SAC</th><th>Taxable Value</th>
@@ -429,7 +416,6 @@ function generateInvoiceHTML(invoice, items, org) {
         </tbody>
       </table>
 
-      <!-- Bank + Signature -->
       <div style="display:flex;border-top:1px solid #000;padding-top:3px;margin-top:3px;flex-shrink:0">
         <div style="width:55%;font-size:7.5pt;padding-right:8px">
           <div style="font-weight:bold;margin-bottom:2px">Bank Details:</div>
