@@ -18,7 +18,6 @@ try {
     acquireConnectionTimeout: 30000,
     ssl: { rejectUnauthorized: false }
   });
-  // Make db available to all route files
   require('./config/db').setDb(db);
 } catch(e) {
   console.error('DB init error:', e.message);
@@ -30,6 +29,59 @@ app.use(cors({ origin: process.env.CORS_ORIGIN || '*', credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// ====== GLOBAL DATA SANITIZATION MIDDLEWARE ======
+// Fixes TWO problems permanently for ALL routes:
+// 1. Empty string "" for date columns -> null (PostgreSQL rejects "" for DATE type)
+// 2. Wrong column name "total" -> "total_amount" (our DB uses total_amount, not total)
+
+const DATE_FIELDS = [
+  'invoice_date', 'due_date', 'quotation_date', 'validity_date',
+  'bill_date', 'payment_date', 'expense_date', 'credit_date',
+  'join_date', 'purchase_date', 'production_date', 'ack_date',
+  'last_maintenance', 'next_maintenance'
+];
+
+const COLUMN_RENAMES = {
+  'total': 'total_amount',
+  'calculated_total': 'total_amount'
+};
+
+// Columns that do NOT exist in our tables - strip them out to prevent SQL errors
+const BLOCKED_COLUMNS = [
+  'gst_rate', 'bold', 'calculated', 'customer_name', 'additional_info', 'actual_notes'
+];
+
+function sanitize(obj) {
+  if (!obj || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(sanitize);
+  const clean = {};
+  for (const [key, value] of Object.entries(obj)) {
+    // Skip blocked columns that don't exist in DB
+    if (BLOCKED_COLUMNS.includes(key)) continue;
+    // Rename wrong column names
+    const newKey = COLUMN_RENAMES[key] || key;
+    // Convert empty string to null for date fields
+    if (DATE_FIELDS.includes(key) && (value === '' || value === undefined)) {
+      clean[newKey] = null;
+    } else {
+      clean[newKey] = value;
+    }
+  }
+  return clean;
+}
+
+app.use((req, res, next) => {
+  if (req.body) {
+    // Sanitize top-level body
+    req.body = sanitize(req.body);
+    // Sanitize nested items array
+    if (req.body.items && Array.isArray(req.body.items)) {
+      req.body.items = req.body.items.map(item => sanitize(item));
+    }
+  }
+  next();
+});
+
 // Static uploads
 const fs = require('fs');
 const uploadDir = './uploads';
@@ -38,7 +90,6 @@ app.use('/uploads', express.static(uploadDir));
 
 // ============ ROUTES ============
 
-// Test route - always works
 app.get('/', (req, res) => {
   res.json({ 
     success: true, 
@@ -57,7 +108,6 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
-// Setup route - creates tables and admin user
 app.get('/api/setup', async (req, res) => {
   try {
     const hasOrgs = await db.schema.hasTable('organizations');
@@ -76,7 +126,6 @@ app.get('/api/setup', async (req, res) => {
   }
 });
 
-// Load all routes with error handling
 function safe(path) {
   try { return require(path); } catch(e) { console.error('Route error:', path, e.message); return express.Router(); }
 }
@@ -106,10 +155,8 @@ app.use((err, req, res, next) => {
   res.status(500).json({ success: false, msg: err.message });
 });
 
-// Start server FIRST, then setup DB
 app.listen(PORT, () => {
   console.log('🚀 Glob ERP API running on port ' + PORT);
-  // Auto setup database in background
   setupDB();
 });
 
