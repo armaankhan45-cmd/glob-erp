@@ -27,7 +27,9 @@ export default function QuotationForm() {
   const navigate = useNavigate()
   const isEdit = !!id
 
+  const [customers, setCustomers] = useState([])
   const [form, setForm] = useState({
+    customer_id: '',
     customer_name: '',
     additional_info: '',
     actual_notes: '',
@@ -41,6 +43,7 @@ export default function QuotationForm() {
   const [manualOverride, setManualOverride] = useState({ igst: false, total_amount: false })
 
   useEffect(() => {
+    api.get('/customers').then(res => setCustomers(res.data.customers || [])).catch(() => {})
     if (isEdit) loadQuotation()
     else loadTemplate()
   }, [])
@@ -63,16 +66,18 @@ export default function QuotationForm() {
     try {
       const res = await api.get(`/quotations/${id}`)
       const q = res.data.quotation
-      setForm({
+      setForm(prev => ({
+        ...prev,
+        customer_id: q.customer_id || '',
         customer_name: q.customer_name || '',
         additional_info: q.additional_info || '',
         actual_notes: q.actual_notes || '',
-        quotation_date: q.quotation_date,
-        validity_date: q.validity_date,
+        quotation_date: q.quotation_date?.split('T')[0] || new Date().toISOString().split('T')[0],
+        validity_date: q.validity_date?.split('T')[0] || '',
         igst_rate: parseFloat(res.data.items?.[0]?.igst_rate || 18),
-      })
+      }))
       setItems(res.data.items?.length > 0 ? res.data.items : [{ description: '', quantity: 1, unit: 'Unit', rate: 0, igst_rate: 18, amount: 0 }])
-      setCalculated({ subtotal: q.subtotal, igst_amount: q.igst_amount, total_amount: q.total_amount })
+      setCalculated({ subtotal: parseFloat(q.subtotal) || 0, igst_amount: parseFloat(q.igst_amount) || 0, total_amount: parseFloat(q.total_amount) || 0 })
     } catch {
       navigate('/app/quotations')
     }
@@ -108,13 +113,26 @@ export default function QuotationForm() {
     setSaving(true)
     try {
       const data = {
+        customer_id: form.customer_id || null,
         quotation_date: form.quotation_date,
         validity_date: form.validity_date,
         subtotal: calculated.subtotal,
+        cgst_amount: 0,
+        sgst_amount: 0,
         igst_amount: calculated.igst_amount,
         total_amount: calculated.total_amount,
-        notes: `${form.customer_name || ''}|||${form.additional_info || ''}|||${form.actual_notes || ''}`,
-        items: items.map(i => ({ ...i, quantity: parseFloat(i.quantity), rate: parseFloat(i.rate), igst_rate: parseFloat(i.igst_rate || form.igst_rate || 18), amount: parseFloat(i.amount) }))
+        customer_name: form.customer_name,
+        additional_info: form.additional_info,
+        actual_notes: form.actual_notes,
+        items: items.map(i => ({
+          description: i.description,
+          hsn_code: i.hsn_code || '7309',
+          quantity: parseFloat(i.quantity),
+          unit: i.unit || 'Unit',
+          rate: parseFloat(i.rate),
+          igst_rate: parseFloat(i.igst_rate || form.igst_rate || 18),
+          amount: parseFloat(i.amount)
+        }))
       }
       if (isEdit) {
         await api.put(`/quotations/${id}`, data)
@@ -129,6 +147,20 @@ export default function QuotationForm() {
     }
   }
 
+  const onCustomerSelect = (e) => {
+    const cid = e.target.value
+    if (cid) {
+      const customer = customers.find(c => c.id === parseInt(cid))
+      setForm({
+        ...form,
+        customer_id: cid,
+        customer_name: customer?.name || ''
+      })
+    } else {
+      setForm({ ...form, customer_id: '', customer_name: '' })
+    }
+  }
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
@@ -139,9 +171,18 @@ export default function QuotationForm() {
       <div className="card space-y-4">
         <div className="grid md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name *</label>
-            <input value={form.customer_name} onChange={e => setForm({...form, customer_name: e.target.value})} className="input-field" placeholder="Customer name (free text)" />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Select Customer</label>
+            <select value={form.customer_id} onChange={onCustomerSelect} className="input-field">
+              <option value="">-- Select or type below --</option>
+              {customers.map(c => <option key={c.id} value={c.id}>{c.name}{c.gstin ? ` (${c.gstin.substring(0,2)}...)` : ''}</option>)}
+            </select>
           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name *</label>
+            <input value={form.customer_name} onChange={e => setForm({...form, customer_name: e.target.value, customer_id: ''})} className="input-field" placeholder="Customer name (free text)" />
+          </div>
+        </div>
+        <div className="grid md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Additional Info (PAN, Vehicle No.)</label>
             <input value={form.additional_info} onChange={e => setForm({...form, additional_info: e.target.value})} className="input-field" />
@@ -171,7 +212,8 @@ export default function QuotationForm() {
               {items.length > 1 && <button onClick={() => removeItem(idx)} className="text-red-400 hover:text-red-600"><X size={16} /></button>}
             </div>
             <textarea value={item.description} onChange={e => updateItem(idx, 'description', e.target.value)} className="input-field" rows={6} style={{ minHeight: '150px' }} placeholder="Item description..." />
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-5 gap-3">
+              <div><label className="block text-xs text-gray-500 mb-1">HSN Code</label><input value={item.hsn_code || '7309'} onChange={e => updateItem(idx, 'hsn_code', e.target.value)} className="input-field" /></div>
               <div><label className="block text-xs text-gray-500 mb-1">Quantity</label><input type="number" value={item.quantity} onChange={e => updateItem(idx, 'quantity', e.target.value)} className="input-field" /></div>
               <div><label className="block text-xs text-gray-500 mb-1">Unit</label><select value={item.unit} onChange={e => updateItem(idx, 'unit', e.target.value)} className="input-field">{['Unit','NOS','KG','SET','LOT'].map(u=><option key={u}>{u}</option>)}</select></div>
               <div><label className="block text-xs text-gray-500 mb-1">Rate</label><input type="number" value={item.rate} onChange={e => updateItem(idx, 'rate', e.target.value)} className="input-field" /></div>
@@ -198,16 +240,9 @@ export default function QuotationForm() {
             </div>
           </div>
           <hr />
-          <div className="flex justify-between items-center text-base font-bold">
+          <div className="flex justify-between text-base font-bold">
             <span>Total</span>
-            <div className="flex items-center gap-2">
-              {manualOverride.total_amount ? (
-                <input type="number" value={calculated.total_amount} onChange={e => setCalculated({...calculated, total: parseFloat(e.target.value)||0})} className="input-field w-32 text-right" />
-              ) : (
-                <span>₹{calculated.total_amount.toFixed(2)}</span>
-              )}
-              <button onClick={() => setManualOverride({...manualOverride, total: !manualOverride.total_amount})} className="text-xs text-primary-600">{manualOverride.total_amount ? 'Reset' : 'Override'}</button>
-            </div>
+            <span>₹{calculated.total_amount.toFixed(2)}</span>
           </div>
         </div>
       </div>
