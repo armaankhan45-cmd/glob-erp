@@ -1,4 +1,6 @@
-require('dotenv').config();
+// Load .env file (only in development - Render uses env vars directly)
+try { require('dotenv').config(); } catch(e) { /* .env not available, use system env vars */ }
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
