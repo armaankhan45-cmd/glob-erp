@@ -75,23 +75,38 @@ export default function QuotationDetail() {
         <button onClick={handleDelete} className="btn-danger flex items-center gap-2"><Trash2 size={16} /> Delete</button>
       </div>
 
+<<<<<<< Updated upstream
       {/* A4 Print Layout - Letterhead space only at top, NO sign/stamp space at bottom */}
       <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily: 'Georgia, serif', fontSize: '10pt' }}>
         {/* Pre-printed Letterhead Space */}
+=======
+      {/* A4 Print Layout - EXACT format */}
+      <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily: 'Georgia, serif' }}>
+        {/* Letterhead Space */}
+>>>>>>> Stashed changes
         <div style={{ height: `${letterheadMm}mm`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '11px', fontFamily: 'Inter, sans-serif' }}>
           📎 Pre-printed Letterhead Space ({letterheadMm}mm)
         </div>
 
+<<<<<<< Updated upstream
         {/* Content - fills the rest of the page */}
         <div style={{ padding: '0 12mm 6mm' }}>
 
+=======
+        {/* Content */}
+        <div style={{ maxHeight: `${297 - letterheadMm - footerMm}mm`, overflow: 'hidden', padding: '0 14mm' }}>
+>>>>>>> Stashed changes
           {/* Heading */}
           <h2 style={{ textAlign: 'center', fontSize: '22pt', fontFamily: 'Georgia, serif', marginBottom: '2px' }}>
             Quotation <u>No</u> :- {qNum}
           </h2>
 
           {/* Customer Name - Bold Uppercase */}
+<<<<<<< Updated upstream
           <p style={{ textAlign: 'center', fontSize: '12pt', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '2px' }}>
+=======
+          <p style={{ textAlign: 'center', fontSize: '13pt', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '2px' }}>
+>>>>>>> Stashed changes
             {(quotation.customer_name || '').toUpperCase()}
           </p>
 
@@ -101,6 +116,7 @@ export default function QuotationDetail() {
           )}
 
           {/* Date Row */}
+<<<<<<< Updated upstream
           <p style={{ textAlign: 'center', fontSize: '9pt', marginBottom: '8px', color: '#555' }}>
             Date: {quotation.quotation_date}{quotation.validity_date ? ` | Valid till: ${quotation.validity_date}` : ''}
           </p>
@@ -135,6 +151,29 @@ export default function QuotationDetail() {
                   </td>
                   <td style={{ border: '1.5px solid #000', padding: '3px 4px', textAlign: 'right', verticalAlign: 'top' }}>{formatIndian(item.rate)}</td>
                   <td style={{ border: '1.5px solid #000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold', verticalAlign: 'top' }}>{formatIndian(item.amount)}</td>
+=======
+          <p style={{ textAlign: 'center', fontSize: '10pt', marginBottom: '8px', color: '#555' }}>
+            Date: {quotation.quotation_date}{quotation.validity_date ? ` | Valid till: ${quotation.validity_date}` : ''}
+          </p>
+
+          {/* Items Table */}
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10pt' }}>
+            <thead><tr style={{ background: '#f0f0f0' }}>
+              <th style={{ border: '1px solid #000', padding: '5px', width: '7%', textAlign: 'center' }}>SR.No</th>
+              <th style={{ border: '1px solid #000', padding: '5px', width: '51%', textAlign: 'center' }}>Particulars</th>
+              <th style={{ border: '1px solid #000', padding: '5px', width: '10%', textAlign: 'center' }}>Quantity</th>
+              <th style={{ border: '1px solid #000', padding: '5px', width: '16%', textAlign: 'center' }}>Rate INR</th>
+              <th style={{ border: '1px solid #000', padding: '5px', width: '16%', textAlign: 'center' }}>Amount INR</th>
+            </tr></thead>
+            <tbody>
+              {items.map((item, i) => (
+                <tr key={i}>
+                  <td style={{ border: '1px solid #000', padding: '3px', textAlign: 'center' }}>{i + 1}</td>
+                  <td style={{ border: '1px solid #000', padding: '3px', fontSize: '9.5pt', lineHeight: '1.35', fontWeight: boldOn ? 'bold' : 'normal', whiteSpace: 'pre-line' }}>{item.description || ''}</td>
+                  <td style={{ border: '1px solid #000', padding: '3px', textAlign: 'center' }}>{item.quantity}</td>
+                  <td style={{ border: '1px solid #000', padding: '3px', textAlign: 'right' }}>{parseFloat(item.rate).toFixed(2)}</td>
+                  <td style={{ border: '1px solid #000', padding: '3px', textAlign: 'right', fontWeight: 'bold' }}>{parseFloat(item.amount).toFixed(2)}</td>
+>>>>>>> Stashed changes
                 </tr>
               ))}
             </tbody>
@@ -143,6 +182,7 @@ export default function QuotationDetail() {
           {/* GST + Total Box */}
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9.5pt', marginTop: '0' }}>
             <tbody>
+<<<<<<< Updated upstream
               {gstRate > 0 && (
                 <tr>
                   <td style={{ borderLeft: '1.5px solid #000', borderBottom: '1.5px solid #000', padding: '4px 6px', textAlign: 'right', width: '78%' }}>
@@ -152,6 +192,10 @@ export default function QuotationDetail() {
                     {formatIndian(totalGST)}
                   </td>
                 </tr>
+=======
+              {parseFloat(quotation.igst_amount) > 0 && (
+                <tr><td style={{ textAlign: 'right', padding: '4px', width: '83%' }}><strong>IGST @ {parseFloat(items[0]?.igst_rate || 18)}%</strong></td><td style={{ textAlign: 'right', padding: '4px', fontWeight: 'bold' }}>{formatCurrency(quotation.igst_amount)}</td></tr>
+>>>>>>> Stashed changes
               )}
               <tr style={{ background: '#f0f0f0' }}>
                 <td style={{ borderLeft: '1.5px solid #000', borderBottom: '1.5px solid #000', padding: '5px 6px', textAlign: 'right', fontSize: '11pt' }}>
@@ -170,6 +214,7 @@ export default function QuotationDetail() {
           </p>
 
           {/* Company Info */}
+<<<<<<< Updated upstream
           <div style={{ marginTop: '8px', fontSize: '8.5pt', color: '#444', borderTop: '1px solid #ddd', paddingTop: '4px' }}>
             <strong>GSTIN:</strong> {org?.gstin || ''} | <strong>State:</strong> {org?.state} ({org?.state_code})
           </div>
@@ -189,6 +234,17 @@ export default function QuotationDetail() {
           )}
         </div>
         {/* NO footer/stamp space - content fills to bottom */}
+=======
+          <p style={{ marginTop: '4px', fontSize: '8pt', color: '#555' }}>
+            <strong>GSTIN:</strong> {org?.gstin || ''} | <strong>State:</strong> {org?.state} ({org?.state_code})
+          </p>
+        </div>
+
+        {/* Footer Space */}
+        <div style={{ height: `${footerMm}mm`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '11px', fontFamily: 'Inter, sans-serif' }}>
+          📎 Stamp + Signature + Address Space ({footerMm}mm)
+        </div>
+>>>>>>> Stashed changes
       </div>
     </div>
   )

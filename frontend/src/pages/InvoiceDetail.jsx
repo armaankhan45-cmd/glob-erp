@@ -41,6 +41,7 @@ export default function InvoiceDetail() {
   // Extract invoice number without FY
   const invNum = invoice.invoice_number?.split('/')[0]
 
+<<<<<<< Updated upstream
   // Place of supply
   const custStateCode = invoice.customer_state_code || (invoice.customer_gstin ? invoice.customer_gstin.substring(0,2) : '')
   const orgStateCode = org?.state_code || '27'
@@ -62,6 +63,8 @@ export default function InvoiceDetail() {
     hsnMap[hsn].igstAmt += amt * (parseFloat(item.igst_rate) || 0) / 100
   })
 
+=======
+>>>>>>> Stashed changes
   return (
     <div className="space-y-4">
       {/* Action buttons (hidden in print) */}
@@ -73,6 +76,7 @@ export default function InvoiceDetail() {
         <button onClick={handleDelete} className="btn-danger flex items-center gap-2"><Trash2 size={16} /> Delete</button>
       </div>
 
+<<<<<<< Updated upstream
       {/* A4 FULL PAGE Tax Invoice Layout */}
       <div className="bg-white shadow-lg mx-auto print-area" style={{
         fontFamily: 'Arial, Helvetica, sans-serif',
@@ -288,6 +292,58 @@ export default function InvoiceDetail() {
                     </>
                   )}
                   <td style={{ border: '1px solid #000', padding: '2px 3px', textAlign: 'right' }}>{formatIndian(data.cgstAmt + data.sgstAmt + data.igstAmt)}</td>
+=======
+      {/* A4 Print Layout - Same style as Quotation */}
+      <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily: 'Georgia, serif', fontSize: '10pt' }}>
+        {/* Letterhead Space */}
+        <div style={{ height: `${letterheadMm}mm`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '11px', fontFamily: 'Inter, sans-serif' }}>
+          📎 Pre-printed Letterhead Space ({letterheadMm}mm)
+        </div>
+
+        {/* Content */}
+        <div style={{ maxHeight: `${297 - letterheadMm - footerMm}mm`, overflow: 'hidden', padding: '0 14mm' }}>
+          {/* Centered Heading */}
+          <h2 style={{ textAlign: 'center', fontSize: '26pt', fontFamily: 'Georgia, serif', marginBottom: '4px' }}>
+            Tax Invoice <u>No</u> :- {invNum}
+          </h2>
+
+          {/* Date Row */}
+          <p style={{ textAlign: 'center', fontSize: '10pt', marginBottom: '2px', color: '#555' }}>
+            Date: {invoice.invoice_date}{invoice.due_date ? ` | Due: ${invoice.due_date}` : ''}
+          </p>
+
+          {/* Customer Name - Bold Uppercase */}
+          <p style={{ textAlign: 'center', fontSize: '13pt', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '2px' }}>
+            {(invoice.customer_name || '').toUpperCase()}
+          </p>
+
+          {/* Customer GSTIN */}
+          {invoice.customer_gstin && (
+            <p style={{ textAlign: 'center', fontSize: '10pt', marginBottom: '6px' }}>
+              GSTIN: {invoice.customer_gstin}
+            </p>
+          )}
+
+          {/* Items Table */}
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10pt' }}>
+            <thead><tr style={{ background: '#f0f0f0' }}>
+              <th style={{ border: '1px solid #000', padding: '5px', width: '7%', textAlign: 'center' }}>SR.No</th>
+              <th style={{ border: '1px solid #000', padding: '5px', width: '35%', textAlign: 'center' }}>Particulars</th>
+              <th style={{ border: '1px solid #000', padding: '5px', width: '10%', textAlign: 'center' }}>HSN</th>
+              <th style={{ border: '1px solid #000', padding: '5px', width: '10%', textAlign: 'center' }}>Quantity</th>
+              <th style={{ border: '1px solid #000', padding: '5px', width: '18%', textAlign: 'center' }}>Rate INR</th>
+              <th style={{ border: '1px solid #000', padding: '5px', width: '20%', textAlign: 'center' }}>Amount INR</th>
+            </tr></thead>
+            <tbody>
+              {items.map((item, i) => (
+                <tr key={i}>
+                  <td style={{ border: '1px solid #000', padding: '3px', textAlign: 'center' }}>{i + 1}</td>
+                  <td style={{ border: '1px solid #000', padding: '3px', fontSize: '9.5pt', lineHeight: '1.35' }}>{item.description || ''}</td>
+                  <td style={{ border: '1px solid #000', padding: '3px', textAlign: 'center' }}>{item.hsn_code || ''}</td>
+                  <td style={{ border: '1px solid #000', padding: '3px', textAlign: 'center' }}>{item.quantity} {item.unit || 'NOS'}</td>
+                  <td style={{ border: '1px solid #000', padding: '3px', textAlign: 'right' }}>{parseFloat(item.rate).toFixed(2)}</td>
+                  <td style={{ border: '1px solid #000', padding: '3px', textAlign: 'right', fontWeight: 'bold' }}>{parseFloat(item.amount).toFixed(2)}</td>
+>>>>>>> Stashed changes
                 </tr>
               ))}
               <tr style={{ fontWeight: 'bold', background: '#f8f8f8' }}>
@@ -310,6 +366,7 @@ export default function InvoiceDetail() {
               </tr>
             </tbody>
           </table>
+<<<<<<< Updated upstream
         </div>
 
         {/* ===== BANK DETAILS + SIGNATURE ===== */}
@@ -344,6 +401,44 @@ export default function InvoiceDetail() {
         <div style={{ marginTop: '4px', fontSize: '7pt', color: '#888', textAlign: 'center' }}>
           <strong>Company GSTIN:</strong> {org?.gstin || ''} | <strong>State:</strong> {org?.state} ({org?.state_code}) | Page 1/1
         </div>
+=======
+
+          {/* Totals */}
+          <table style={{ width: '100%', marginTop: '2px', fontSize: '10pt' }}>
+            <tbody>
+              <tr><td style={{ textAlign: 'right', padding: '4px', width: '80%' }}>Subtotal</td><td style={{ textAlign: 'right', padding: '4px' }}>{formatCurrency(invoice.subtotal)}</td></tr>
+              {hasCGST && <>
+                <tr><td style={{ textAlign: 'right', padding: '4px' }}>CGST @ {parseFloat(items[0]?.cgst_rate || 9).toFixed(1)}%</td><td style={{ textAlign: 'right', padding: '4px' }}>{formatCurrency(invoice.cgst_amount)}</td></tr>
+                <tr><td style={{ textAlign: 'right', padding: '4px' }}>SGST @ {parseFloat(items[0]?.sgst_rate || 9).toFixed(1)}%</td><td style={{ textAlign: 'right', padding: '4px' }}>{formatCurrency(invoice.sgst_amount)}</td></tr>
+              </>}
+              {hasIGST && <tr><td style={{ textAlign: 'right', padding: '4px' }}>IGST @ {parseFloat(items[0]?.igst_rate || 18).toFixed(1)}%</td><td style={{ textAlign: 'right', padding: '4px' }}>{formatCurrency(invoice.igst_amount)}</td></tr>}
+              {parseFloat(invoice.discount) > 0 && <tr><td style={{ textAlign: 'right', padding: '4px' }}>Discount</td><td style={{ textAlign: 'right', padding: '4px' }}>-{formatCurrency(invoice.discount)}</td></tr>}
+              {parseFloat(invoice.round_off) !== 0 && <tr><td style={{ textAlign: 'right', padding: '4px' }}>Round Off</td><td style={{ textAlign: 'right', padding: '4px' }}>{formatCurrency(invoice.round_off)}</td></tr>}
+              <tr style={{ fontSize: '11pt' }}>
+                <td style={{ textAlign: 'right', padding: '5px' }}><strong>Total :</strong></td>
+                <td style={{ textAlign: 'right', padding: '5px', fontWeight: 'bold' }}>{formatCurrency(invoice.total_amount)}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* Amount in Words */}
+          <p style={{ marginTop: '6px', fontSize: '9pt' }}>
+            <strong>Amount in Words:</strong> {numberToWords(invoice.total_amount)}
+          </p>
+
+          {/* Company GSTIN */}
+          <p style={{ marginTop: '4px', fontSize: '8pt', color: '#555' }}>
+            <strong>Company GSTIN:</strong> {org?.gstin || ''} | <strong>State:</strong> {org?.state} ({org?.state_code})
+          </p>
+
+          {invoice.notes && <p style={{ marginTop: '4px', fontSize: '8pt', color: '#666' }}>{invoice.notes}</p>}
+        </div>
+
+        {/* Footer Space */}
+        <div style={{ height: `${footerMm}mm`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '11px', fontFamily: 'Inter, sans-serif' }}>
+          📎 Stamp + Signature + Address Space ({footerMm}mm)
+        </div>
+>>>>>>> Stashed changes
       </div>
     </div>
   )
