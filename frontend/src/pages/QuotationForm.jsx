@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../api/client'
+import { HSN_CODES } from '../data/hsnCodes'
 import { Save, Plus, X, ArrowLeft } from 'lucide-react'
 
 const DEFAULT_TEMPLATE = `DESIGN, MANUFACTURE & FABRICATION OF TOP-LOADING SS304CR TANK USING JINDAL-CERTIFIED MATERIAL WITH TC REPORT. TANKER CAPACITY: 37KL DIVIDED INTO 6 COMPARTMENTS
@@ -27,23 +28,22 @@ export default function QuotationForm() {
   const navigate = useNavigate()
   const isEdit = !!id
 
-  const [customers, setCustomers] = useState([])
   const [form, setForm] = useState({
-    customer_id: '',
     customer_name: '',
     additional_info: '',
     actual_notes: '',
-    quotation_date: new Date().toISOString().split('T')[0],
-    validity_date: new Date(Date.now() + 30*86400000).toISOString().split('T')[0],
     igst_rate: 18,
   })
   const [items, setItems] = useState([{ description: '', quantity: 1, unit: 'Unit', rate: 0, igst_rate: 18, amount: 0 }])
   const [calculated, setCalculated] = useState({ subtotal: 0, igst_amount: 0, total_amount: 0 })
   const [saving, setSaving] = useState(false)
-  const [manualOverride, setManualOverride] = useState({ igst: false, total_amount: false })
+
+  // GST auto-fetch
+  const [gstinInput, setGstinInput] = useState('')
+  const [gstinLoading, setGstinLoading] = useState(false)
+  const [gstinError, setGstinError] = useState('')
 
   useEffect(() => {
-    api.get('/customers').then(res => setCustomers(res.data.customers || [])).catch(() => {})
     if (isEdit) loadQuotation()
     else loadTemplate()
   }, [])
@@ -68,12 +68,9 @@ export default function QuotationForm() {
       const q = res.data.quotation
       setForm(prev => ({
         ...prev,
-        customer_id: q.customer_id || '',
         customer_name: q.customer_name || '',
         additional_info: q.additional_info || '',
         actual_notes: q.actual_notes || '',
-        quotation_date: q.quotation_date?.split('T')[0] || new Date().toISOString().split('T')[0],
-        validity_date: q.validity_date?.split('T')[0] || '',
         igst_rate: parseFloat(res.data.items?.[0]?.igst_rate || 18),
       }))
       setItems(res.data.items?.length > 0 ? res.data.items : [{ description: '', quantity: 1, unit: 'Unit', rate: 0, igst_rate: 18, amount: 0 }])
@@ -113,9 +110,9 @@ export default function QuotationForm() {
     setSaving(true)
     try {
       const data = {
-        customer_id: form.customer_id || null,
-        quotation_date: form.quotation_date,
-        validity_date: form.validity_date,
+        customer_id: null,
+        quotation_date: new Date().toISOString().split('T')[0],
+        validity_date: null,
         subtotal: calculated.subtotal,
         cgst_amount: 0,
         sgst_amount: 0,
@@ -126,7 +123,7 @@ export default function QuotationForm() {
         actual_notes: form.actual_notes,
         items: items.map(i => ({
           description: i.description,
-          hsn_code: i.hsn_code || '7309',
+          hsn_code: '7309',
           quantity: parseFloat(i.quantity),
           unit: i.unit || 'Unit',
           rate: parseFloat(i.rate),
@@ -147,18 +144,31 @@ export default function QuotationForm() {
     }
   }
 
-  const onCustomerSelect = (e) => {
-    const cid = e.target.value
-    if (cid) {
-      const customer = customers.find(c => c.id === parseInt(cid))
-      setForm({
-        ...form,
-        customer_id: cid,
-        customer_name: customer?.name || ''
-      })
-    } else {
-      setForm({ ...form, customer_id: '', customer_name: '' })
+  // Auto-fetch customer details via GSTIN
+  const fetchGstinDetails = async () => {
+    const gstin = gstinInput.trim().toUpperCase()
+    if (!gstin || gstin.length < 15) {
+      setGstinError('Enter valid 15-digit GSTIN')
+      return
     }
+    setGstinLoading(true)
+    setGstinError('')
+    try {
+      const res = await api.get(`/gst/lookup/${gstin}`)
+      if (res.data.success && res.data.name) {
+        setForm({ ...form, customer_name: res.data.name })
+        if (res.data.source === 'local') {
+          setGstinError('')
+        }
+      } else if (res.data.success && res.data.source === 'parsed') {
+        setGstinError(`GSTIN valid. State: ${res.data.state}. Type customer name manually.`)
+      } else {
+        setGstinError('No name found. Type customer name manually.')
+      }
+    } catch {
+      setGstinError('Lookup failed. Type name manually.')
+    }
+    setGstinLoading(false)
   }
 
   return (
@@ -169,29 +179,31 @@ export default function QuotationForm() {
       </div>
 
       <div className="card space-y-4">
-        <div className="grid md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Select Customer</label>
-            <select value={form.customer_id} onChange={onCustomerSelect} className="input-field">
-              <option value="">-- Select or type below --</option>
-              {customers.map(c => <option key={c.id} value={c.id}>{c.name}{c.gstin ? ` (${c.gstin.substring(0,2)}...)` : ''}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name *</label>
-            <input value={form.customer_name} onChange={e => setForm({...form, customer_name: e.target.value, customer_id: ''})} className="input-field" placeholder="Customer name (free text)" />
-          </div>
+        {/* Customer Name - typeable */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name *</label>
+          <input value={form.customer_name} onChange={e => setForm({...form, customer_name: e.target.value})} className="input-field" placeholder="Type customer name" />
         </div>
-        <div className="grid md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Additional Info (PAN, Vehicle No.)</label>
-            <input value={form.additional_info} onChange={e => setForm({...form, additional_info: e.target.value})} className="input-field" />
+
+        {/* GSTIN Auto-fetch */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Customer GSTIN (optional — auto-fetch name)</label>
+          <div className="flex gap-2">
+            <input value={gstinInput} onChange={e => setGstinInput(e.target.value.toUpperCase())} className="input-field flex-1" placeholder="e.g. 27AFLPB0085N2Z8" maxLength={15} />
+            <button onClick={fetchGstinDetails} disabled={gstinLoading} className="btn-primary whitespace-nowrap">
+              {gstinLoading ? 'Fetching...' : 'Auto Fetch'}
+            </button>
           </div>
+          {gstinError && <p className="text-sm text-red-500 mt-1">{gstinError}</p>}
         </div>
-        <div className="grid md:grid-cols-2 gap-4">
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Quotation Date</label><input type="date" value={form.quotation_date} onChange={e => setForm({...form, quotation_date: e.target.value})} className="input-field" /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Validity Date</label><input type="date" value={form.validity_date} onChange={e => setForm({...form, validity_date: e.target.value})} className="input-field" /></div>
+
+        {/* Additional Info */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Additional Info (PAN, Vehicle No.)</label>
+          <input value={form.additional_info} onChange={e => setForm({...form, additional_info: e.target.value})} className="input-field" />
         </div>
+
+        {/* GST Rate */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">GST Rate</label>
           <div className="flex gap-2">
@@ -202,7 +214,6 @@ export default function QuotationForm() {
         </div>
       </div>
 
-      {/* Items */}
       <div className="card space-y-4">
         <h3 className="font-bold">Items</h3>
         {items.map((item, idx) => (
@@ -212,8 +223,7 @@ export default function QuotationForm() {
               {items.length > 1 && <button onClick={() => removeItem(idx)} className="text-red-400 hover:text-red-600"><X size={16} /></button>}
             </div>
             <textarea value={item.description} onChange={e => updateItem(idx, 'description', e.target.value)} className="input-field" rows={6} style={{ minHeight: '150px' }} placeholder="Item description..." />
-            <div className="grid grid-cols-5 gap-3">
-              <div><label className="block text-xs text-gray-500 mb-1">HSN Code</label><input value={item.hsn_code || '7309'} onChange={e => updateItem(idx, 'hsn_code', e.target.value)} className="input-field" /></div>
+            <div className="grid grid-cols-4 gap-3">
               <div><label className="block text-xs text-gray-500 mb-1">Quantity</label><input type="number" value={item.quantity} onChange={e => updateItem(idx, 'quantity', e.target.value)} className="input-field" /></div>
               <div><label className="block text-xs text-gray-500 mb-1">Unit</label><select value={item.unit} onChange={e => updateItem(idx, 'unit', e.target.value)} className="input-field">{['Unit','NOS','KG','SET','LOT'].map(u=><option key={u}>{u}</option>)}</select></div>
               <div><label className="block text-xs text-gray-500 mb-1">Rate</label><input type="number" value={item.rate} onChange={e => updateItem(idx, 'rate', e.target.value)} className="input-field" /></div>
@@ -224,30 +234,15 @@ export default function QuotationForm() {
         <button onClick={addItem} className="btn-secondary text-sm flex items-center gap-1"><Plus size={14} /> Add Item</button>
       </div>
 
-      {/* Totals */}
       <div className="card">
         <div className="max-w-sm ml-auto space-y-2 text-sm">
           <div className="flex justify-between"><span>Subtotal</span><span className="font-medium">₹{calculated.subtotal.toFixed(2)}</span></div>
-          <div className="flex justify-between items-center">
-            <span>IGST @ {form.igst_rate}%</span>
-            <div className="flex items-center gap-2">
-              {manualOverride.igst ? (
-                <input type="number" value={calculated.igst_amount} onChange={e => setCalculated({...calculated, igst_amount: parseFloat(e.target.value)||0, total_amount: calculated.subtotal + parseFloat(e.target.value||0)})} className="input-field w-28 text-right text-sm" />
-              ) : (
-                <span className="font-medium">₹{calculated.igst_amount.toFixed(2)}</span>
-              )}
-              <button onClick={() => setManualOverride({...manualOverride, igst: !manualOverride.igst})} className="text-xs text-primary-600">{manualOverride.igst ? 'Reset' : 'Override'}</button>
-            </div>
-          </div>
+          <div className="flex justify-between"><span>IGST @ {form.igst_rate}%</span><span className="font-medium">₹{calculated.igst_amount.toFixed(2)}</span></div>
           <hr />
-          <div className="flex justify-between text-base font-bold">
-            <span>Total</span>
-            <span>₹{calculated.total_amount.toFixed(2)}</span>
-          </div>
+          <div className="flex justify-between text-base font-bold"><span>Total</span><span>₹{calculated.total_amount.toFixed(2)}</span></div>
         </div>
       </div>
 
-      {/* Notes */}
       <div className="card">
         <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
         <textarea value={form.actual_notes} onChange={e => setForm({...form, actual_notes: e.target.value})} className="input-field" rows={3} />
