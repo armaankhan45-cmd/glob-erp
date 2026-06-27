@@ -55,6 +55,7 @@ export default function InvoiceDetail() {
   const invoiceDate = formatDate(invoice.invoice_date)
   const dueDate = formatDate(invoice.due_date)
 
+  // HSN summary — use qty*rate as taxable, NOT item.amount
   const hsnMap = {}
   items.forEach(item => {
     const hsn = item.hsn_code || 'Others'
@@ -87,6 +88,7 @@ export default function InvoiceDetail() {
 
       <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '9pt', color: '#000', width: '210mm', height: '297mm', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'white' }}>
 
+        {/* ===== HEADER ===== */}
         <div style={{ display: 'flex', borderBottom: '2px solid #000', padding: '6px 10px', flexShrink: 0 }}>
           <div style={{ width: '56px', height: '56px', border: '1px solid #999', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: '10px', flexShrink: 0 }}>
             {org?.logo_url ? <img src={org.logo_url} alt="" style={{ maxWidth: '50px', maxHeight: '50px' }} /> : <span style={{ fontSize: '7px', color: '#aaa' }}>LOGO</span>}
@@ -102,11 +104,13 @@ export default function InvoiceDetail() {
           </div>
         </div>
 
+        {/* ===== TAX INVOICE TITLE ===== */}
         <div style={{ textAlign: 'center', padding: '3px 0', borderBottom: '2px solid #000', flexShrink: 0 }}>
           <div style={{ fontSize: '12pt', fontWeight: 'bold', letterSpacing: '2px' }}>TAX INVOICE</div>
           <div style={{ fontSize: '7pt', fontWeight: 'bold', color: '#555' }}>ORIGINAL FOR RECIPIENT</div>
         </div>
 
+        {/* ===== INVOICE + CUSTOMER INFO ===== */}
         <div style={{ display: 'flex', borderBottom: '1px solid #000', flexShrink: 0 }}>
           <div style={{ width: '35%', borderRight: '1px solid #000', padding: '4px 8px', fontSize: '8pt' }}>
             <div><strong>Invoice #:</strong> {invNum}</div>
@@ -123,6 +127,7 @@ export default function InvoiceDetail() {
           </div>
         </div>
 
+        {/* ===== ITEMS TABLE ===== */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8pt', flex: 1 }}>
             <thead>
@@ -165,6 +170,7 @@ export default function InvoiceDetail() {
             </tbody>
           </table>
 
+          {/* ===== TOTALS ===== */}
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt', flexShrink: 0 }}>
             <tbody>
               <tr><td style={{ ...c, textAlign: 'right', width: '72%' }}>Taxable Amount</td><td style={{ ...c, textAlign: 'right' }}>₹{fmt(invoice.subtotal)}</td></tr>
@@ -183,11 +189,13 @@ export default function InvoiceDetail() {
           </table>
         </div>
 
+        {/* ===== AMOUNT IN WORDS ===== */}
         <div style={{ fontSize: '8pt', padding: '3px 0', borderTop: '1px solid #000', flexShrink: 0 }}>
           <strong>Amount Chargeable (in words):</strong> INR {numberToWords(invoice.total_amount)}
           <span style={{ float: 'right', fontSize: '7pt', color: '#666' }}>E & O.E</span>
         </div>
 
+        {/* ===== HSN SUMMARY ===== */}
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '7.5pt', flexShrink: 0 }}>
           <thead>
             <tr>
@@ -220,6 +228,7 @@ export default function InvoiceDetail() {
           </tbody>
         </table>
 
+        {/* ===== BANK + SIGNATURE ===== */}
         <div style={{ display: 'flex', borderTop: '1px solid #000', marginTop: '2px', paddingTop: '3px', flexShrink: 0 }}>
           <div style={{ width: '55%', fontSize: '7.5pt' }}>
             <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>Bank Details:</div>
@@ -239,3 +248,4 @@ export default function InvoiceDetail() {
     </div>
   )
 }
+
