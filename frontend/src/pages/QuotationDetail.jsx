@@ -59,12 +59,18 @@ export default function QuotationDetail() {
   const hasIGST = parseFloat(quotation.igst_amount) > 0
   const gstRate = hasIGST
     ? parseFloat(items[0]?.igst_rate || 18)
-    : (hasCGST ? parseFloat(items[0]?.cgst_rate || 9) * 2 : 0)
+    : (hasCGST ? parseFloat(items[0]?.cgst_rate || 9) * 2 : 18)
   const totalGST = parseFloat(quotation.igst_amount) + parseFloat(quotation.cgst_amount) + parseFloat(quotation.sgst_amount)
+
+  const fmt = (n) => new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
+
+  const s = {
+    cell: { border: '1.5px solid #000', padding: '4px 5px', verticalAlign: 'top' },
+    hc: { border: '1.5px solid #000', padding: '5px', background: '#e8e8e8', textAlign: 'center', fontWeight: 'bold' }
+  }
 
   return (
     <div className="space-y-4">
-      {/* Action buttons */}
       <div className="flex flex-wrap items-center gap-2 no-print">
         <button onClick={() => navigate('/app/quotations')} className="p-2 hover:bg-gray-100 rounded-lg"><ArrowLeft size={20} /></button>
         <h1 className="text-xl font-bold flex-1">Quotation {quotation.quotation_number}</h1>
@@ -75,120 +81,92 @@ export default function QuotationDetail() {
         <button onClick={handleDelete} className="btn-danger flex items-center gap-2"><Trash2 size={16} /> Delete</button>
       </div>
 
-      {/* A4 Print Layout - Letterhead space only at top, NO sign/stamp space at bottom */}
-      <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily: 'Georgia, serif', fontSize: '10pt' }}>
-        {/* Pre-printed Letterhead Space */}
-        <div style={{ height: `${letterheadMm}mm`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '11px', fontFamily: 'Inter, sans-serif' }}>
+      <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily: 'Georgia, serif', fontSize: '10pt', width: '210mm', height: '297mm', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'white' }}>
+        {/* Letterhead Space */}
+        <div style={{ height: `${letterheadMm}mm`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '11px', fontFamily: 'Inter, sans-serif' }}>
           📎 Pre-printed Letterhead Space ({letterheadMm}mm)
         </div>
 
-        {/* Content - fills the rest of the page */}
-        <div style={{ padding: '0 12mm 6mm' }}>
+        {/* Content Box - fills remaining space minus 30mm footer */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', border: '2px solid #000', margin: '0 10mm', overflow: 'hidden' }}>
 
           {/* Heading */}
-          <h2 style={{ textAlign: 'center', fontSize: '22pt', fontFamily: 'Georgia, serif', marginBottom: '2px' }}>
+          <div style={{ textAlign: 'center', padding: '8px 0 2px', fontSize: '20pt', fontWeight: 'bold' }}>
             Quotation <u>No</u> :- {qNum}
-          </h2>
-
-          {/* Customer Name - Bold Uppercase */}
-          <p style={{ textAlign: 'center', fontSize: '12pt', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '2px' }}>
-            {(quotation.customer_name || '').toUpperCase()}
-          </p>
-
-          {/* Additional Info (PAN, Vehicle No.) */}
-          {quotation.additional_info && (
-            <p style={{ textAlign: 'center', fontSize: '10pt', marginBottom: '2px' }}>{quotation.additional_info}</p>
-          )}
-
-          {/* Date Row */}
-          <p style={{ textAlign: 'center', fontSize: '9pt', marginBottom: '8px', color: '#555' }}>
-            Date: {quotation.quotation_date}{quotation.validity_date ? ` | Valid till: ${quotation.validity_date}` : ''}
-          </p>
-
-          {/* Items Table - Full box styling */}
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9.5pt' }}>
-            <thead>
-              <tr style={{ background: '#e8e8e8' }}>
-                <th style={{ border: '1.5px solid #000', padding: '5px 4px', width: '7%', textAlign: 'center' }}>SR No.</th>
-                <th style={{ border: '1.5px solid #000', padding: '5px 4px', width: '47%', textAlign: 'center' }}>Particulars</th>
-                <th style={{ border: '1.5px solid #000', padding: '5px 4px', width: '12%', textAlign: 'center' }}>Quantity</th>
-                <th style={{ border: '1.5px solid #000', padding: '5px 4px', width: '17%', textAlign: 'center' }}>Rate (INR)</th>
-                <th style={{ border: '1.5px solid #000', padding: '5px 4px', width: '17%', textAlign: 'center' }}>Amount (INR)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item, i) => (
-                <tr key={i}>
-                  <td style={{ border: '1.5px solid #000', padding: '3px 4px', textAlign: 'center', verticalAlign: 'top' }}>{i + 1}</td>
-                  <td style={{
-                    border: '1.5px solid #000',
-                    padding: '3px 4px',
-                    fontSize: '9pt',
-                    lineHeight: '1.35',
-                    fontWeight: boldOn ? 'bold' : 'normal',
-                    whiteSpace: 'pre-line'
-                  }}>
-                    {item.description || ''}
-                  </td>
-                  <td style={{ border: '1.5px solid #000', padding: '3px 4px', textAlign: 'center', verticalAlign: 'top' }}>
-                    {item.quantity}{item.unit && item.unit !== 'Unit' ? ` ${item.unit}` : ''}
-                  </td>
-                  <td style={{ border: '1.5px solid #000', padding: '3px 4px', textAlign: 'right', verticalAlign: 'top' }}>{formatIndian(item.rate)}</td>
-                  <td style={{ border: '1.5px solid #000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold', verticalAlign: 'top' }}>{formatIndian(item.amount)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {/* GST + Total Box */}
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9.5pt', marginTop: '0' }}>
-            <tbody>
-              {gstRate > 0 && (
-                <tr>
-                  <td style={{ borderLeft: '1.5px solid #000', borderBottom: '1.5px solid #000', padding: '4px 6px', textAlign: 'right', width: '78%' }}>
-                    GST: {gstRate}%
-                  </td>
-                  <td style={{ border: '1.5px solid #000', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold' }}>
-                    {formatIndian(totalGST)}
-                  </td>
-                </tr>
-              )}
-              <tr style={{ background: '#f0f0f0' }}>
-                <td style={{ borderLeft: '1.5px solid #000', borderBottom: '1.5px solid #000', padding: '5px 6px', textAlign: 'right', fontSize: '11pt' }}>
-                  <strong>Total :</strong>
-                </td>
-                <td style={{ border: '1.5px solid #000', padding: '5px 6px', textAlign: 'right', fontSize: '11pt', fontWeight: 'bold' }}>
-                  ₹{formatIndian(quotation.total_amount)}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-
-          {/* Amount in Words - ALL CAPS */}
-          <p style={{ marginTop: '8px', fontSize: '10pt', fontWeight: 'bold' }}>
-            {numberToWordsCaps(quotation.total_amount)}
-          </p>
-
-          {/* Company Info */}
-          <div style={{ marginTop: '8px', fontSize: '8.5pt', color: '#444', borderTop: '1px solid #ddd', paddingTop: '4px' }}>
-            <strong>GSTIN:</strong> {org?.gstin || ''} | <strong>State:</strong> {org?.state} ({org?.state_code})
           </div>
 
-          {/* Bank Details */}
-          {org?.bank_name && (
-            <div style={{ marginTop: '3px', fontSize: '8.5pt', color: '#444' }}>
-              <strong>Bank:</strong> {org.bank_name} | <strong>A/C:</strong> {org.account_no} | <strong>IFSC:</strong> {org.ifsc}
-            </div>
+          {/* Customer Name */}
+          <div style={{ textAlign: 'center', fontSize: '12pt', fontWeight: 'bold', textTransform: 'uppercase', padding: '2px 8px' }}>
+            {(quotation.customer_name || '').toUpperCase()}
+          </div>
+
+          {/* Additional Info */}
+          {quotation.additional_info && (
+            <div style={{ textAlign: 'center', fontSize: '9pt', padding: '0 8px 2px' }}>{quotation.additional_info}</div>
           )}
 
-          {/* Actual Notes */}
-          {quotation.actual_notes && (
-            <div style={{ marginTop: '6px', fontSize: '8.5pt', color: '#555', borderTop: '1px dotted #ccc', paddingTop: '4px' }}>
-              {quotation.actual_notes}
+          {/* Items Table - flex to fill space */}
+          <div style={{ flex: 1, padding: '4px 5px 0', overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt', height: '100%' }}>
+              <thead>
+                <tr>
+                  <th style={{ ...s.hc, width: '6%' }}>SR No.</th>
+                  <th style={{ ...s.hc, width: '50%' }}>Particulars</th>
+                  <th style={{ ...s.hc, width: '10%' }}>Quantity</th>
+                  <th style={{ ...s.hc, width: '17%' }}>Rate (INR)</th>
+                  <th style={{ ...s.hc, width: '17%' }}>Amount (INR)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item, i) => (
+                  <tr key={i}>
+                    <td style={{ ...s.cell, textAlign: 'center' }}>{i + 1}</td>
+                    <td style={{ ...s.cell, fontSize: '8.5pt', lineHeight: '1.3', fontWeight: boldOn ? 'bold' : 'normal', whiteSpace: 'pre-line' }}>{item.description || ''}</td>
+                    <td style={{ ...s.cell, textAlign: 'center' }}>{item.quantity}{item.unit && item.unit !== 'Unit' ? ` ${item.unit}` : ''}</td>
+                    <td style={{ ...s.cell, textAlign: 'right' }}>₹{fmt(item.rate)}</td>
+                    <td style={{ ...s.cell, textAlign: 'right', fontWeight: 'bold' }}>₹{fmt(item.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* GST + Total + Amount in Words — all inside box */}
+          <div style={{ padding: '0 5px 6px', flexShrink: 0 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt' }}>
+              <tbody>
+                {gstRate > 0 && (
+                  <tr>
+                    <td style={{ borderLeft: '1.5px solid #000', borderBottom: '1.5px solid #000', borderTop: '1.5px solid #000', padding: '4px 6px', textAlign: 'right', width: '76%', borderRight: '1.5px solid #000' }}>
+                      GST: {gstRate}%
+                    </td>
+                    <td style={{ border: '1.5px solid #000', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold' }}>
+                      ₹{fmt(totalGST)}
+                    </td>
+                  </tr>
+                )}
+                <tr style={{ background: '#f0f0f0' }}>
+                  <td style={{ borderLeft: '1.5px solid #000', borderBottom: '1.5px solid #000', borderTop: '1.5px solid #000', padding: '5px 6px', textAlign: 'right', fontSize: '11pt', borderRight: '1.5px solid #000' }}>
+                    <strong>Total :</strong>
+                  </td>
+                  <td style={{ border: '1.5px solid #000', padding: '5px 6px', textAlign: 'right', fontSize: '11pt', fontWeight: 'bold' }}>
+                    ₹{fmt(quotation.total_amount)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            {/* Amount in Words — centered inside box */}
+            <div style={{ border: '1.5px solid #000', borderTop: 'none', padding: '6px 8px', fontSize: '10pt', fontWeight: 'bold', textAlign: 'center', background: '#fafafa' }}>
+              {numberToWordsCaps(quotation.total_amount)}
             </div>
-          )}
+          </div>
         </div>
-        {/* NO footer/stamp space - content fills to bottom */}
+
+        {/* 30mm Sign & Stamp Space */}
+        <div style={{ height: '30mm', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '11px', fontFamily: 'Inter, sans-serif' }}>
+          📎 Sign & Stamp Space (30mm)
+        </div>
       </div>
     </div>
   )
