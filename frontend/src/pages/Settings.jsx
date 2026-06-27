@@ -3,6 +3,8 @@ import api from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import { Save, Upload, Plus, Trash2, Eye, EyeOff } from 'lucide-react'
 
+const FONTS = ['Georgia', 'Times New Roman', 'Arial', 'Courier New', 'Trebuchet MS', 'Verdana', 'Palatino', 'Garamond', 'Book Antiqua', 'Lucida Console']
+
 export default function Settings() {
   const { user, refreshUser } = useAuth()
   const [org, setOrg] = useState({})
@@ -14,6 +16,7 @@ export default function Settings() {
   const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'viewer' })
   const [msg, setMsg] = useState('')
   const [logoFile, setLogoFile] = useState(null)
+  const [logoUploading, setLogoUploading] = useState(false)
 
   useEffect(() => { loadData() }, [])
 
@@ -22,7 +25,6 @@ export default function Settings() {
       const res = await api.get('/settings')
       setOrg(res.data.organization || {})
       setSettings(res.data.settings || {})
-      // Load users
       const usersRes = await api.get('/auth/users')
       setUsers(usersRes.data.users || [])
     } catch (err) {
@@ -39,6 +41,7 @@ export default function Settings() {
           name: org.name, gstin: org.gstin, address: org.address, city: org.city, state: org.state,
           state_code: org.state_code, pincode: org.pincode, phone: org.phone, email: org.email,
           bank_name: org.bank_name, account_no: org.account_no, ifsc: org.ifsc, upi_id: org.upi_id,
+          branch: org.branch,
           invoice_prefix: org.invoice_prefix, quotation_prefix: org.quotation_prefix,
           print_letterhead_mm: parseInt(org.print_letterhead_mm) || 65,
           print_footer_mm: parseInt(org.print_footer_mm) || 50
@@ -46,13 +49,16 @@ export default function Settings() {
         settings: {
           print_font_size: settings.print_font_size || '9.5',
           print_font_family: settings.print_font_family || 'Georgia',
+          quotation_font_family: settings.quotation_font_family || 'Georgia',
+          quotation_font_size: settings.quotation_font_size || '9',
+          app_font_family: settings.app_font_family || 'Inter',
           default_gst_rate: settings.default_gst_rate || '18'
         }
       })
       await refreshUser()
-      setMsg('Settings saved successfully!')
+      setMsg('✓ Settings saved successfully!')
     } catch (err) {
-      setMsg('Failed to save settings')
+      setMsg('✗ Failed to save settings')
     } finally {
       setSaving(false)
     }
@@ -60,24 +66,26 @@ export default function Settings() {
 
   const handleLogoUpload = async () => {
     if (!logoFile) return
+    setLogoUploading(true)
     const formData = new FormData()
     formData.append('logo', logoFile)
     try {
-      await api.post('/settings/upload/logo', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
-      setMsg('Logo uploaded!')
-      loadData()
+      const res = await api.post('/settings/upload/logo', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+      setOrg({ ...org, logo_url: res.data.logoUrl })
+      setMsg('✓ Logo uploaded! It will show on invoices and the website.')
     } catch (err) {
-      setMsg('Logo upload failed')
+      setMsg('✗ Logo upload failed: ' + (err.response?.data?.msg || err.message))
     }
+    setLogoUploading(false)
   }
 
   const handleChangePassword = async () => {
     try {
       await api.post('/auth/change-password', passwordForm)
-      setMsg('Password changed!')
+      setMsg('✓ Password changed!')
       setPasswordForm({ currentPassword: '', newPassword: '' })
     } catch (err) {
-      setMsg(err.response?.data?.msg || 'Failed to change password')
+      setMsg(err.response?.data?.msg || '✗ Failed to change password')
     }
   }
 
@@ -86,9 +94,9 @@ export default function Settings() {
       await api.post('/auth/users', newUser)
       setNewUser({ name: '', email: '', password: '', role: 'viewer' })
       loadData()
-      setMsg('User added!')
+      setMsg('✓ User added!')
     } catch (err) {
-      setMsg(err.response?.data?.msg || 'Failed to add user')
+      setMsg(err.response?.data?.msg || '✗ Failed to add user')
     }
   }
 
@@ -99,7 +107,7 @@ export default function Settings() {
     <div className="max-w-4xl mx-auto space-y-6">
       <h1 className="text-2xl font-bold">Settings</h1>
 
-      {msg && <div className={`p-3 rounded-lg text-sm ${msg.includes('Failed') ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>{msg}</div>}
+      {msg && <div className={`p-3 rounded-lg text-sm ${msg.includes('✗') ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>{msg}</div>}
 
       {/* Company Details */}
       <div className="card space-y-4">
@@ -125,7 +133,83 @@ export default function Settings() {
           <div><label className="block text-sm font-medium text-gray-700 mb-1">Bank Name</label><input value={org.bank_name || ''} onChange={e => update('bank_name', e.target.value)} className="input-field" /></div>
           <div><label className="block text-sm font-medium text-gray-700 mb-1">Account No</label><input value={org.account_no || ''} onChange={e => update('account_no', e.target.value)} className="input-field" /></div>
           <div><label className="block text-sm font-medium text-gray-700 mb-1">IFSC</label><input value={org.ifsc || ''} onChange={e => update('ifsc', e.target.value)} className="input-field" /></div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Branch</label><input value={org.branch || ''} onChange={e => update('branch', e.target.value)} className="input-field" /></div>
           <div><label className="block text-sm font-medium text-gray-700 mb-1">UPI ID</label><input value={org.upi_id || ''} onChange={e => update('upi_id', e.target.value)} className="input-field" /></div>
+        </div>
+      </div>
+
+      {/* Logo Upload */}
+      <div className="card space-y-4">
+        <h3 className="font-bold text-lg">Business Logo</h3>
+        <p className="text-sm text-gray-500">This logo will appear on your invoices and on the website sidebar.</p>
+        <div className="flex items-center gap-4 flex-wrap">
+          {org.logo_url && (
+            <div style={{ width: '64px', height: '64px', borderRadius: '50%', overflow: 'hidden', border: '2px solid #0a3d6b', flexShrink: 0 }}>
+              <img src={org.logo_url} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            </div>
+          )}
+          <input type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => setLogoFile(e.target.files[0])} className="text-sm" />
+          <button onClick={handleLogoUpload} disabled={logoUploading} className="btn-primary text-sm flex items-center gap-2">
+            <Upload size={14} /> {logoUploading ? 'Uploading...' : 'Upload'}
+          </button>
+          <span className="text-xs text-gray-400">Max 2MB, PNG/JPG/WebP</span>
+        </div>
+      </div>
+
+      {/* Invoice Font Settings */}
+      <div className="card space-y-4">
+        <h3 className="font-bold text-lg">Invoice Font Settings</h3>
+        <div className="grid md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Invoice Font Family</label>
+            <select value={settings.print_font_family || 'Arial'} onChange={e => updateSetting('print_font_family', e.target.value)} className="input-field">
+              {FONTS.map(f => <option key={f} value={f}>{f}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Invoice Font Size: {settings.print_font_size || '9.5'}pt</label>
+            <input type="range" min="7" max="14" step="0.5" value={settings.print_font_size || 9.5} onChange={e => updateSetting('print_font_size', e.target.value)} className="w-full" />
+          </div>
+        </div>
+      </div>
+
+      {/* Quotation Font Settings */}
+      <div className="card space-y-4">
+        <h3 className="font-bold text-lg">Quotation Font Settings</h3>
+        <div className="grid md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Quotation Font Family</label>
+            <select value={settings.quotation_font_family || 'Georgia'} onChange={e => updateSetting('quotation_font_family', e.target.value)} className="input-field">
+              {FONTS.map(f => <option key={f} value={f}>{f}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Quotation Font Size: {settings.quotation_font_size || '9'}pt</label>
+            <input type="range" min="7" max="14" step="0.5" value={settings.quotation_font_size || 9} onChange={e => updateSetting('quotation_font_size', e.target.value)} className="w-full" />
+          </div>
+        </div>
+        {/* Preview */}
+        <div className="border rounded-lg p-4 bg-white" style={{ fontFamily: settings.quotation_font_family || 'Georgia', fontSize: `${settings.quotation_font_size || 9}pt` }}>
+          <p style={{ lineHeight: 1.35 }}>
+            MODEL NO - TATA SIGNA 4425.T<br />
+            DESIGN, MANUFACTURE & FABRICATION OF TOP-LOADING SS304CR TANK<br />
+            • SHELL: 3.5 MM THICK<br />
+            • DISH END: 3.5 MM THICK
+          </p>
+        </div>
+      </div>
+
+      {/* App Font Settings */}
+      <div className="card space-y-4">
+        <h3 className="font-bold text-lg">App Font Settings</h3>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">App Font Family</label>
+          <select value={settings.app_font_family || 'Inter'} onChange={e => updateSetting('app_font_family', e.target.value)} className="input-field">
+            {['Inter', 'Arial', 'Roboto', 'Helvetica', 'Segoe UI', 'Verdana', 'Georgia', 'Times New Roman'].map(f => <option key={f} value={f}>{f}</option>)}
+          </select>
+        </div>
+        <div className="border rounded-lg p-4 bg-white" style={{ fontFamily: settings.app_font_family || 'Inter' }}>
+          <p>This is how your app text will look.</p>
         </div>
       </div>
 
@@ -144,33 +228,6 @@ export default function Settings() {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Letterhead Top Space: {org.print_letterhead_mm || 65}mm</label>
           <input type="range" min="40" max="80" value={org.print_letterhead_mm || 65} onChange={e => update('print_letterhead_mm', e.target.value)} className="w-full" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Footer Bottom Space: {org.print_footer_mm || 50}mm</label>
-          <input type="range" min="20" max="60" value={org.print_footer_mm || 50} onChange={e => update('print_footer_mm', e.target.value)} className="w-full" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Description Font Size: {settings.print_font_size || '9.5'}pt</label>
-          <input type="range" min="7" max="14" step="0.5" value={settings.print_font_size || 9.5} onChange={e => updateSetting('print_font_size', e.target.value)} className="w-full" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Print Font Family</label>
-          <select value={settings.print_font_family || 'Georgia'} onChange={e => updateSetting('print_font_family', e.target.value)} className="input-field">
-            <option value="Georgia">Georgia</option>
-            <option value="Times New Roman">Times New Roman</option>
-            <option value="Arial">Arial</option>
-            <option value="Courier New">Courier New</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Logo Upload */}
-      <div className="card space-y-4">
-        <h3 className="font-bold text-lg">Logo Upload</h3>
-        <div className="flex items-center gap-4">
-          <input type="file" accept=".png,.jpg,.jpeg" onChange={e => setLogoFile(e.target.files[0])} className="text-sm" />
-          <button onClick={handleLogoUpload} className="btn-primary text-sm flex items-center gap-2"><Upload size={14} /> Upload</button>
-          <span className="text-xs text-gray-400">Max 2MB, PNG/JPG</span>
         </div>
       </div>
 
