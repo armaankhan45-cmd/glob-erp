@@ -1,0 +1,222 @@
+import { useState, useEffect } from 'react'
+import api from '../api/client'
+import { useAuth } from '../context/AuthContext'
+import { Save, Upload, Plus, Trash2, Eye, EyeOff } from 'lucide-react'
+
+export default function Settings() {
+  const { user, refreshUser } = useAuth()
+  const [org, setOrg] = useState({})
+  const [settings, setSettings] = useState({})
+  const [users, setUsers] = useState([])
+  const [saving, setSaving] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '' })
+  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'viewer' })
+  const [msg, setMsg] = useState('')
+  const [logoFile, setLogoFile] = useState(null)
+
+  useEffect(() => { loadData() }, [])
+
+  const loadData = async () => {
+    try {
+      const res = await api.get('/settings')
+      setOrg(res.data.organization || {})
+      setSettings(res.data.settings || {})
+      // Load users
+      const usersRes = await api.get('/auth/users')
+      setUsers(usersRes.data.users || [])
+    } catch (err) {
+      console.error('Settings load error:', err)
+    }
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    setMsg('')
+    try {
+      await api.post('/settings', {
+        organization: {
+          name: org.name, gstin: org.gstin, address: org.address, city: org.city, state: org.state,
+          state_code: org.state_code, pincode: org.pincode, phone: org.phone, email: org.email,
+          bank_name: org.bank_name, account_no: org.account_no, ifsc: org.ifsc, upi_id: org.upi_id,
+          invoice_prefix: org.invoice_prefix, quotation_prefix: org.quotation_prefix,
+          print_letterhead_mm: parseInt(org.print_letterhead_mm) || 65,
+          print_footer_mm: parseInt(org.print_footer_mm) || 50
+        },
+        settings: {
+          print_font_size: settings.print_font_size || '9.5',
+          print_font_family: settings.print_font_family || 'Georgia',
+          default_gst_rate: settings.default_gst_rate || '18'
+        }
+      })
+      await refreshUser()
+      setMsg('Settings saved successfully!')
+    } catch (err) {
+      setMsg('Failed to save settings')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleLogoUpload = async () => {
+    if (!logoFile) return
+    const formData = new FormData()
+    formData.append('logo', logoFile)
+    try {
+      await api.post('/settings/upload/logo', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+      setMsg('Logo uploaded!')
+      loadData()
+    } catch (err) {
+      setMsg('Logo upload failed')
+    }
+  }
+
+  const handleChangePassword = async () => {
+    try {
+      await api.post('/auth/change-password', passwordForm)
+      setMsg('Password changed!')
+      setPasswordForm({ currentPassword: '', newPassword: '' })
+    } catch (err) {
+      setMsg(err.response?.data?.msg || 'Failed to change password')
+    }
+  }
+
+  const handleAddUser = async () => {
+    try {
+      await api.post('/auth/users', newUser)
+      setNewUser({ name: '', email: '', password: '', role: 'viewer' })
+      loadData()
+      setMsg('User added!')
+    } catch (err) {
+      setMsg(err.response?.data?.msg || 'Failed to add user')
+    }
+  }
+
+  const update = (key, val) => setOrg({ ...org, [key]: val })
+  const updateSetting = (key, val) => setSettings({ ...settings, [key]: val })
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <h1 className="text-2xl font-bold">Settings</h1>
+
+      {msg && <div className={`p-3 rounded-lg text-sm ${msg.includes('Failed') ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>{msg}</div>}
+
+      {/* Company Details */}
+      <div className="card space-y-4">
+        <h3 className="font-bold text-lg">Company Details</h3>
+        <div className="grid md:grid-cols-2 gap-4">
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Company Name</label><input value={org.name || ''} onChange={e => update('name', e.target.value)} className="input-field" /></div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">GSTIN</label><input value={org.gstin || ''} onChange={e => update('gstin', e.target.value)} className="input-field" /></div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Address</label><input value={org.address || ''} onChange={e => update('address', e.target.value)} className="input-field" /></div>
+          <div className="grid grid-cols-3 gap-2">
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">City</label><input value={org.city || ''} onChange={e => update('city', e.target.value)} className="input-field" /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">State</label><input value={org.state || ''} onChange={e => update('state', e.target.value)} className="input-field" /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Pincode</label><input value={org.pincode || ''} onChange={e => update('pincode', e.target.value)} className="input-field" /></div>
+          </div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Phone</label><input value={org.phone || ''} onChange={e => update('phone', e.target.value)} className="input-field" /></div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Email</label><input value={org.email || ''} onChange={e => update('email', e.target.value)} className="input-field" /></div>
+        </div>
+      </div>
+
+      {/* Bank Details */}
+      <div className="card space-y-4">
+        <h3 className="font-bold text-lg">Bank Details</h3>
+        <div className="grid md:grid-cols-2 gap-4">
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Bank Name</label><input value={org.bank_name || ''} onChange={e => update('bank_name', e.target.value)} className="input-field" /></div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Account No</label><input value={org.account_no || ''} onChange={e => update('account_no', e.target.value)} className="input-field" /></div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">IFSC</label><input value={org.ifsc || ''} onChange={e => update('ifsc', e.target.value)} className="input-field" /></div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">UPI ID</label><input value={org.upi_id || ''} onChange={e => update('upi_id', e.target.value)} className="input-field" /></div>
+        </div>
+      </div>
+
+      {/* Document Numbering */}
+      <div className="card space-y-4">
+        <h3 className="font-bold text-lg">Document Numbering</h3>
+        <div className="grid md:grid-cols-2 gap-4">
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Invoice Prefix</label><input value={org.invoice_prefix || ''} onChange={e => update('invoice_prefix', e.target.value)} className="input-field" /></div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Quotation Prefix</label><input value={org.quotation_prefix || ''} onChange={e => update('quotation_prefix', e.target.value)} className="input-field" /></div>
+        </div>
+      </div>
+
+      {/* Print Layout */}
+      <div className="card space-y-4">
+        <h3 className="font-bold text-lg">Print Layout Settings</h3>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Letterhead Top Space: {org.print_letterhead_mm || 65}mm</label>
+          <input type="range" min="40" max="80" value={org.print_letterhead_mm || 65} onChange={e => update('print_letterhead_mm', e.target.value)} className="w-full" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Footer Bottom Space: {org.print_footer_mm || 50}mm</label>
+          <input type="range" min="20" max="60" value={org.print_footer_mm || 50} onChange={e => update('print_footer_mm', e.target.value)} className="w-full" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Description Font Size: {settings.print_font_size || '9.5'}pt</label>
+          <input type="range" min="7" max="14" step="0.5" value={settings.print_font_size || 9.5} onChange={e => updateSetting('print_font_size', e.target.value)} className="w-full" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Print Font Family</label>
+          <select value={settings.print_font_family || 'Georgia'} onChange={e => updateSetting('print_font_family', e.target.value)} className="input-field">
+            <option value="Georgia">Georgia</option>
+            <option value="Times New Roman">Times New Roman</option>
+            <option value="Arial">Arial</option>
+            <option value="Courier New">Courier New</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Logo Upload */}
+      <div className="card space-y-4">
+        <h3 className="font-bold text-lg">Logo Upload</h3>
+        <div className="flex items-center gap-4">
+          <input type="file" accept=".png,.jpg,.jpeg" onChange={e => setLogoFile(e.target.files[0])} className="text-sm" />
+          <button onClick={handleLogoUpload} className="btn-primary text-sm flex items-center gap-2"><Upload size={14} /> Upload</button>
+          <span className="text-xs text-gray-400">Max 2MB, PNG/JPG</span>
+        </div>
+      </div>
+
+      {/* Change Password */}
+      <div className="card space-y-4">
+        <h3 className="font-bold text-lg">Change Password</h3>
+        <div className="grid md:grid-cols-2 gap-4">
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+            <div className="relative"><input type={showPassword ? 'text' : 'password'} value={passwordForm.currentPassword} onChange={e => setPasswordForm({...passwordForm, currentPassword: e.target.value})} className="input-field pr-10" />
+              <button onClick={() => setShowPassword(!showPassword)} className="absolute right-2 top-2 text-gray-400">{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></div></div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">New Password</label><input type="password" value={passwordForm.newPassword} onChange={e => setPasswordForm({...passwordForm, newPassword: e.target.value})} className="input-field" /></div>
+        </div>
+        <button onClick={handleChangePassword} className="btn-primary text-sm">Change Password</button>
+      </div>
+
+      {/* User Management */}
+      {user?.role === 'admin' && (
+        <div className="card space-y-4">
+          <h3 className="font-bold text-lg">User Management</h3>
+          <table className="w-full text-sm">
+            <thead><tr className="border-b text-gray-500 text-left"><th className="pb-2">Name</th><th className="pb-2">Email</th><th className="pb-2">Role</th></tr></thead>
+            <tbody>
+              {users.map(u => (
+                <tr key={u.id} className="border-b border-gray-50"><td className="py-2">{u.name}</td><td className="py-2">{u.email}</td><td className="py-2"><span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100">{u.role}</span></td></tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="grid md:grid-cols-4 gap-3">
+            <input value={newUser.name} onChange={e => setNewUser({...newUser, name: e.target.value})} className="input-field" placeholder="Name" />
+            <input value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} className="input-field" placeholder="Email" />
+            <input type="password" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} className="input-field" placeholder="Password" />
+            <div className="flex gap-2">
+              <select value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value})} className="input-field">
+                <option value="admin">Admin</option>
+                <option value="accountant">Accountant</option>
+                <option value="viewer">Viewer</option>
+              </select>
+              <button onClick={handleAddUser} className="btn-primary text-sm whitespace-nowrap flex items-center gap-1"><Plus size={14} /> Add</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <button onClick={handleSave} disabled={saving} className="btn-primary w-full flex items-center justify-center gap-2 py-3">
+        <Save size={18} /> {saving ? 'Saving...' : 'Save All Settings'}
+      </button>
+    </div>
+  )
+}
