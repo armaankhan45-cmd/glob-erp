@@ -31,8 +31,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // ====== GLOBAL DATA SANITIZATION MIDDLEWARE ======
 // Fixes TWO problems permanently for ALL routes:
-// 1. Empty string "" for date columns -> null (PostgreSQL rejects "" for DATE type)
-// 2. Wrong column name "total" -> "total_amount" (our DB uses total_amount, not total)
+// 1. Empty string "" for date columns → null (PostgreSQL rejects "" for DATE type)
+// 2. Wrong column name "total" → "total_amount" (our DB uses total_amount, not total)
 
 const DATE_FIELDS = [
   'invoice_date', 'due_date', 'quotation_date', 'validity_date',
@@ -170,6 +170,14 @@ async function setupDB() {
       await migration.up(db);
       console.log('✅ Tables created!');
     }
+    
+    // Auto-migrate: add 'branch' column if missing
+    const hasBranch = await db.schema.hasColumn('organizations', 'branch');
+    if (!hasBranch) {
+      await db.schema.table('organizations', table => { table.text('branch'); });
+      console.log('✅ Added branch column');
+    }
+    
     const orgCount = await db('organizations').count('id as count').first();
     if (parseInt(orgCount.count) === 0) {
       console.log('🌱 Inserting seed data...');
