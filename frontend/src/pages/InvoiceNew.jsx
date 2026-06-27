@@ -4,19 +4,6 @@ import api from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import { Save, Plus, X, ArrowLeft } from 'lucide-react'
 
-const HSN_CODES = [
-  { code: '7309', desc: 'Tanks, cisterns, reservoirs (iron/steel)' },
-  { code: '7310', desc: 'Tanks, casks, drums (iron/steel < 300L)' },
-  { code: '8709', desc: 'Special purpose motor vehicles' },
-  { code: '7308', desc: 'Structures of iron/steel' },
-  { code: '7610', desc: 'Aluminium structures' },
-  { code: '8428', desc: 'Lifting/handling equipment' },
-  { code: '7326', desc: 'Other articles of iron/steel' },
-  { code: '8431', desc: 'Parts for lifting/construction machinery' },
-  { code: '8429', desc: 'Self-propelled bulldozers etc' },
-  { code: '6815', desc: 'Articles of other mineral substances' },
-]
-
 export default function InvoiceNew() {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -91,6 +78,7 @@ export default function InvoiceNew() {
     try {
       await api.post('/invoices', {
         ...form,
+        due_date: form.due_date || null,
         ...calculated,
         items: items.map(i => ({ ...i, quantity: parseFloat(i.quantity), rate: parseFloat(i.rate), cgst_rate: parseFloat(i.cgst_rate), sgst_rate: parseFloat(i.sgst_rate), igst_rate: parseFloat(i.igst_rate), amount: parseFloat(i.amount) }))
       })
@@ -146,7 +134,6 @@ export default function InvoiceNew() {
         </div>
       </div>
 
-      {/* Items */}
       <div className="card">
         <h3 className="font-bold text-gray-800 mb-3">Items</h3>
         <div className="overflow-x-auto">
@@ -164,7 +151,7 @@ export default function InvoiceNew() {
             <tbody>
               {items.map((item, idx) => (
                 <tr key={idx} className="border-b border-gray-50">
-                  <td className="py-2 pr-2"><input value={item.description} onChange={e => updateItem(idx, 'description', e.target.value)} className="input-field text-sm" placeholder="Item description" list="hsn-list" /></td>
+                  <td className="py-2 pr-2"><input value={item.description} onChange={e => updateItem(idx, 'description', e.target.value)} className="input-field text-sm" placeholder="Item description" /></td>
                   <td className="py-2 pr-2"><input value={item.hsn_code} onChange={e => updateItem(idx, 'hsn_code', e.target.value)} className="input-field text-sm w-24" placeholder="7309" /></td>
                   <td className="py-2 pr-2"><input type="number" value={item.quantity} onChange={e => updateItem(idx, 'quantity', e.target.value)} className="input-field text-sm" /></td>
                   <td className="py-2 pr-2"><select value={item.unit} onChange={e => updateItem(idx, 'unit', e.target.value)} className="input-field text-sm">
@@ -191,31 +178,14 @@ export default function InvoiceNew() {
           </table>
         </div>
         <button onClick={addItem} className="btn-secondary mt-3 text-sm flex items-center gap-1"><Plus size={14} /> Add Item</button>
-        <datalist id="hsn-list">{HSN_CODES.map(h => <option key={h.code} value={h.code}>{h.desc}</option>)}</datalist>
       </div>
 
-      {/* Totals */}
       <div className="card">
         <div className="max-w-sm ml-auto space-y-2 text-sm">
           <div className="flex justify-between"><span>Subtotal</span><span className="font-medium">₹{calculated.subtotal.toFixed(2)}</span></div>
-          <div className="flex justify-between"><span>CGST</span>
-            <div className="flex items-center gap-2">
-              <span className="font-medium">₹{calculated.cgst_amount.toFixed(2)}</span>
-              {manualOverride.cgst && <button onClick={() => setManualOverride({...manualOverride, cgst: false})} className="text-xs text-primary-600">Reset</button>}
-            </div>
-          </div>
-          <div className="flex justify-between"><span>SGST</span>
-            <div className="flex items-center gap-2">
-              <span className="font-medium">₹{calculated.sgst_amount.toFixed(2)}</span>
-              {manualOverride.sgst && <button onClick={() => setManualOverride({...manualOverride, sgst: false})} className="text-xs text-primary-600">Reset</button>}
-            </div>
-          </div>
-          <div className="flex justify-between"><span>IGST</span>
-            <div className="flex items-center gap-2">
-              <span className="font-medium">₹{calculated.igst_amount.toFixed(2)}</span>
-              {manualOverride.igst && <button onClick={() => setManualOverride({...manualOverride, igst: false})} className="text-xs text-primary-600">Reset</button>}
-            </div>
-          </div>
+          <div className="flex justify-between"><span>CGST</span><span className="font-medium">₹{calculated.cgst_amount.toFixed(2)}</span></div>
+          <div className="flex justify-between"><span>SGST</span><span className="font-medium">₹{calculated.sgst_amount.toFixed(2)}</span></div>
+          <div className="flex justify-between"><span>IGST</span><span className="font-medium">₹{calculated.igst_amount.toFixed(2)}</span></div>
           <div className="flex justify-between items-center">
             <span>Discount</span>
             <input type="number" value={form.discount} onChange={e => setForm({...form, discount: e.target.value})} className="input-field w-28 text-right text-sm" />
@@ -229,13 +199,11 @@ export default function InvoiceNew() {
         </div>
       </div>
 
-      {/* Notes */}
       <div className="card">
         <label className="block text-sm font-medium text-gray-700 mb-1">Notes & Terms</label>
         <textarea value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} className="input-field" rows={3} />
       </div>
 
-      {/* Save */}
       <div className="flex justify-end gap-3">
         <button onClick={() => navigate('/app/invoices')} className="btn-secondary">Cancel</button>
         <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2">
@@ -243,7 +211,6 @@ export default function InvoiceNew() {
         </button>
       </div>
 
-      {/* Quick Add Customer Modal */}
       {showQuickAdd && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl p-6 w-full max-w-md">
