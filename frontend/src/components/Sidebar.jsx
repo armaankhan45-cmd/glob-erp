@@ -11,12 +11,11 @@ const navItems = [
   { label: 'GST Reports', path: '/app/gst', icon: Calculator, section: 'FINANCE' },
   { label: 'Reports', path: '/app/reports', icon: BarChart3, section: 'FINANCE' },
   { label: 'Export Excel', path: '/app/export', icon: Download, section: 'SYSTEM' },
-  { label: 'App Font', path: '/app/font-settings', icon: Type, section: 'SYSTEM' },
   { label: 'Settings', path: '/app/settings', icon: Settings, section: 'SYSTEM' },
 ]
 
 export default function Sidebar({ isOpen, onClose }) {
-  const { logout } = useAuth()
+  const { logout, user } = useAuth()
   const navigate = useNavigate()
 
   const handleLogout = () => {
@@ -35,11 +34,14 @@ export default function Sidebar({ isOpen, onClose }) {
       {isOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={onClose} />}
       <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-dark-900 text-white flex flex-col transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         <div className="p-5 border-b border-white/10 flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary-600 rounded-lg flex items-center justify-center">
-            <Factory size={22} />
+          <div className="w-10 h-10 bg-primary-600 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
+            {user?.organization?.logo_url
+              ? <img src={user.organization.logo_url} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : <Factory size={22} />
+            }
           </div>
           <div>
-            <h1 className="font-bold text-base">Glob ERP</h1>
+            <h1 className="font-bold text-base">{user?.organization?.name ? user.organization.name.split(' ').slice(0,2).join(' ') : 'Glob ERP'}</h1>
             <p className="text-xs text-gray-400">Fabrication Manager</p>
           </div>
         </div>
