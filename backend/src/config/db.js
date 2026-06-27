@@ -1,24 +1,23 @@
-const knex = require('knex');
-const config = require('../config/env');
-
-let db;
+let _db = null;
 
 function getDb() {
-  if (!db) {
-    db = knex({
+  if (!_db) {
+    // Fallback: create own connection
+    const knex = require('knex');
+    _db = knex({
       client: 'pg',
-      connection: config.DATABASE_URL || {
-        host: '127.0.0.1',
-        port: 5432,
-        user: 'postgres',
-        password: 'postgres',
-        database: 'glob_erp'
-      },
-      pool: { min: 2, max: 10 },
-      acquireConnectionTimeout: 30000
+      connection: process.env.DATABASE_URL,
+      pool: { min: 1, max: 5 },
+      ssl: { rejectUnauthorized: false }
     });
   }
-  return db;
+  return _db;
+}
+
+function setDb(dbInstance) {
+  _db = dbInstance;
 }
 
 module.exports = getDb;
+module.exports.setDb = setDb;
+module.exports.default = getDb;
