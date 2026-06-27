@@ -82,30 +82,23 @@ export default function QuotationDetail() {
       </div>
 
       <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily: 'Georgia, serif', fontSize: '10pt', width: '210mm', height: '297mm', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'white' }}>
-        {/* Letterhead Space */}
         <div style={{ height: `${letterheadMm}mm`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '11px', fontFamily: 'Inter, sans-serif' }}>
-          📎 Pre-printed Letterhead Space ({letterheadMm}mm)
+          Pre-printed Letterhead Space ({letterheadMm}mm)
         </div>
 
-        {/* Content Box - fills remaining space minus 30mm footer */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', border: '2px solid #000', margin: '0 10mm', overflow: 'hidden' }}>
-
-          {/* Heading */}
           <div style={{ textAlign: 'center', padding: '8px 0 2px', fontSize: '20pt', fontWeight: 'bold' }}>
             Quotation <u>No</u> :- {qNum}
           </div>
 
-          {/* Customer Name */}
           <div style={{ textAlign: 'center', fontSize: '12pt', fontWeight: 'bold', textTransform: 'uppercase', padding: '2px 8px' }}>
             {(quotation.customer_name || '').toUpperCase()}
           </div>
 
-          {/* Additional Info */}
           {quotation.additional_info && (
             <div style={{ textAlign: 'center', fontSize: '9pt', padding: '0 8px 2px' }}>{quotation.additional_info}</div>
           )}
 
-          {/* Items Table - flex to fill space */}
           <div style={{ flex: 1, padding: '4px 5px 0', overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt', height: '100%' }}>
               <thead>
@@ -131,13 +124,13 @@ export default function QuotationDetail() {
             </table>
           </div>
 
-          {/* GST + Total + Amount in Words — all inside box */}
+          {/* Totals + Amount in words — ALL inside the bordered box */}
           <div style={{ padding: '0 5px 6px', flexShrink: 0 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt' }}>
               <tbody>
                 {gstRate > 0 && (
                   <tr>
-                    <td style={{ borderLeft: '1.5px solid #000', borderBottom: '1.5px solid #000', borderTop: '1.5px solid #000', padding: '4px 6px', textAlign: 'right', width: '76%', borderRight: '1.5px solid #000' }}>
+                    <td style={{ border: '1.5px solid #000', padding: '4px 6px', textAlign: 'right', width: '76%' }}>
                       GST: {gstRate}%
                     </td>
                     <td style={{ border: '1.5px solid #000', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold' }}>
@@ -146,7 +139,7 @@ export default function QuotationDetail() {
                   </tr>
                 )}
                 <tr style={{ background: '#f0f0f0' }}>
-                  <td style={{ borderLeft: '1.5px solid #000', borderBottom: '1.5px solid #000', borderTop: '1.5px solid #000', padding: '5px 6px', textAlign: 'right', fontSize: '11pt', borderRight: '1.5px solid #000' }}>
+                  <td style={{ border: '1.5px solid #000', padding: '5px 6px', textAlign: 'right', fontSize: '11pt' }}>
                     <strong>Total :</strong>
                   </td>
                   <td style={{ border: '1.5px solid #000', padding: '5px 6px', textAlign: 'right', fontSize: '11pt', fontWeight: 'bold' }}>
@@ -156,16 +149,15 @@ export default function QuotationDetail() {
               </tbody>
             </table>
 
-            {/* Amount in Words — centered inside box */}
+            {/* Amount in words INSIDE the box */}
             <div style={{ border: '1.5px solid #000', borderTop: 'none', padding: '6px 8px', fontSize: '10pt', fontWeight: 'bold', textAlign: 'center', background: '#fafafa' }}>
               {numberToWordsCaps(quotation.total_amount)}
             </div>
           </div>
         </div>
 
-        {/* 30mm Sign & Stamp Space */}
         <div style={{ height: '30mm', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '11px', fontFamily: 'Inter, sans-serif' }}>
-          📎 Sign & Stamp Space (30mm)
+          Sign & Stamp Space (30mm)
         </div>
       </div>
     </div>
