@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../api/client'
-import { useAuth } from '../api/client'
+import { useAuth } from '../context/AuthContext'
 import { Save, Plus, X, ArrowLeft } from 'lucide-react'
 
 const HSN_CODES = [
