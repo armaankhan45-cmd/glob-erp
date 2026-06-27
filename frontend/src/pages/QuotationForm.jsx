@@ -243,11 +243,6 @@ export default function QuotationForm() {
         </div>
       </div>
 
-      <div className="card">
-        <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-        <textarea value={form.actual_notes} onChange={e => setForm({...form, actual_notes: e.target.value})} className="input-field" rows={3} />
-      </div>
-
       <div className="flex justify-end gap-3">
         <button onClick={() => navigate('/app/quotations')} className="btn-secondary">Cancel</button>
         <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2"><Save size={16} /> {saving ? 'Saving...' : isEdit ? 'Update' : 'Create'} Quotation</button>
