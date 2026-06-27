@@ -48,7 +48,7 @@ const COLUMN_RENAMES = {
 
 // Columns that do NOT exist in our tables - strip them out to prevent SQL errors
 const BLOCKED_COLUMNS = [
-  'gst_rate', 'bold', 'calculated', 'customer_name', 'additional_info', 'actual_notes'
+  'gst_rate', 'bold', 'calculated'
 ];
 
 function sanitize(obj) {
@@ -171,12 +171,15 @@ async function setupDB() {
       console.log('✅ Tables created!');
     }
     
-    // Auto-migrate: add 'branch' column if missing
-    const hasBranch = await db.schema.hasColumn('organizations', 'branch');
-    if (!hasBranch) {
-      await db.schema.table('organizations', table => { table.text('branch'); });
-      console.log('✅ Added branch column');
-    }
+    // Auto-migrate: add missing columns
+    const cols = {
+      branch: await db.schema.hasColumn('organizations', 'branch'),
+      stamp_url: await db.schema.hasColumn('organizations', 'stamp_url'),
+      signature_url: await db.schema.hasColumn('organizations', 'signature_url'),
+    };
+    if (!cols.branch) { await db.schema.table('organizations', table => { table.text('branch'); }); console.log('✅ Added branch column'); }
+    if (!cols.stamp_url) { await db.schema.table('organizations', table => { table.text('stamp_url'); }); console.log('✅ Added stamp_url column'); }
+    if (!cols.signature_url) { await db.schema.table('organizations', table => { table.text('signature_url'); }); console.log('✅ Added signature_url column'); }
     
     const orgCount = await db('organizations').count('id as count').first();
     if (parseInt(orgCount.count) === 0) {
