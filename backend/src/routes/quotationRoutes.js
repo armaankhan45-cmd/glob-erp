@@ -268,7 +268,6 @@ function formatIndian(num) {
 
 function generateQuotationHTML(quotation, items, org, customerName, additionalInfo) {
   const letterheadMm = org.print_letterhead_mm || 65;
-  const footerMm = org.print_footer_mm || 50;
 
   function numberToWords(num) {
     const a = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
@@ -293,14 +292,15 @@ function generateQuotationHTML(quotation, items, org, customerName, additionalIn
   const gstRate = hasIGST
     ? parseFloat(items[0]?.igst_rate || 18)
     : (hasCGST ? parseFloat(items[0]?.cgst_rate || 9) * 2 : 0);
+  const totalGST = parseFloat(quotation.igst_amount) + parseFloat(quotation.cgst_amount) + parseFloat(quotation.sgst_amount);
 
   const itemsHTML = items.map((item, i) => `
     <tr>
-      <td style="border:1px solid #000;padding:3px;text-align:center;vertical-align:top;width:7%">${i+1}</td>
-      <td style="border:1px solid #000;padding:3px;width:47%;font-size:9pt;line-height:1.4;white-space:pre-line">${item.description || ''}</td>
-      <td style="border:1px solid #000;padding:3px;text-align:center;vertical-align:top;width:12%">${item.quantity}${item.unit && item.unit !== 'Unit' ? ' ' + item.unit : ''}</td>
-      <td style="border:1px solid #000;padding:3px;text-align:right;vertical-align:top;width:17%">${formatIndian(item.rate)}</td>
-      <td style="border:1px solid #000;padding:3px;text-align:right;font-weight:bold;vertical-align:top;width:17%">${formatIndian(item.amount)}</td>
+      <td style="border:1.5px solid #000;padding:3px 4px;text-align:center;vertical-align:top;width:7%">${i+1}</td>
+      <td style="border:1.5px solid #000;padding:3px 4px;width:47%;font-size:9pt;line-height:1.35;white-space:pre-line">${item.description || ''}</td>
+      <td style="border:1.5px solid #000;padding:3px 4px;text-align:center;vertical-align:top;width:12%">${item.quantity}${item.unit && item.unit !== 'Unit' ? ' ' + item.unit : ''}</td>
+      <td style="border:1.5px solid #000;padding:3px 4px;text-align:right;vertical-align:top;width:17%">${formatIndian(item.rate)}</td>
+      <td style="border:1.5px solid #000;padding:3px 4px;text-align:right;font-weight:bold;vertical-align:top;width:17%">${formatIndian(item.amount)}</td>
     </tr>
   `).join('');
 
@@ -308,38 +308,27 @@ function generateQuotationHTML(quotation, items, org, customerName, additionalIn
     @page { size: A4; margin: 0; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: Georgia, serif; font-size: 10pt; }
-    .print-area { width: 210mm; height: 297mm; overflow: hidden; }
     .letterhead-space { height: ${letterheadMm}mm; }
-    .content-area { max-height: ${297 - letterheadMm - footerMm}mm; overflow: hidden; padding: 0 14mm; }
-    .footer-space { height: ${footerMm}mm; }
     table { width: 100%; border-collapse: collapse; }
-    th { border: 1px solid #000; padding: 5px; background: #f0f0f0; text-align: center; font-size: 10pt; }
-    .right { text-align: right; }
-    .center { text-align: center; }
-    .bold { font-weight: bold; }
+    th { border: 1.5px solid #000; padding: 5px 4px; background: #e8e8e8; text-align: center; }
   </style></head><body>
-    <div class="print-area">
-      <div class="letterhead-space"></div>
-      <div class="content-area">
-        <h2 class="center" style="font-size:24pt;font-family:Georgia,serif;margin-bottom:4px">Quotation <u>No</u> :- ${qNum}</h2>
-        <p class="center" style="font-size:13pt;font-weight:bold;text-transform:uppercase;margin-bottom:2px">${(customerName||'').toUpperCase()}</p>
-        ${additionalInfo ? `<p class="center" style="font-size:10pt;margin-bottom:4px">${additionalInfo}</p>` : ''}
-        <p class="center" style="font-size:10pt;margin-bottom:8px;color:#555">Date: ${quotation.quotation_date}${quotation.validity_date ? ' | Valid till: ' + quotation.validity_date : ''}</p>
-        <table>
-          <thead><tr><th style="width:7%">SR No.</th><th style="width:47%">Particulars</th><th style="width:12%">Quantity</th><th style="width:17%">Rate (INR)</th><th style="width:17%">Amount (INR)</th></tr></thead>
-          <tbody>${itemsHTML}</tbody>
-        </table>
-        <table style="margin-top:4px">
-          ${hasIGST && parseFloat(quotation.igst_amount) > 0 ? `<tr><td style="text-align:right;padding:4px;width:78%">GST: ${gstRate}%</td><td style="text-align:right;padding:4px">${formatIndian(quotation.igst_amount)}</td></tr>` : ''}
-          ${hasCGST && parseFloat(quotation.cgst_amount) > 0 ? `<tr><td style="text-align:right;padding:4px">CGST @ ${parseFloat(items[0]?.cgst_rate||9).toFixed(1)}%</td><td style="text-align:right;padding:4px">${formatIndian(quotation.cgst_amount)}</td></tr>
-          <tr><td style="text-align:right;padding:4px">SGST @ ${parseFloat(items[0]?.sgst_rate||9).toFixed(1)}%</td><td style="text-align:right;padding:4px">${formatIndian(quotation.sgst_amount)}</td></tr>` : ''}
-          <tr style="font-size:12pt;border-top:2px solid #000"><td style="text-align:right;padding:6px;width:78%"><strong>Total :</strong></td><td style="text-align:right;padding:6px;font-weight:bold">₹${formatIndian(quotation.total_amount)}</td></tr>
-        </table>
-        <p style="margin-top:8px;font-size:10pt;font-weight:bold">${numberToWordsCaps(quotation.total_amount)}</p>
-        <p style="margin-top:6px;font-size:8.5pt;color:#444"><strong>GSTIN:</strong> ${org.gstin || ''} | <strong>State:</strong> ${org.state || ''} (${org.state_code || ''})</p>
-        ${org.bank_name ? `<p style="margin-top:4px;font-size:8.5pt;color:#444"><strong>Bank:</strong> ${org.bank_name} | <strong>A/C:</strong> ${org.account_no || ''} | <strong>IFSC:</strong> ${org.ifsc || ''}</p>` : ''}
-      </div>
-      <div class="footer-space"></div>
+    <div class="letterhead-space"></div>
+    <div style="padding:0 12mm 6mm">
+      <h2 style="text-align:center;font-size:22pt;font-family:Georgia,serif;margin-bottom:2px">Quotation <u>No</u> :- ${qNum}</h2>
+      <p style="text-align:center;font-size:12pt;font-weight:bold;text-transform:uppercase;margin-bottom:2px">${(customerName||'').toUpperCase()}</p>
+      ${additionalInfo ? `<p style="text-align:center;font-size:10pt;margin-bottom:2px">${additionalInfo}</p>` : ''}
+      <p style="text-align:center;font-size:9pt;margin-bottom:8px;color:#555">Date: ${quotation.quotation_date}${quotation.validity_date ? ' | Valid till: ' + quotation.validity_date : ''}</p>
+      <table style="font-size:9.5pt">
+        <thead><tr><th style="width:7%">SR No.</th><th style="width:47%">Particulars</th><th style="width:12%">Quantity</th><th style="width:17%">Rate (INR)</th><th style="width:17%">Amount (INR)</th></tr></thead>
+        <tbody>${itemsHTML}</tbody>
+      </table>
+      <table style="font-size:9.5pt;margin-top:0">
+        ${gstRate > 0 ? `<tr><td style="border-left:1.5px solid #000;border-bottom:1.5px solid #000;padding:4px 6px;text-align:right;width:78%">GST: ${gstRate}%</td><td style="border:1.5px solid #000;padding:4px 6px;text-align:right;font-weight:bold">${formatIndian(totalGST)}</td></tr>` : ''}
+        <tr style="background:#f0f0f0"><td style="border-left:1.5px solid #000;border-bottom:1.5px solid #000;padding:5px 6px;text-align:right;font-size:11pt;width:78%"><strong>Total :</strong></td><td style="border:1.5px solid #000;padding:5px 6px;text-align:right;font-size:11pt;font-weight:bold">₹${formatIndian(quotation.total_amount)}</td></tr>
+      </table>
+      <p style="margin-top:8px;font-size:10pt;font-weight:bold">${numberToWordsCaps(quotation.total_amount)}</p>
+      <div style="margin-top:8px;font-size:8.5pt;color:#444;border-top:1px solid #ddd;padding-top:4px"><strong>GSTIN:</strong> ${org.gstin || ''} | <strong>State:</strong> ${org.state || ''} (${org.state_code || ''})</div>
+      ${org.bank_name ? `<div style="margin-top:3px;font-size:8.5pt;color:#444"><strong>Bank:</strong> ${org.bank_name} | <strong>A/C:</strong> ${org.account_no || ''} | <strong>IFSC:</strong> ${org.ifsc || ''}</div>` : ''}
     </div>
   </body></html>`;
 }
