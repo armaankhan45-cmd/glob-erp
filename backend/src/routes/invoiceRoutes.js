@@ -21,6 +21,16 @@ function formatDate(d) {
   return `${dd}/${mm}/${yyyy}`;
 }
 
+// Sanitize empty date strings to null (PostgreSQL rejects "" for date columns)
+function sanitizeDates(data) {
+  const dateFields = ['invoice_date', 'due_date'];
+  const clean = { ...data };
+  dateFields.forEach(f => {
+    if (clean[f] === '' || clean[f] === undefined) clean[f] = null;
+  });
+  return clean;
+}
+
 // List invoices
 router.get('/', auth, async (req, res) => {
   try {
@@ -41,7 +51,6 @@ router.get('/', auth, async (req, res) => {
 
     const invoices = await query.orderBy('invoices.created_at', 'desc');
     
-    // Stats
     const stats = await db('invoices')
       .where({ organization_id: req.user.organization_id })
       .select(
@@ -90,7 +99,6 @@ router.post('/', auth, async (req, res) => {
     const { items, ...invoiceData } = req.body;
     const orgId = req.user.organization_id;
 
-    // Generate invoice number
     const org = await db('organizations').where({ id: orgId }).first();
     const prefix = org.invoice_prefix || 'GST-';
     const last = await db('invoices').where({ organization_id: orgId }).orderBy('id', 'desc').first('id');
@@ -98,16 +106,15 @@ router.post('/', auth, async (req, res) => {
     const fy = getFY(new Date(invoiceData.invoice_date));
     const invoiceNumber = `${prefix}${String(nextNo).padStart(4, '0')}/${fy}`;
 
-    const data = {
+    const data = sanitizeDates({
       ...invoiceData,
       organization_id: orgId,
       invoice_number: invoiceNumber
-    };
+    });
 
     const [invoice] = await db('invoices').insert(data).returning('id');
     const invoiceId = invoice.id || invoice;
 
-    // Insert items
     if (items && items.length > 0) {
       const itemRows = items.map(item => ({ ...item, invoice_id: invoiceId }));
       await db('invoice_items').insert(itemRows);
@@ -134,7 +141,6 @@ router.put('/:id/full', auth, async (req, res) => {
 
     await db('invoices').where({ id: req.params.id }).update(invoiceData);
 
-    // Replace items
     await db('invoice_items').where({ invoice_id: req.params.id }).del();
     if (items && items.length > 0) {
       const itemRows = items.map(item => ({ ...item, invoice_id: req.params.id }));
@@ -212,7 +218,6 @@ router.get('/:id/pdf', auth, async (req, res) => {
       await page.setContent(html, { waitUntil: 'networkidle0' });
       const pdf = await page.pdf({ format: 'A4', margin: { top: 0, right: 0, bottom: 0, left: 0 }, printBackground: true });
       await browser.close();
-
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `inline; filename="${invoice.invoice_number}.pdf"`);
       res.send(pdf);
@@ -237,7 +242,8 @@ function formatIndian(num) {
 
 function generateInvoiceHTML(invoice, items, org) {
   function numberToWords(num) {
-    const a = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+    const a = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten',
+      'Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
     const b = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
     function inW(n) {
       if (n < 20) return a[n];
@@ -257,13 +263,22 @@ function generateInvoiceHTML(invoice, items, org) {
   const invNum = (invoice.invoice_number || '').split('/')[0];
   const hasCGST = parseFloat(invoice.cgst_amount) > 0;
   const hasIGST = parseFloat(invoice.igst_amount) > 0;
+  const totalTax = parseFloat(invoice.cgst_amount || 0) + parseFloat(invoice.sgst_amount || 0) + parseFloat(invoice.igst_amount || 0);
+  const isPaid = (invoice.payment_status || '').toLowerCase() === 'paid';
   const custStateCode = invoice.customer_state_code || (invoice.customer_gstin ? invoice.customer_gstin.substring(0,2) : '');
   const orgStateCode = org.state_code || '27';
-  const placeOfSupply = custStateCode ? `${custStateCode}-${invoice.customer_state || ''}` : `${orgStateCode}-${org.state || ''}`;
+  const placeOfSupply = custStateCode ? `${custStateCode} - ${invoice.customer_state || ''}` : `${orgStateCode} - ${org.state || ''}`;
   const invoiceDate = formatDate(invoice.invoice_date);
   const dueDate = formatDate(invoice.due_date);
+  const hasShipping = invoice.shipping_name || invoice.shipping_address;
 
-  // HSN summary
+  // UPI QR URL (using Google Charts API for server-side HTML)
+  const upiId = org.upi_id || '';
+  const upiName = encodeURIComponent((org.name || 'GLOB FABRICATION AND ENTERPRISES').replace(/&/g, 'and'));
+  const upiAmount = parseFloat(invoice.total_amount || 0).toFixed(2);
+  const upiNote = encodeURIComponent(`Invoice ${invNum}`);
+  const qrUrl = upiId ? `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${encodeURIComponent(upiId)}&pn=${upiName}&am=${upiAmount}&cu=INR&tn=${upiNote}`)}` : '';
+
   const hsnMap = {};
   items.forEach(item => {
     const hsn = item.hsn_code || 'Others';
@@ -286,164 +301,210 @@ function generateInvoiceHTML(invoice, items, org) {
     const taxable = qty * rate;
     const taxRate = (parseFloat(item.igst_rate) || 0) > 0 ? parseFloat(item.igst_rate) : (parseFloat(item.cgst_rate) + parseFloat(item.sgst_rate));
     const taxAmt = taxable * taxRate / 100;
+    const total = taxable + taxAmt;
     return `<tr>
-      <td style="border:1px solid #000;padding:2px;text-align:center;vertical-align:top">${i+1}</td>
-      <td style="border:1px solid #000;padding:2px;line-height:1.25;white-space:pre-line">${item.description || ''}</td>
-      <td style="border:1px solid #000;padding:2px;text-align:center;vertical-align:top">${item.hsn_code || '-'}</td>
-      <td style="border:1px solid #000;padding:2px;text-align:center;vertical-align:top">${taxRate > 0 ? taxRate + '%' : ''}</td>
-      <td style="border:1px solid #000;padding:2px;text-align:center;vertical-align:top">${qty} ${item.unit || 'NOS'}</td>
-      <td style="border:1px solid #000;padding:2px;text-align:right;vertical-align:top">${formatIndian(rate)}</td>
-      <td style="border:1px solid #000;padding:2px;text-align:right;vertical-align:top">${formatIndian(taxable)}</td>
-      <td style="border:1px solid #000;padding:2px;text-align:right;vertical-align:top">${formatIndian(taxAmt)}</td>
-      <td style="border:1px solid #000;padding:2px;text-align:right;font-weight:bold;vertical-align:top">${formatIndian(taxable + taxAmt)}</td>
+      <td style="border:1px solid #000;padding:3px 4px;text-align:center;vertical-align:top">${i+1}</td>
+      <td style="border:1px solid #000;padding:3px 4px;line-height:1.3;white-space:pre-line">${item.description || ''}</td>
+      <td style="border:1px solid #000;padding:3px 4px;text-align:center;vertical-align:top">${item.hsn_code || '—'}</td>
+      <td style="border:1px solid #000;padding:3px 4px;text-align:right;vertical-align:top">${formatIndian(rate)}</td>
+      <td style="border:1px solid #000;padding:3px 4px;text-align:center;vertical-align:top">${qty}</td>
+      <td style="border:1px solid #000;padding:3px 4px;text-align:center;vertical-align:top">${item.unit || 'NOS'}</td>
+      <td style="border:1px solid #000;padding:3px 4px;text-align:right;vertical-align:top">${formatIndian(taxable)}</td>
+      <td style="border:1px solid #000;padding:3px 4px;text-align:center;vertical-align:top">${taxRate > 0 ? taxRate + '%' : '—'}</td>
+      <td style="border:1px solid #000;padding:3px 4px;text-align:right;vertical-align:top">${formatIndian(taxAmt)}</td>
+      <td style="border:1px solid #000;padding:3px 4px;text-align:right;font-weight:bold;vertical-align:top">${formatIndian(total)}</td>
     </tr>`;
   }).join('');
 
-  const emptyRows = items.length < 12 ? Array.from({length: 12 - items.length}).map(() => 
-    `<tr style="height:18px"><td style="border:1px solid #000;padding:2px">&nbsp;</td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td></tr>`
+  const emptyRows = items.length < 12 ? Array.from({length: 12 - items.length}).map(() =>
+    `<tr style="height:20px"><td style="border:1px solid #000;padding:2px">&nbsp;</td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td></tr>`
   ).join('') : '';
 
   let hsnRows = '';
   Object.entries(hsnMap).forEach(([hsn, data]) => {
     hsnRows += `<tr>
-      <td style="border:1px solid #000;padding:2px 3px;text-align:center">${hsn}</td>
-      <td style="border:1px solid #000;padding:2px 3px;text-align:right">${formatIndian(data.taxable)}</td>
+      <td style="border:1px solid #000;padding:1px 2px;text-align:center;font-size:7pt">${hsn}</td>
+      <td style="border:1px solid #000;padding:1px 2px;text-align:right;font-size:7pt">${formatIndian(data.taxable)}</td>
       ${hasCGST ? `
-        <td style="border:1px solid #000;padding:2px 3px;text-align:center">${data.cgstRate}%</td>
-        <td style="border:1px solid #000;padding:2px 3px;text-align:right">${formatIndian(data.cgstAmt)}</td>
-        <td style="border:1px solid #000;padding:2px 3px;text-align:center">${data.sgstRate}%</td>
-        <td style="border:1px solid #000;padding:2px 3px;text-align:right">${formatIndian(data.sgstAmt)}</td>
+        <td style="border:1px solid #000;padding:1px 2px;text-align:center;font-size:7pt">${data.cgstRate}%</td>
+        <td style="border:1px solid #000;padding:1px 2px;text-align:right;font-size:7pt">${formatIndian(data.cgstAmt)}</td>
+        <td style="border:1px solid #000;padding:1px 2px;text-align:center;font-size:7pt">${data.sgstRate}%</td>
+        <td style="border:1px solid #000;padding:1px 2px;text-align:right;font-size:7pt">${formatIndian(data.sgstAmt)}</td>
       ` : `
-        <td style="border:1px solid #000;padding:2px 3px;text-align:center">${data.igstRate}%</td>
-        <td style="border:1px solid #000;padding:2px 3px;text-align:right">${formatIndian(data.igstAmt)}</td>
+        <td style="border:1px solid #000;padding:1px 2px;text-align:center;font-size:7pt">${data.igstRate}%</td>
+        <td style="border:1px solid #000;padding:1px 2px;text-align:right;font-size:7pt">${formatIndian(data.igstAmt)}</td>
       `}
-      <td style="border:1px solid #000;padding:2px 3px;text-align:right">${formatIndian(data.cgstAmt + data.sgstAmt + data.igstAmt)}</td>
+      <td style="border:1px solid #000;padding:1px 2px;text-align:right;font-size:7pt;font-weight:bold">${formatIndian(data.cgstAmt + data.sgstAmt + data.igstAmt)}</td>
     </tr>`;
   });
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
     @page { size: A4; margin: 0; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: Arial, Helvetica, sans-serif; font-size: 9pt; color: #000; }
-    .page { width: 210mm; height: 297mm; display: flex; flex-direction: column; overflow: hidden; }
+    body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; font-size: 9pt; color: #1a1a1a; }
+    .page { width: 210mm; min-height: 297mm; display: flex; flex-direction: column; overflow: hidden; }
     table { width: 100%; border-collapse: collapse; }
-    th { border: 1px solid #000; padding: 3px 2px; background: #f0f0f0; text-align: center; font-size: 8pt; }
+    th { border: 1px solid #000; padding: 4px 3px; background: #e8e8e8; text-align: center; font-size: 7.5pt; font-weight: 700; }
+    .section-title { font-size: 7.5pt; font-weight: 700; color: #333; border-bottom: 1px solid #ccc; padding-bottom: 1px; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.3px; }
   </style></head><body>
     <div class="page">
-      <!-- Company Header -->
-      <div style="border:2px solid #000;padding:6px 10px;flex-shrink:0;display:flex;align-items:center">
-        <div style="width:60px;height:60px;border:1px solid #999;display:flex;align-items:center;justify-content:center;margin-right:12px;flex-shrink:0">
-          ${org.logo_url ? `<img src="${org.logo_url}" style="max-width:54px;max-height:54px">` : '<span style="font-size:7px;color:#999">LOGO</span>'}
+
+      <!-- HEADER -->
+      <div style="display:flex;border-bottom:2.5px solid #000;padding:8px 12px 6px;flex-shrink:0">
+        <div style="width:68px;height:68px;border:1.5px solid #bbb;border-radius:4px;display:flex;align-items:center;justify-content:center;margin-right:14px;flex-shrink:0;background:#fafafa">
+          ${org.logo_url ? `<img src="${org.logo_url}" style="max-width:60px;max-height:60px;object-fit:contain">` : '<span style="font-size:6px;color:#aaa">LOGO</span>'}
         </div>
         <div style="flex:1">
-          <div style="font-size:15pt;font-weight:bold;letter-spacing:0.5px;color:#111">${(org.name || 'GLOB FABRICATION AND ENTERPRISES').toUpperCase()}</div>
-          <div style="font-size:8.5pt;color:#333;margin-top:1px">${org.address || ''}${org.city ? ', ' + org.city : ''}${org.state ? ', ' + org.state : ''}${org.pincode ? ' - ' + org.pincode : ''}</div>
-          <div style="display:flex;gap:16px;margin-top:2px;font-size:8pt;color:#444;flex-wrap:wrap">
-            ${org.gstin ? `<span><strong>GSTIN:</strong> ${org.gstin}</span>` : ''}
-            ${org.phone ? `<span><strong>Mobile:</strong> ${org.phone}</span>` : ''}
-            ${org.email ? `<span><strong>Email:</strong> ${org.email}</span>` : ''}
+          <div style="font-size:16pt;font-weight:800;letter-spacing:0.8px;color:#111">${(org.name || 'GLOB FABRICATION AND ENTERPRISES').toUpperCase()}</div>
+          <div style="font-size:8pt;color:#333;margin-top:1px">${[org.address, org.city, org.state, org.pincode ? 'PIN: ' + org.pincode : ''].filter(Boolean).join(', ')}</div>
+          <div style="display:flex;gap:16px;margin-top:2px;font-size:7.8pt;color:#444;flex-wrap:wrap">
+            ${org.gstin ? `<span><b>GSTIN:</b> ${org.gstin}</span>` : ''}
+            ${org.phone ? `<span><b>Phone:</b> ${org.phone}</span>` : ''}
+            ${org.email ? `<span><b>Email:</b> ${org.email}</span>` : ''}
           </div>
         </div>
       </div>
 
-      <!-- Tax Invoice Title -->
-      <div style="text-align:center;padding:3px 0;border-top:1px solid #000;border-bottom:2px solid #000;flex-shrink:0">
-        <div style="font-size:12pt;font-weight:bold;letter-spacing:1.5px">TAX INVOICE</div>
-        <div style="font-size:7pt;font-weight:bold;color:#555">ORIGINAL FOR RECIPIENT</div>
+      <!-- TITLE BAR -->
+      <div style="text-align:center;padding:4px 0;border-bottom:2.5px solid #000;flex-shrink:0;background:linear-gradient(to right,#f8f8f8,#fff,#f8f8f8)">
+        <div style="font-size:13pt;font-weight:800;letter-spacing:2.5px;color:#111">TAX INVOICE</div>
+        <div style="font-size:7pt;font-weight:700;color:#555;letter-spacing:0.5px">ORIGINAL FOR RECIPIENT</div>
       </div>
 
-      <!-- Invoice + Customer Info -->
+      <!-- INVOICE INFO + BILLING/SHIPPING -->
       <div style="display:flex;border-bottom:1px solid #000;flex-shrink:0">
-        <div style="width:38%;border-right:1px solid #000;padding:4px 8px;font-size:8pt">
-          <div style="margin-bottom:1px"><strong>Invoice #:</strong> ${invNum}</div>
-          <div style="margin-bottom:1px"><strong>Date:</strong> ${invoiceDate}</div>
-          ${dueDate ? `<div style="margin-bottom:1px"><strong>Due Date:</strong> ${dueDate}</div>` : ''}
-          <div style="margin-bottom:1px"><strong>Place of Supply:</strong> ${placeOfSupply}</div>
+        <div style="width:36%;border-right:1px solid #000;padding:5px 10px;font-size:8pt;line-height:1.4">
+          <div style="margin-bottom:2px"><b>Invoice No:</b> ${invNum}</div>
+          <div style="margin-bottom:2px"><b>Date:</b> ${invoiceDate}</div>
+          ${dueDate ? `<div style="margin-bottom:2px"><b>Due Date:</b> ${dueDate}</div>` : ''}
+          <div style="margin-bottom:2px"><b>Place of Supply:</b> ${placeOfSupply}</div>
+          <div><b>Reverse Charge:</b> No</div>
         </div>
-        <div style="width:62%;padding:4px 8px;font-size:8pt">
-          <div style="font-weight:bold;margin-bottom:1px">Customer Details:</div>
-          <div style="font-weight:bold;text-transform:uppercase;font-size:8.5pt">${(invoice.customer_name || '').toUpperCase()}</div>
-          ${invoice.customer_gstin ? `<div><strong>GSTIN:</strong> ${invoice.customer_gstin}</div>` : ''}
-          <div><strong>Billing:</strong> ${invoice.customer_address || ''}${invoice.customer_city ? ', ' + invoice.customer_city : ''}${invoice.customer_state ? ', ' + invoice.customer_state : ''}${invoice.customer_pincode ? ' - ' + invoice.customer_pincode : ''}</div>
+        <div style="width:${hasShipping ? '32' : '64'}%;padding:5px 10px;font-size:8pt">
+          <div class="section-title">Bill To</div>
+          <div style="font-weight:700;text-transform:uppercase;font-size:9pt">${(invoice.customer_name || '').toUpperCase()}</div>
+          ${invoice.customer_gstin ? `<div><b>GSTIN:</b> ${invoice.customer_gstin}</div>` : ''}
+          <div>${[invoice.customer_address, invoice.customer_city, invoice.customer_state, invoice.customer_pincode].filter(Boolean).join(', ')}</div>
+          ${invoice.customer_phone ? `<div><b>Ph:</b> ${invoice.customer_phone}</div>` : ''}
         </div>
+        ${hasShipping ? `
+        <div style="width:32%;border-left:1px solid #000;padding:5px 10px;font-size:8pt">
+          <div class="section-title">Ship To</div>
+          <div style="font-weight:700;text-transform:uppercase;font-size:9pt">${(invoice.shipping_name || invoice.customer_name || '').toUpperCase()}</div>
+          <div>${[invoice.shipping_address, invoice.shipping_city, invoice.shipping_state, invoice.shipping_pincode].filter(Boolean).join(', ')}</div>
+        </div>
+        ` : ''}
       </div>
 
-      <!-- Items Table (fills space) -->
+      <!-- ITEMS TABLE -->
       <div style="flex:1;display:flex;flex-direction:column">
         <table style="font-size:8pt;flex:1">
           <thead><tr>
-            <th style="width:4%">#</th><th style="width:28%">Item</th><th style="width:8%">HSN</th>
-            <th style="width:6%">Tax</th><th style="width:8%">Qty</th><th style="width:11%">Rate</th>
-            <th style="width:13%">Taxable Val</th><th style="width:10%">Tax Amt</th><th style="width:12%">Amount</th>
+            <th style="width:4%">Sr<br>No</th>
+            <th style="width:24%">Item Description</th>
+            <th style="width:8%">HSN/<br>SAC</th>
+            <th style="width:9%">Rate<br>(&#8377;)</th>
+            <th style="width:6%">Qty</th>
+            <th style="width:5%">Unit</th>
+            <th style="width:13%">Taxable<br>Value (&#8377;)</th>
+            <th style="width:7%">GST<br>%</th>
+            <th style="width:10%">Tax<br>Amount (&#8377;)</th>
+            <th style="width:14%">Total<br>Amount (&#8377;)</th>
           </tr></thead>
           <tbody>${itemsHTML}${emptyRows}</tbody>
         </table>
 
-        <!-- Totals -->
+        <!-- TOTALS -->
         <table style="font-size:8.5pt;flex-shrink:0">
-          <tr><td style="border:1px solid #000;padding:3px;text-align:right;width:70%">Taxable Amount</td><td style="border:1px solid #000;padding:3px;text-align:right">₹${formatIndian(invoice.subtotal)}</td></tr>
+          <tr><td style="border:1px solid #000;padding:3px 6px;text-align:right;width:74%;background:#fafafa">Taxable Amount</td><td style="border:1px solid #000;padding:3px 6px;text-align:right">&#8377;${formatIndian(invoice.subtotal)}</td></tr>
           ${hasCGST ? `
-            <tr><td style="border:1px solid #000;padding:3px;text-align:right">CGST @ ${parseFloat(items[0]?.cgst_rate||0).toFixed(1)}%</td><td style="border:1px solid #000;padding:3px;text-align:right">₹${formatIndian(invoice.cgst_amount)}</td></tr>
-            <tr><td style="border:1px solid #000;padding:3px;text-align:right">SGST @ ${parseFloat(items[0]?.sgst_rate||0).toFixed(1)}%</td><td style="border:1px solid #000;padding:3px;text-align:right">₹${formatIndian(invoice.sgst_amount)}</td></tr>
+            <tr><td style="border:1px solid #000;padding:3px 6px;text-align:right">CGST @ ${parseFloat(items[0]?.cgst_rate||0).toFixed(1)}% on &#8377;${formatIndian(invoice.subtotal)}</td><td style="border:1px solid #000;padding:3px 6px;text-align:right">&#8377;${formatIndian(invoice.cgst_amount)}</td></tr>
+            <tr><td style="border:1px solid #000;padding:3px 6px;text-align:right">SGST @ ${parseFloat(items[0]?.sgst_rate||0).toFixed(1)}% on &#8377;${formatIndian(invoice.subtotal)}</td><td style="border:1px solid #000;padding:3px 6px;text-align:right">&#8377;${formatIndian(invoice.sgst_amount)}</td></tr>
           ` : ''}
-          ${hasIGST ? `<tr><td style="border:1px solid #000;padding:3px;text-align:right">IGST @ ${parseFloat(items[0]?.igst_rate||0).toFixed(1)}%</td><td style="border:1px solid #000;padding:3px;text-align:right">₹${formatIndian(invoice.igst_amount)}</td></tr>` : ''}
-          ${parseFloat(invoice.round_off) !== 0 ? `<tr><td style="border:1px solid #000;padding:3px;text-align:right">Round Off</td><td style="border:1px solid #000;padding:3px;text-align:right">₹${formatIndian(invoice.round_off)}</td></tr>` : ''}
-          <tr style="background:#f0f0f0"><td style="border:2px solid #000;padding:4px;text-align:right;font-size:10pt"><strong>Total</strong></td><td style="border:2px solid #000;padding:4px;text-align:right;font-size:10pt;font-weight:bold">₹${formatIndian(invoice.total_amount)}</td></tr>
+          ${hasIGST ? `<tr><td style="border:1px solid #000;padding:3px 6px;text-align:right">IGST @ ${parseFloat(items[0]?.igst_rate||0).toFixed(1)}% on &#8377;${formatIndian(invoice.subtotal)}</td><td style="border:1px solid #000;padding:3px 6px;text-align:right">&#8377;${formatIndian(invoice.igst_amount)}</td></tr>` : ''}
+          ${parseFloat(invoice.round_off) !== 0 ? `<tr><td style="border:1px solid #000;padding:3px 6px;text-align:right">Round Off</td><td style="border:1px solid #000;padding:3px 6px;text-align:right">${parseFloat(invoice.round_off) > 0 ? '+' : ''} &#8377;${formatIndian(invoice.round_off)}</td></tr>` : ''}
+          <tr style="background:#e8e8e8"><td style="border:2px solid #000;padding:5px 6px;text-align:right;font-size:10.5pt"><b>GRAND TOTAL</b></td><td style="border:2px solid #000;padding:5px 6px;text-align:right;font-size:10.5pt;font-weight:800">&#8377;${formatIndian(invoice.total_amount)}</td></tr>
         </table>
       </div>
 
-      <!-- Amount in Words -->
-      <div style="padding:3px 0;font-size:8pt;flex-shrink:0">
-        <strong>Amount Chargeable (in words):</strong> INR ${numberToWords(invoice.total_amount)}
-        <span style="float:right;font-size:7pt;color:#666">E & O.E</span>
+      <!-- AMOUNT IN WORDS -->
+      <div style="padding:4px 8px;font-size:8pt;border-top:1.5px solid #000;flex-shrink:0;display:flex;justify-content:space-between">
+        <div><b>Amount Chargeable (in words):</b> INR ${numberToWords(invoice.total_amount)}</div>
+        <div style="font-size:7pt;color:#666">E & O.E</div>
       </div>
 
-      <!-- HSN Summary -->
-      <table style="font-size:7.5pt;flex-shrink:0">
-        <thead>
-          <tr style="background:#f0f0f0"><th>HSN/SAC</th><th>Taxable Value</th>
-            ${hasCGST ? '<th colspan="2">Central Tax</th><th colspan="2">State/UT Tax</th>' : '<th colspan="2">Integrated Tax</th>'}
-            <th>Total Tax</th>
-          </tr>
-          <tr style="font-size:6.5pt"><th></th><th></th>
-            ${hasCGST ? '<th>Rate</th><th>Amount</th><th>Rate</th><th>Amount</th>' : '<th>Rate</th><th>Amount</th>'}
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          ${hsnRows}
-          <tr style="font-weight:bold;background:#f8f8f8">
-            <td style="border:1px solid #000;padding:1px 2px;text-align:center">TOTAL</td>
-            <td style="border:1px solid #000;padding:1px 2px;text-align:right">${formatIndian(invoice.subtotal)}</td>
-            ${hasCGST ? `
-              <td style="border:1px solid #000;padding:1px 2px"></td>
-              <td style="border:1px solid #000;padding:1px 2px;text-align:right">${formatIndian(invoice.cgst_amount)}</td>
-              <td style="border:1px solid #000;padding:1px 2px"></td>
-              <td style="border:1px solid #000;padding:1px 2px;text-align:right">${formatIndian(invoice.sgst_amount)}</td>
-            ` : `
-              <td style="border:1px solid #000;padding:1px 2px"></td>
-              <td style="border:1px solid #000;padding:1px 2px;text-align:right">${formatIndian(invoice.igst_amount)}</td>
-            `}
-            <td style="border:1px solid #000;padding:1px 2px;text-align:right">${formatIndian(parseFloat(invoice.cgst_amount) + parseFloat(invoice.sgst_amount) + parseFloat(invoice.igst_amount))}</td>
-          </tr>
-        </tbody>
-      </table>
+      <!-- HSN-WISE TAX SUMMARY -->
+      <div style="flex-shrink:0">
+        <div style="font-size:7.5pt;font-weight:700;padding:3px 4px 0;color:#333;letter-spacing:0.3px">HSN-WISE TAX SUMMARY</div>
+        <table style="font-size:7pt">
+          <thead>
+            <tr><th style="font-size:6.5pt">HSN/SAC</th><th style="font-size:6.5pt">Taxable Value</th>
+              ${hasCGST ? '<th style="font-size:6.5pt" colspan="2">Central Tax</th><th style="font-size:6.5pt" colspan="2">State/UT Tax</th>' : '<th style="font-size:6.5pt" colspan="2">Integrated Tax</th>'}
+              <th style="font-size:6.5pt">Total Tax Amt</th>
+            </tr>
+            <tr><th style="font-size:6pt;padding:1px"></th><th style="font-size:6pt;padding:1px"></th>
+              ${hasCGST ? '<th style="font-size:6pt;padding:1px">Rate</th><th style="font-size:6pt;padding:1px">Amount</th><th style="font-size:6pt;padding:1px">Rate</th><th style="font-size:6pt;padding:1px">Amount</th>' : '<th style="font-size:6pt;padding:1px">Rate</th><th style="font-size:6pt;padding:1px">Amount</th>'}
+              <th style="font-size:6pt;padding:1px"></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${hsnRows}
+            <tr style="font-weight:700;background:#f0f0f0">
+              <td style="border:1px solid #000;padding:1px 2px;text-align:center;font-size:7pt">TOTAL</td>
+              <td style="border:1px solid #000;padding:1px 2px;text-align:right;font-size:7pt">&#8377;${formatIndian(invoice.subtotal)}</td>
+              ${hasCGST ? `
+                <td style="border:1px solid #000;padding:1px 2px;font-size:7pt"></td>
+                <td style="border:1px solid #000;padding:1px 2px;text-align:right;font-size:7pt">&#8377;${formatIndian(invoice.cgst_amount)}</td>
+                <td style="border:1px solid #000;padding:1px 2px;font-size:7pt"></td>
+                <td style="border:1px solid #000;padding:1px 2px;text-align:right;font-size:7pt">&#8377;${formatIndian(invoice.sgst_amount)}</td>
+              ` : `
+                <td style="border:1px solid #000;padding:1px 2px;font-size:7pt"></td>
+                <td style="border:1px solid #000;padding:1px 2px;text-align:right;font-size:7pt">&#8377;${formatIndian(invoice.igst_amount)}</td>
+              `}
+              <td style="border:1px solid #000;padding:1px 2px;text-align:right;font-size:7pt">&#8377;${formatIndian(totalTax)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-      <!-- Bank + Signature -->
-      <div style="display:flex;border-top:1px solid #000;padding-top:3px;margin-top:3px;flex-shrink:0">
-        <div style="width:55%;font-size:7.5pt;padding-right:8px">
-          <div style="font-weight:bold;margin-bottom:2px">Bank Details:</div>
-          ${org.bank_name ? `<div><strong>Bank:</strong> ${org.bank_name}</div>` : ''}
-          ${org.account_no ? `<div><strong>A/C:</strong> ${org.account_no}</div>` : ''}
-          ${org.ifsc ? `<div><strong>IFSC:</strong> ${org.ifsc}</div>` : ''}
-          ${org.upi_id ? `<div><strong>UPI:</strong> ${org.upi_id}</div>` : ''}
+      <!-- BANK DETAILS + QR + SIGNATURE -->
+      <div style="display:flex;border-top:1.5px solid #000;margin-top:auto;flex-shrink:0">
+        <div style="width:42%;padding:5px 10px;font-size:7.5pt;line-height:1.5">
+          <div class="section-title">Bank Details</div>
+          ${org.bank_name ? `<div><b>Bank:</b> ${org.bank_name}</div>` : ''}
+          ${org.account_no ? `<div><b>A/C No:</b> ${org.account_no}</div>` : ''}
+          ${org.ifsc ? `<div><b>IFSC:</b> ${org.ifsc}</div>` : ''}
+          ${org.branch ? `<div><b>Branch:</b> ${org.branch}</div>` : ''}
+          ${org.upi_id ? `<div><b>UPI:</b> ${org.upi_id}</div>` : ''}
         </div>
-        <div style="width:45%;text-align:right;font-size:7.5pt">
-          <div>For <strong>${(org.name || '').toUpperCase()}</strong></div>
-          <div style="height:25px"></div>
-          <div style="border-top:1px solid #000;display:inline-block;padding-top:1px">Authorized Signatory</div>
+        <div style="width:18%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px;border-left:1px solid #000;border-right:1px solid #000">
+          ${qrUrl ? `<img src="${qrUrl}" style="width:72px;height:72px"><div style="font-size:5.5pt;color:#666;margin-top:2px;text-align:center">Scan to Pay</div>` : '<div style="font-size:7pt;color:#aaa;text-align:center">QR Code</div>'}
+        </div>
+        <div style="width:40%;padding:5px 10px;font-size:7.5pt;display:flex;flex-direction:column;justify-content:space-between">
+          <div style="margin-bottom:4px">
+            <span style="font-weight:700">Payment Status: </span>
+            <span style="display:inline-block;padding:1px 8px;border-radius:3px;font-size:7pt;font-weight:700;letter-spacing:0.3px;${isPaid ? 'background:#d4edda;color:#155724;border:1px solid #c3e6cb' : 'background:#fff3cd;color:#856404;border:1px solid #ffeaa7'}">${isPaid ? '✓ PAID' : '● UNPAID'}</span>
+          </div>
+          <div style="text-align:right;margin-top:auto">
+            <div style="font-size:7.5pt;margin-bottom:24px">For <b>${(org.name || '').toUpperCase()}</b></div>
+            <div style="border-top:1px solid #000;display:inline-block;padding-top:2px;font-size:7.5pt;font-weight:600">Authorized Signatory</div>
+          </div>
         </div>
       </div>
+
+      <!-- NOTES -->
+      ${invoice.notes ? `<div style="padding:4px 10px;font-size:7pt;border-top:1px solid #000;flex-shrink:0;color:#444;line-height:1.5"><b>Notes:</b> ${invoice.notes}</div>` : ''}
+
+      <!-- TERMS -->
+      <div style="padding:3px 10px;font-size:6.5pt;border-top:1px solid #ccc;flex-shrink:0;color:#777">
+        <b>Terms & Conditions:</b> 1. Goods once sold will not be taken back. 2. Interest @ 18% p.a. will be charged on delayed payments. 3. Subject to Maharashtra jurisdiction only.
+      </div>
+
+      <!-- FOOTER -->
+      <div style="text-align:center;font-size:6.5pt;color:#999;padding:3px 0;border-top:1px solid #ddd;flex-shrink:0">
+        Computer Generated Invoice | ${(org.name || 'GLOB FABRICATION AND ENTERPRISES').toUpperCase()} | Page 1 of 1
+      </div>
+
     </div>
   </body></html>`;
 }
