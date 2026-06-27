@@ -96,11 +96,11 @@ export default function InvoicePrint({ invoice, items, org }) {
     <div className="print-area" style={{ fontFamily: 'Arial, sans-serif', fontSize: '11px', color: '#111', background: '#fff', width: '794px', margin: '0 auto', padding: '18px 22px', border: '1px solid #bbb' }}>
 
       {/* ── TITLE BAR ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', border: bdr }}>
-        <div style={{ flex: 1, textAlign: 'center', padding: '8px 0', borderRight: bdr }}>
-          <div style={{ fontSize: '14px', fontWeight: 'bold', letterSpacing: '3px', color: '#0a3d6b' }}>TAX INVOICE</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'stretch', border: bdr }}>
+        <div style={{ flex: 1, textAlign: 'center', padding: '12px 0', borderRight: bdr }}>
+          <div style={{ fontSize: '16px', fontWeight: 'bold', letterSpacing: '4px', color: '#0a3d6b' }}>TAX INVOICE</div>
         </div>
-        <div style={{ padding: '8px 12px', fontSize: '10px', fontWeight: 'bold', textAlign: 'right', whiteSpace: 'nowrap' }}>
+        <div style={{ padding: '12px 16px', fontSize: '10px', fontWeight: 'bold', textAlign: 'right', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center' }}>
           ORIGINAL FOR RECIPIENT
         </div>
       </div>
@@ -108,26 +108,26 @@ export default function InvoicePrint({ invoice, items, org }) {
       {/* ── COMPANY + INVOICE INFO ── */}
       <div style={{ display: 'flex', borderLeft: bdr, borderRight: bdr, borderBottom: bdr }}>
         {/* Company Block */}
-        <div style={{ flex: 1.2, padding: '10px 12px', borderRight: bdr, display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+        <div style={{ flex: 1.2, padding: '14px 14px', borderRight: bdr, display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
           <div style={{
-            width: '54px', height: '54px', borderRadius: '50%', flexShrink: 0,
+            width: '60px', height: '60px', borderRadius: '50%', flexShrink: 0,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             background: '#0a3d6b', overflow: 'hidden'
           }}>
             {logoSrc
-              ? <img src={logoSrc} alt="" style={{ width: '54px', height: '54px', objectFit: 'cover', borderRadius: '50%' }} />
-              : <span style={{ color: '#fff', fontSize: '11px', fontWeight: 'bold', textAlign: 'center', lineHeight: 1.2 }}>{companyInitials}</span>
+              ? <img src={logoSrc} alt="" style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '50%' }} />
+              : <span style={{ color: '#fff', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', lineHeight: 1.2 }}>{companyInitials}</span>
             }
           </div>
           <div>
-            <div style={{ fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase' }}>{companyName}</div>
-            {org.gstin && <div style={{ fontSize: '10px', marginTop: '2px' }}>GSTIN <b>{org.gstin}</b></div>}
-            <div style={{ fontSize: '10px', color: '#333', marginTop: '2px', lineHeight: 1.5 }}>
+            <div style={{ fontSize: '14px', fontWeight: 'bold', textTransform: 'uppercase', lineHeight: 1.3 }}>{companyName}</div>
+            {org.gstin && <div style={{ fontSize: '10.5px', marginTop: '3px' }}>GSTIN: <b>{org.gstin}</b></div>}
+            <div style={{ fontSize: '10.5px', color: '#333', marginTop: '3px', lineHeight: 1.6 }}>
               {[org.address, org.city, org.state, org.pincode].filter(Boolean).join(', ')}
             </div>
-            <div style={{ fontSize: '10px', color: '#333', marginTop: '1px' }}>
-              {org.phone && <span><b>Mobile</b> {org.phone} &nbsp;</span>}
-              {org.email && <span><b>Email</b> {org.email}</span>}
+            <div style={{ fontSize: '10.5px', color: '#333', marginTop: '2px' }}>
+              {org.phone && <span><b>Mobile:</b> {org.phone} &nbsp;</span>}
+              {org.email && <span><b>Email:</b> {org.email}</span>}
             </div>
           </div>
         </div>
@@ -167,14 +167,21 @@ export default function InvoicePrint({ invoice, items, org }) {
 
       {/* ── CUSTOMER DETAILS ── */}
       <div style={{ display: 'flex', borderLeft: bdr, borderRight: bdr, borderBottom: bdr }}>
-        <div style={{ flex: 1, padding: '8px 12px', fontSize: '10px', lineHeight: 1.6, borderRight: bdr }}>
-          <b style={{ fontSize: '11px', display: 'block', marginBottom: '2px' }}>Customer Details:</b>
-          <b>{(invoice.customer_name || '').toUpperCase()}</b><br />
-          {invoice.customer_gstin && <><b>GSTIN:</b> {invoice.customer_gstin}<br /></>}
-          <b>Billing address:</b>{' '}
-          {[invoice.customer_address, invoice.customer_city, invoice.customer_state, invoice.customer_pincode].filter(Boolean).join(', ')}
-          {invoice.customer_phone && <><br />Ph: {invoice.customer_phone}</>}
+        <div style={{ flex: 1, padding: '10px 14px', fontSize: '10.5px', lineHeight: 1.7, borderRight: hasShipping ? bdr : 'none' }}>
+          <b style={{ fontSize: '12px', display: 'block', marginBottom: '3px' }}>Customer Details:</b>
+          <div style={{ fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '2px' }}>{(invoice.customer_name || '').toUpperCase()}</div>
+          {invoice.customer_gstin && <div style={{ marginTop: '1px' }}><b>GSTIN:</b> {invoice.customer_gstin}</div>}
+          <div style={{ marginTop: '1px' }}><b>Billing address:</b>{' '}
+            {[invoice.customer_address, invoice.customer_city, invoice.customer_state, invoice.customer_pincode].filter(Boolean).join(', ')}
+          </div>
+          {invoice.customer_phone && <div style={{ marginTop: '1px' }}><b>Ph:</b> {invoice.customer_phone}</div>}
         </div>
+        {hasShipping && (
+          <div style={{ flex: 1, padding: '10px 14px', fontSize: '10.5px', lineHeight: 1.7 }}>
+            <b style={{ fontSize: '12px', display: 'block', marginBottom: '3px' }}>Shipping Details:</b>
+            <div style={{ marginTop: '1px' }}>{[invoice.shipping_address, invoice.shipping_city, invoice.shipping_state, invoice.shipping_pincode].filter(Boolean).join(', ')}</div>
+          </div>
+        )}
       </div>
 
       {/* ── ITEMS TABLE ── */}
@@ -366,12 +373,12 @@ export default function InvoicePrint({ invoice, items, org }) {
         <div style={{ flex: 1, padding: '10px 12px', textAlign: 'center', fontSize: '10px' }}>
           <div style={{ textAlign: 'right', marginBottom: '6px', fontSize: '10px' }}>For <b>{companyName}</b></div>
           <div style={{
-            width: '100px', height: '80px', border: '2px dashed #0a3d6b', borderRadius: '50%',
+            width: '100px', height: '80px',
             margin: '0 auto 4px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#0a3d6b', fontSize: '10px', fontWeight: 'bold', textAlign: 'center', padding: '8px',
-            background: 'rgba(10,61,107,0.04)'
+            position: 'relative'
           }}>
-            SIGNATURE<br/>&amp;<br/>STAMP
+            {org.stamp_url && <img src={org.stamp_url} alt="" style={{ position: 'absolute', width: '100px', height: '80px', objectFit: 'contain', opacity: 0.85 }} />}
+            {org.signature_url && <img src={org.signature_url} alt="" style={{ position: 'relative', zIndex: 1, maxHeight: '50px', maxWidth: '90px', objectFit: 'contain' }} />}
           </div>
           <div style={{ fontSize: '9.5px', color: '#555', marginTop: '6px' }}>Authorized Signatory</div>
         </div>
