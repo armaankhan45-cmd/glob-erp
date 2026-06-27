@@ -69,22 +69,34 @@ export default function QuotationDetail() {
         <button onClick={handleDelete} className="btn-danger flex items-center gap-2"><Trash2 size={16} /> Delete</button>
       </div>
 
-      {/* A4 Print Layout */}
+      {/* A4 Print Layout - EXACT format */}
       <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily: 'Georgia, serif' }}>
-        <div style={{ height: `${letterheadMm}mm` }}></div>
+        {/* Letterhead Space */}
+        <div style={{ height: `${letterheadMm}mm`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '11px', fontFamily: 'Inter, sans-serif' }}>
+          📎 Pre-printed Letterhead Space ({letterheadMm}mm)
+        </div>
+
+        {/* Content */}
         <div style={{ maxHeight: `${297 - letterheadMm - footerMm}mm`, overflow: 'hidden', padding: '0 14mm' }}>
           {/* Heading */}
           <h2 style={{ textAlign: 'center', fontSize: '26pt', fontFamily: 'Georgia, serif', marginBottom: '4px' }}>
             Quotation <u>No</u> :- {qNum}
           </h2>
-          
-          {/* Customer Name */}
+
+          {/* Customer Name - Bold Uppercase */}
           <p style={{ textAlign: 'center', fontSize: '13pt', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '2px' }}>
             {(quotation.customer_name || '').toUpperCase()}
           </p>
+
+          {/* Additional Info (PAN, Vehicle No.) */}
           {quotation.additional_info && (
             <p style={{ textAlign: 'center', fontSize: '10pt', marginBottom: '6px' }}>{quotation.additional_info}</p>
           )}
+
+          {/* Date Row */}
+          <p style={{ textAlign: 'center', fontSize: '10pt', marginBottom: '8px', color: '#555' }}>
+            Date: {quotation.quotation_date}{quotation.validity_date ? ` | Valid till: ${quotation.validity_date}` : ''}
+          </p>
 
           {/* Items Table */}
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10pt' }}>
@@ -99,7 +111,7 @@ export default function QuotationDetail() {
               {items.map((item, i) => (
                 <tr key={i}>
                   <td style={{ border: '1px solid #000', padding: '3px', textAlign: 'center' }}>{i + 1}</td>
-                  <td style={{ border: '1px solid #000', padding: '3px', fontSize: '9.5pt', lineHeight: '1.35', fontWeight: boldOn ? 'bold' : 'normal' }}>{item.description}</td>
+                  <td style={{ border: '1px solid #000', padding: '3px', fontSize: '9.5pt', lineHeight: '1.35', fontWeight: boldOn ? 'bold' : 'normal', whiteSpace: 'pre-line' }}>{item.description || ''}</td>
                   <td style={{ border: '1px solid #000', padding: '3px', textAlign: 'center' }}>{item.quantity}</td>
                   <td style={{ border: '1px solid #000', padding: '3px', textAlign: 'right' }}>{parseFloat(item.rate).toFixed(2)}</td>
                   <td style={{ border: '1px solid #000', padding: '3px', textAlign: 'right', fontWeight: 'bold' }}>{parseFloat(item.amount).toFixed(2)}</td>
@@ -112,7 +124,7 @@ export default function QuotationDetail() {
           <table style={{ width: '100%', marginTop: '2px', fontSize: '10pt' }}>
             <tbody>
               {parseFloat(quotation.igst_amount) > 0 && (
-                <tr><td style={{ textAlign: 'right', padding: '4px', width: '83%' }}><strong>GST @ {parseFloat(items[0]?.igst_rate || 18)}%</strong></td><td style={{ textAlign: 'right', padding: '4px', fontWeight: 'bold' }}>{formatCurrency(quotation.igst_amount)}</td></tr>
+                <tr><td style={{ textAlign: 'right', padding: '4px', width: '83%' }}><strong>IGST @ {parseFloat(items[0]?.igst_rate || 18)}%</strong></td><td style={{ textAlign: 'right', padding: '4px', fontWeight: 'bold' }}>{formatCurrency(quotation.igst_amount)}</td></tr>
               )}
               {parseFloat(quotation.cgst_amount) > 0 && (
                 <>
@@ -131,8 +143,17 @@ export default function QuotationDetail() {
           <p style={{ marginTop: '6px', fontSize: '9pt' }}>
             <strong>Amount in Words:</strong> {numberToWords(quotation.total_amount)}
           </p>
+
+          {/* Company Info */}
+          <p style={{ marginTop: '4px', fontSize: '8pt', color: '#555' }}>
+            <strong>GSTIN:</strong> {org?.gstin || ''} | <strong>State:</strong> {org?.state} ({org?.state_code})
+          </p>
         </div>
-        <div style={{ height: `${footerMm}mm` }}></div>
+
+        {/* Footer Space */}
+        <div style={{ height: `${footerMm}mm`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '11px', fontFamily: 'Inter, sans-serif' }}>
+          📎 Stamp + Signature + Address Space ({footerMm}mm)
+        </div>
       </div>
     </div>
   )
