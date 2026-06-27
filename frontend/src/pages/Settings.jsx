@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import api from '../api/client'
 import { useAuth } from '../context/AuthContext'
-import { Save, Upload, Plus, Trash2, Eye, EyeOff } from 'lucide-react'
+import { Save, Upload, Plus, Eye, EyeOff, Trash2 } from 'lucide-react'
 
-const FONTS = ['Georgia', 'Times New Roman', 'Arial', 'Courier New', 'Trebuchet MS', 'Verdana', 'Palatino', 'Garamond', 'Book Antiqua', 'Lucida Console']
+const FONTS = ['Arial', 'Georgia', 'Times New Roman', 'Courier New', 'Trebuchet MS', 'Verdana', 'Palatino', 'Garamond', 'Book Antiqua', 'Lucida Console']
 
 export default function Settings() {
   const { user, refreshUser } = useAuth()
@@ -15,8 +15,7 @@ export default function Settings() {
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '' })
   const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'viewer' })
   const [msg, setMsg] = useState('')
-  const [logoFile, setLogoFile] = useState(null)
-  const [logoUploading, setLogoUploading] = useState(false)
+  const [uploading, setUploading] = useState({})
 
   useEffect(() => { loadData() }, [])
 
@@ -27,28 +26,25 @@ export default function Settings() {
       setSettings(res.data.settings || {})
       const usersRes = await api.get('/auth/users')
       setUsers(usersRes.data.users || [])
-    } catch (err) {
-      console.error('Settings load error:', err)
-    }
+    } catch (err) { console.error('Settings load error:', err) }
   }
 
   const handleSave = async () => {
-    setSaving(true)
-    setMsg('')
+    setSaving(true); setMsg('')
     try {
       await api.post('/settings', {
         organization: {
           name: org.name, gstin: org.gstin, address: org.address, city: org.city, state: org.state,
           state_code: org.state_code, pincode: org.pincode, phone: org.phone, email: org.email,
           bank_name: org.bank_name, account_no: org.account_no, ifsc: org.ifsc, upi_id: org.upi_id,
-          branch: org.branch,
-          invoice_prefix: org.invoice_prefix, quotation_prefix: org.quotation_prefix,
-          print_letterhead_mm: parseInt(org.print_letterhead_mm) || 65,
-          print_footer_mm: parseInt(org.print_footer_mm) || 50
+          branch: org.branch, invoice_prefix: org.invoice_prefix, quotation_prefix: org.quotation_prefix,
+          print_letterhead_mm: parseInt(org.print_letterhead_mm) || 65, print_footer_mm: parseInt(org.print_footer_mm) || 50
         },
         settings: {
-          print_font_size: settings.print_font_size || '9.5',
-          print_font_family: settings.print_font_family || 'Georgia',
+          print_font_size: settings.print_font_size || '10',
+          print_font_family: settings.print_font_family || 'Arial',
+          invoice_item_bold: settings.invoice_item_bold || 'false',
+          invoice_desc_size: settings.invoice_desc_size || '10',
           quotation_font_family: settings.quotation_font_family || 'Georgia',
           quotation_font_size: settings.quotation_font_size || '9',
           app_font_family: settings.app_font_family || 'Inter',
@@ -57,56 +53,57 @@ export default function Settings() {
       })
       await refreshUser()
       setMsg('✓ Settings saved successfully!')
-    } catch (err) {
-      setMsg('✗ Failed to save settings')
-    } finally {
-      setSaving(false)
-    }
+    } catch (err) { setMsg('✗ Failed to save settings') }
+    finally { setSaving(false) }
   }
 
-  const handleLogoUpload = async () => {
-    if (!logoFile) return
-    setLogoUploading(true)
+  const uploadImage = async (field, file) => {
+    if (!file) return
+    setUploading(prev => ({ ...prev, [field]: true }))
     const formData = new FormData()
-    formData.append('logo', logoFile)
+    formData.append(field, file)
     try {
-      const res = await api.post('/settings/upload/logo', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
-      setOrg({ ...org, logo_url: res.data.logoUrl })
-      setMsg('✓ Logo uploaded! It will show on invoices and the website.')
-    } catch (err) {
-      setMsg('✗ Logo upload failed: ' + (err.response?.data?.msg || err.message))
-    }
-    setLogoUploading(false)
+      const res = await api.post(`/settings/upload/${field}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+      setOrg({ ...org, [`${field}_url`]: res.data[`${field}Url`] || res.data.logoUrl })
+      setMsg(`✓ ${field.charAt(0).toUpperCase() + field.slice(1)} uploaded!`)
+    } catch (err) { setMsg(`✗ ${field} upload failed`) }
+    setUploading(prev => ({ ...prev, [field]: false }))
   }
 
   const handleChangePassword = async () => {
     try {
       await api.post('/auth/change-password', passwordForm)
-      setMsg('✓ Password changed!')
-      setPasswordForm({ currentPassword: '', newPassword: '' })
-    } catch (err) {
-      setMsg(err.response?.data?.msg || '✗ Failed to change password')
-    }
+      setMsg('✓ Password changed!'); setPasswordForm({ currentPassword: '', newPassword: '' })
+    } catch (err) { setMsg(err.response?.data?.msg || '✗ Failed') }
   }
 
   const handleAddUser = async () => {
     try {
       await api.post('/auth/users', newUser)
       setNewUser({ name: '', email: '', password: '', role: 'viewer' })
-      loadData()
-      setMsg('✓ User added!')
-    } catch (err) {
-      setMsg(err.response?.data?.msg || '✗ Failed to add user')
-    }
+      loadData(); setMsg('✓ User added!')
+    } catch (err) { setMsg(err.response?.data?.msg || '✗ Failed') }
   }
 
   const update = (key, val) => setOrg({ ...org, [key]: val })
   const updateSetting = (key, val) => setSettings({ ...settings, [key]: val })
 
+  const UploadRow = ({ label, field, accept='.png,.jpg,.jpeg,.webp', previewUrl, circular }) => (
+    <div className="flex items-center gap-4 flex-wrap">
+      {previewUrl && (
+        <div style={{ width: '64px', height: circular ? '64px' : '48px', borderRadius: circular ? '50%' : '4px', overflow: 'hidden', border: '1px solid #ddd', flexShrink: 0 }}>
+          <img src={previewUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+        </div>
+      )}
+      <input type="file" accept={accept} onChange={e => uploadImage(field, e.target.files[0])} className="text-sm" />
+      {uploading[field] && <span className="text-xs text-blue-500">Uploading...</span>}
+      <span className="text-xs text-gray-400">Max 2MB</span>
+    </div>
+  )
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <h1 className="text-2xl font-bold">Settings</h1>
-
       {msg && <div className={`p-3 rounded-lg text-sm ${msg.includes('✗') ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>{msg}</div>}
 
       {/* Company Details */}
@@ -138,27 +135,26 @@ export default function Settings() {
         </div>
       </div>
 
-      {/* Logo Upload */}
-      <div className="card space-y-4">
-        <h3 className="font-bold text-lg">Business Logo</h3>
-        <p className="text-sm text-gray-500">This logo will appear on your invoices and on the website sidebar.</p>
-        <div className="flex items-center gap-4 flex-wrap">
-          {org.logo_url && (
-            <div style={{ width: '64px', height: '64px', borderRadius: '50%', overflow: 'hidden', border: '2px solid #0a3d6b', flexShrink: 0 }}>
-              <img src={org.logo_url} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            </div>
-          )}
-          <input type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => setLogoFile(e.target.files[0])} className="text-sm" />
-          <button onClick={handleLogoUpload} disabled={logoUploading} className="btn-primary text-sm flex items-center gap-2">
-            <Upload size={14} /> {logoUploading ? 'Uploading...' : 'Upload'}
-          </button>
-          <span className="text-xs text-gray-400">Max 2MB, PNG/JPG/WebP</span>
+      {/* Logo + Stamp + Signature Upload */}
+      <div className="card space-y-5">
+        <h3 className="font-bold text-lg">Images & Signatures</h3>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Business Logo (shows on invoice & sidebar)</label>
+          <UploadRow label="Logo" field="logo" previewUrl={org.logo_url} circular />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Company Stamp / Seal (auto-stamps on invoices)</label>
+          <UploadRow label="Stamp" field="stamp" previewUrl={org.stamp_url} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Authorized Signature (auto-signs on invoices)</label>
+          <UploadRow label="Signature" field="signature" previewUrl={org.signature_url} />
         </div>
       </div>
 
-      {/* Invoice Font Settings */}
+      {/* Invoice Font & Text Settings */}
       <div className="card space-y-4">
-        <h3 className="font-bold text-lg">Invoice Font Settings</h3>
+        <h3 className="font-bold text-lg">Invoice Text Settings</h3>
         <div className="grid md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Invoice Font Family</label>
@@ -167,8 +163,19 @@ export default function Settings() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Invoice Font Size: {settings.print_font_size || '9.5'}pt</label>
-            <input type="range" min="7" max="14" step="0.5" value={settings.print_font_size || 9.5} onChange={e => updateSetting('print_font_size', e.target.value)} className="w-full" />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Invoice Font Size: {settings.print_font_size || '10'}pt</label>
+            <input type="range" min="8" max="14" step="0.5" value={settings.print_font_size || 10} onChange={e => updateSetting('print_font_size', e.target.value)} className="w-full" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Item Description Size: {settings.invoice_desc_size || '10'}pt</label>
+            <input type="range" min="8" max="14" step="0.5" value={settings.invoice_desc_size || 10} onChange={e => updateSetting('invoice_desc_size', e.target.value)} className="w-full" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Item Text Style</label>
+            <select value={settings.invoice_item_bold || 'false'} onChange={e => updateSetting('invoice_item_bold', e.target.value)} className="input-field">
+              <option value="false">Normal</option>
+              <option value="true">Bold</option>
+            </select>
           </div>
         </div>
       </div>
@@ -188,29 +195,17 @@ export default function Settings() {
             <input type="range" min="7" max="14" step="0.5" value={settings.quotation_font_size || 9} onChange={e => updateSetting('quotation_font_size', e.target.value)} className="w-full" />
           </div>
         </div>
-        {/* Preview */}
         <div className="border rounded-lg p-4 bg-white" style={{ fontFamily: settings.quotation_font_family || 'Georgia', fontSize: `${settings.quotation_font_size || 9}pt` }}>
-          <p style={{ lineHeight: 1.35 }}>
-            MODEL NO - TATA SIGNA 4425.T<br />
-            DESIGN, MANUFACTURE & FABRICATION OF TOP-LOADING SS304CR TANK<br />
-            • SHELL: 3.5 MM THICK<br />
-            • DISH END: 3.5 MM THICK
-          </p>
+          <p style={{ lineHeight: 1.35 }}>DESIGN & FABRICATION OF SS304 TANK<br />• SHELL: 3.5 MM THICK<br />• DISH END: 3.5 MM THICK</p>
         </div>
       </div>
 
       {/* App Font Settings */}
       <div className="card space-y-4">
         <h3 className="font-bold text-lg">App Font Settings</h3>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">App Font Family</label>
-          <select value={settings.app_font_family || 'Inter'} onChange={e => updateSetting('app_font_family', e.target.value)} className="input-field">
-            {['Inter', 'Arial', 'Roboto', 'Helvetica', 'Segoe UI', 'Verdana', 'Georgia', 'Times New Roman'].map(f => <option key={f} value={f}>{f}</option>)}
-          </select>
-        </div>
-        <div className="border rounded-lg p-4 bg-white" style={{ fontFamily: settings.app_font_family || 'Inter' }}>
-          <p>This is how your app text will look.</p>
-        </div>
+        <select value={settings.app_font_family || 'Inter'} onChange={e => updateSetting('app_font_family', e.target.value)} className="input-field">
+          {['Inter', 'Arial', 'Roboto', 'Helvetica', 'Segoe UI', 'Verdana', 'Georgia', 'Times New Roman'].map(f => <option key={f} value={f}>{f}</option>)}
+        </select>
       </div>
 
       {/* Document Numbering */}
@@ -224,7 +219,7 @@ export default function Settings() {
 
       {/* Print Layout */}
       <div className="card space-y-4">
-        <h3 className="font-bold text-lg">Print Layout Settings</h3>
+        <h3 className="font-bold text-lg">Print Layout</h3>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Letterhead Top Space: {org.print_letterhead_mm || 65}mm</label>
           <input type="range" min="40" max="80" value={org.print_letterhead_mm || 65} onChange={e => update('print_letterhead_mm', e.target.value)} className="w-full" />
@@ -249,11 +244,7 @@ export default function Settings() {
           <h3 className="font-bold text-lg">User Management</h3>
           <table className="w-full text-sm">
             <thead><tr className="border-b text-gray-500 text-left"><th className="pb-2">Name</th><th className="pb-2">Email</th><th className="pb-2">Role</th></tr></thead>
-            <tbody>
-              {users.map(u => (
-                <tr key={u.id} className="border-b border-gray-50"><td className="py-2">{u.name}</td><td className="py-2">{u.email}</td><td className="py-2"><span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100">{u.role}</span></td></tr>
-              ))}
-            </tbody>
+            <tbody>{users.map(u => (<tr key={u.id} className="border-b border-gray-50"><td className="py-2">{u.name}</td><td className="py-2">{u.email}</td><td className="py-2"><span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100">{u.role}</span></td></tr>))}</tbody>
           </table>
           <div className="grid md:grid-cols-4 gap-3">
             <input value={newUser.name} onChange={e => setNewUser({...newUser, name: e.target.value})} className="input-field" placeholder="Name" />
@@ -261,9 +252,7 @@ export default function Settings() {
             <input type="password" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} className="input-field" placeholder="Password" />
             <div className="flex gap-2">
               <select value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value})} className="input-field">
-                <option value="admin">Admin</option>
-                <option value="accountant">Accountant</option>
-                <option value="viewer">Viewer</option>
+                <option value="admin">Admin</option><option value="accountant">Accountant</option><option value="viewer">Viewer</option>
               </select>
               <button onClick={handleAddUser} className="btn-primary text-sm whitespace-nowrap flex items-center gap-1"><Plus size={14} /> Add</button>
             </div>
