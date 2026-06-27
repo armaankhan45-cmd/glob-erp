@@ -2,7 +2,40 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../api/client'
 import { useAuth } from '../context/AuthContext'
+import { HSN_CODES } from '../data/hsnCodes'
 import { Save, Plus, X, ArrowLeft } from 'lucide-react'
+
+const HSN_KEYWORDS = [
+  { keywords: ['TANK', 'TANKER', 'RESERVOIR', 'VAT', 'DRUM', 'CASK'], hsn: '7309' },
+  { keywords: ['CHASSIS', 'MOUNTING', 'MUDGUARD', 'EXHAUST', 'BUMPER', 'BRAKE', 'CLUTCH', 'GEAR', 'AXLE', 'SUSPENSION', 'STEERING'], hsn: '8708' },
+  { keywords: ['STRUCTURE', 'PLATFORM', 'CATWALK', 'LADDER', 'RAILING', 'FRAME', 'COLUMN', 'BEAM', 'TRUSS', 'GIRDER'], hsn: '7308' },
+  { keywords: ['TRAILER', 'SEMI-TRAILER', 'TROLLEY'], hsn: '8716' },
+  { keywords: ['BODY', 'CABIN', 'CAB', 'D-BOX', 'DOME', 'COCKPIT'], hsn: '8707' },
+  { keywords: ['VALVE', 'COCK', 'TAP', 'FITTING', 'FLANGE', 'MANHOLE'], hsn: '8481' },
+  { keywords: ['PIPE', 'TUBE', 'PIPELINE', 'HOSE', 'DUCT'], hsn: '7308' },
+  { keywords: ['BOLT', 'NUT', 'SCREW', 'RIVET', 'WASHER', 'STUD', 'ANCHOR'], hsn: '7318' },
+  { keywords: ['NAIL', 'TACK', 'STAPLE', 'PIN'], hsn: '7317' },
+  { keywords: ['CHAIN', 'HOOK', 'SHACKLE', 'SLING'], hsn: '7315' },
+  { keywords: ['ROPE', 'CABLE', 'WIRE', 'STRAND'], hsn: '7312' },
+  { keywords: ['CRANE', 'HOIST', 'LIFT', 'CONVEYOR', 'ELEVATOR', 'WINCH'], hsn: '8428' },
+  { keywords: ['ALUMINIUM', 'ALUMINUM', 'ALUM'], hsn: '7610' },
+  { keywords: ['PLASTIC', 'PVC', 'HDPE', 'PP', 'NYLON'], hsn: '3925' },
+  { keywords: ['RUBBER', 'GASKET', 'SEAL', 'O-RING', 'BELT'], hsn: '4016' },
+  { keywords: ['PAINT', 'COATING', 'PRIMER', 'VARNISH', 'LACQUER'], hsn: '3208' },
+  { keywords: ['WELDING', 'ELECTRODE', 'FILLER', 'FLUX', 'SOLDER'], hsn: '8311' },
+  { keywords: ['PUMP', 'COMPRESSOR', 'FAN', 'BLOWER', 'MOTOR', 'ENGINE', 'GENERATOR'], hsn: '8413' },
+]
+
+function autoDetectHSN(description) {
+  if (!description) return ''
+  const upper = description.toUpperCase()
+  for (const rule of HSN_KEYWORDS) {
+    for (const kw of rule.keywords) {
+      if (upper.includes(kw)) return rule.hsn
+    }
+  }
+  return ''
+}
 
 export default function InvoiceEdit() {
   const { id } = useParams()
@@ -14,7 +47,6 @@ export default function InvoiceEdit() {
   const [form, setForm] = useState({
     customer_id: '',
     invoice_date: new Date().toISOString().split('T')[0],
-    due_date: new Date(Date.now() + 30*86400000).toISOString().split('T')[0],
     discount: 0,
     round_off: 0,
     notes: '',
@@ -35,8 +67,7 @@ export default function InvoiceEdit() {
       const inv = invRes.data.invoice
       setForm({
         customer_id: inv.customer_id || '',
-        invoice_date: inv.invoice_date || '',
-        due_date: inv.due_date || '',
+        invoice_date: (inv.invoice_date || '').split('T')[0],
         discount: inv.discount || 0,
         round_off: inv.round_off || 0,
         notes: inv.notes || '',
@@ -74,6 +105,13 @@ export default function InvoiceEdit() {
     if (key === 'quantity' || key === 'rate') {
       newItems[idx].amount = (parseFloat(newItems[idx].quantity) || 0) * (parseFloat(newItems[idx].rate) || 0)
     }
+    // Auto-detect HSN when description changes
+    if (key === 'description') {
+      const detected = autoDetectHSN(val)
+      if (detected && !newItems[idx].hsn_code) {
+        newItems[idx].hsn_code = detected
+      }
+    }
     setItems(newItems)
     recalc(newItems, form.discount, form.round_off)
   }
@@ -86,8 +124,8 @@ export default function InvoiceEdit() {
     try {
       await api.put(`/invoices/${id}/full`, {
         customer_id: form.customer_id,
-        invoice_date: form.invoice_date,
-        due_date: form.due_date,
+        invoice_date: form.invoice_date || null,
+        due_date: null,
         discount: form.discount,
         round_off: form.round_off,
         notes: form.notes,
@@ -128,7 +166,7 @@ export default function InvoiceEdit() {
       </div>
 
       <div className="card space-y-4">
-        <div className="grid md:grid-cols-3 gap-4">
+        <div className="grid md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Customer</label>
             <select value={form.customer_id} onChange={e => setForm({...form, customer_id: e.target.value})} className="input-field">
@@ -137,7 +175,6 @@ export default function InvoiceEdit() {
             </select>
           </div>
           <div><label className="block text-sm font-medium text-gray-700 mb-1">Invoice Date</label><input type="date" value={form.invoice_date || ''} onChange={e => setForm({...form, invoice_date: e.target.value})} className="input-field" /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label><input type="date" value={form.due_date || ''} onChange={e => setForm({...form, due_date: e.target.value})} className="input-field" /></div>
         </div>
       </div>
 
@@ -151,8 +188,8 @@ export default function InvoiceEdit() {
             <tbody>
               {items.map((item, idx) => (
                 <tr key={idx} className="border-b border-gray-50">
-                  <td className="py-2 pr-2"><input value={item.description || ''} onChange={e => updateItem(idx, 'description', e.target.value)} className="input-field text-sm" /></td>
-                  <td className="py-2 pr-2"><input value={item.hsn_code || ''} onChange={e => updateItem(idx, 'hsn_code', e.target.value)} className="input-field text-sm w-24" /></td>
+                  <td className="py-2 pr-2"><input value={item.description || ''} onChange={e => updateItem(idx, 'description', e.target.value)} className="input-field text-sm" placeholder="e.g. SS TANK" /></td>
+                  <td className="py-2 pr-2"><input value={item.hsn_code || ''} onChange={e => updateItem(idx, 'hsn_code', e.target.value)} list="hsn-list" className="input-field text-sm w-32" /><datalist id="hsn-list">{HSN_CODES.map(h => <option key={h.code} value={h.code}>{h.label}</option>)}</datalist></td>
                   <td className="py-2 pr-2"><input type="number" value={item.quantity} onChange={e => updateItem(idx, 'quantity', e.target.value)} className="input-field text-sm" /></td>
                   <td className="py-2 pr-2"><select value={item.unit} onChange={e => updateItem(idx, 'unit', e.target.value)} className="input-field text-sm">{['NOS','KG','MTR','SET','LOT','PCS'].map(u=><option key={u}>{u}</option>)}</select></td>
                   <td className="py-2 pr-2"><input type="number" value={item.rate} onChange={e => updateItem(idx, 'rate', e.target.value)} className="input-field text-sm" /></td>
