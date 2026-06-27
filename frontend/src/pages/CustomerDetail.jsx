@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import api from '../api/client'
 import { ArrowLeft, Edit, Trash2 } from 'lucide-react'
 import { formatCurrency, formatDate } from '../utils'
@@ -87,6 +87,4 @@ export default function CustomerDetail() {
   )
 }
 
-function Link({ to, children, className }) {
-  return <a href={to} className={className}>{children}</a>
-}
+
