@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../api/client'
-import { Plus, Search, Eye, Trash2, ShoppingCart } from 'lucide-react'
+import { Plus, Search, Eye, Edit, Trash2, ShoppingCart } from 'lucide-react'
 import { formatDate, formatCurrency } from '../utils'
 
 export default function Purchases() {
@@ -68,8 +68,9 @@ export default function Purchases() {
                     </td>
                     <td className="py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => navigate(`/app/purchases/${p.id}`)} className="p-1.5 hover:bg-gray-100 rounded-lg"><Eye size={16} className="text-gray-500" /></button>
-                        <button onClick={() => handleDelete(p.id)} className="p-1.5 hover:bg-gray-100 rounded-lg"><Trash2 size={16} className="text-red-500" /></button>
+                        <button onClick={() => navigate(`/app/purchases/${p.id}`)} className="p-1.5 hover:bg-gray-100 rounded-lg" title="View"><Eye size={16} className="text-gray-500" /></button>
+                        <button onClick={() => navigate(`/app/purchases/${p.id}/edit`)} className="p-1.5 hover:bg-gray-100 rounded-lg" title="Edit"><Edit size={16} className="text-blue-500" /></button>
+                        <button onClick={() => handleDelete(p.id)} className="p-1.5 hover:bg-gray-100 rounded-lg" title="Delete"><Trash2 size={16} className="text-red-500" /></button>
                       </div>
                     </td>
                   </tr>
