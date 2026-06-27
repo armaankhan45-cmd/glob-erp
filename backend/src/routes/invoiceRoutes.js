@@ -269,7 +269,6 @@ function generateInvoiceHTML(invoice, items, org) {
   const orgStateCode = org.state_code || '27';
   const placeOfSupply = custStateCode ? `${custStateCode} - ${invoice.customer_state || ''}` : `${orgStateCode} - ${org.state || ''}`;
   const invoiceDate = formatDate(invoice.invoice_date);
-  const dueDate = formatDate(invoice.due_date);
   const hasShipping = invoice.shipping_name || invoice.shipping_address;
 
   // UPI QR URL (using Google Charts API for server-side HTML)
@@ -376,7 +375,6 @@ function generateInvoiceHTML(invoice, items, org) {
         <div style="width:36%;border-right:1px solid #000;padding:5px 10px;font-size:8pt;line-height:1.4">
           <div style="margin-bottom:2px"><b>Invoice No:</b> ${invNum}</div>
           <div style="margin-bottom:2px"><b>Date:</b> ${invoiceDate}</div>
-          ${dueDate ? `<div style="margin-bottom:2px"><b>Due Date:</b> ${dueDate}</div>` : ''}
           <div style="margin-bottom:2px"><b>Place of Supply:</b> ${placeOfSupply}</div>
           <div><b>Reverse Charge:</b> No</div>
         </div>
