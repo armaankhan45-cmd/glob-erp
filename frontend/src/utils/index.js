@@ -19,21 +19,17 @@ export function numberToWords(num) {
   return result + ' Only';
 }
 
-// ALL CAPS version for print format (e.g., "TWENTY ONE LAKH TWENTY FOUR THOUSAND ONLY")
 export function numberToWordsCaps(num) {
   return numberToWords(num).toUpperCase().replace('RUPEES ', '').replace(' RUPEES', '');
 }
 
-// Indian number format with /- suffix (e.g., "18,00,000/-")
 export function formatIndian(num) {
-  if (num === null || num === undefined || isNaN(num)) return '0/-';
+  if (num === null || num === undefined || isNaN(num)) return '0.00';
   const n = parseFloat(num);
-  const isWhole = n === Math.floor(n);
-  const formatted = new Intl.NumberFormat('en-IN', {
-    minimumFractionDigits: isWhole ? 0 : 2,
+  return new Intl.NumberFormat('en-IN', {
+    minimumFractionDigits: 2,
     maximumFractionDigits: 2
   }).format(n);
-  return formatted + '/-';
 }
 
 export function getFY(date = new Date()) {
@@ -47,7 +43,7 @@ export function parseGSTIN(gstin) {
   const STATE_CODES = {
     '01':'Jammu & Kashmir','02':'Himachal Pradesh','03':'Punjab','04':'Chandigarh',
     '05':'Uttarakhand','06':'Haryana','07':'Delhi','08':'Rajasthan','09':'Uttar Pradesh',
-    '10':'Bihar','11':'Sikkam','12':'Arunachal Pradesh','13':'Nagaland','14':'Manipur',
+    '10':'Bihar','11':'Sikkim','12':'Arunachal Pradesh','13':'Nagaland','14':'Manipur',
     '15':'Mizoram','16':'Tripura','17':'Meghalaya','18':'Assam','19':'West Bengal',
     '20':'Jharkhand','21':'Odisha','22':'Chattisgarh','23':'Madhya Pradesh',
     '24':'Gujarat','25':'Daman & Diu','26':'Dadra & Nagar Haveli','27':'Maharashtra',
@@ -75,5 +71,7 @@ export function formatCurrency(num) {
 
 export function formatDate(dateStr) {
   if (!dateStr) return '';
-  return new Date(dateStr).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const dt = new Date(dateStr);
+  if (isNaN(dt.getTime())) return dateStr;
+  return dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
