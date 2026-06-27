@@ -3,8 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import api from '../api/client'
 import { Save, Plus, X, ArrowLeft } from 'lucide-react'
 
-const DEFAULT_TEMPLATE = `MODEL NO - TATA SIGNA 4425.T
-DESIGN, MANUFACTURE & FABRICATION OF TOP-LOADING SS304CR TANK USING JINDAL-CERTIFIED MATERIAL WITH TC REPORT. TANKER CAPACITY: 37KL DIVIDED INTO 6 COMPARTMENTS
+const DEFAULT_TEMPLATE = `DESIGN, MANUFACTURE & FABRICATION OF TOP-LOADING SS304CR TANK USING JINDAL-CERTIFIED MATERIAL WITH TC REPORT. TANKER CAPACITY: 37KL DIVIDED INTO 6 COMPARTMENTS
 CONSTRUCTED WITH:
 • SHELL: 3.5 MM THICK
 • DISH END: 3.5 MM THICK
@@ -35,12 +34,11 @@ export default function QuotationForm() {
     quotation_date: new Date().toISOString().split('T')[0],
     validity_date: new Date(Date.now() + 30*86400000).toISOString().split('T')[0],
     igst_rate: 18,
-    bold: false
   })
   const [items, setItems] = useState([{ description: '', quantity: 1, unit: 'Unit', rate: 0, igst_rate: 18, amount: 0 }])
-  const [calculated, setCalculated] = useState({ subtotal: 0, igst_amount: 0, total: 0 })
+  const [calculated, setCalculated] = useState({ subtotal: 0, igst_amount: 0, total_amount: 0 })
   const [saving, setSaving] = useState(false)
-  const [manualOverride, setManualOverride] = useState({ igst: false, total: false })
+  const [manualOverride, setManualOverride] = useState({ igst: false, total_amount: false })
 
   useEffect(() => {
     if (isEdit) loadQuotation()
@@ -72,10 +70,9 @@ export default function QuotationForm() {
         quotation_date: q.quotation_date,
         validity_date: q.validity_date,
         igst_rate: parseFloat(res.data.items?.[0]?.igst_rate || 18),
-        bold: false
       })
       setItems(res.data.items?.length > 0 ? res.data.items : [{ description: '', quantity: 1, unit: 'Unit', rate: 0, igst_rate: 18, amount: 0 }])
-      setCalculated({ subtotal: q.subtotal, igst_amount: q.igst_amount, total: q.total_amount })
+      setCalculated({ subtotal: q.subtotal, igst_amount: q.igst_amount, total_amount: q.total_amount })
     } catch {
       navigate('/app/quotations')
     }
@@ -94,7 +91,7 @@ export default function QuotationForm() {
   const recalc = (itemsList, gstRate) => {
     const subtotal = itemsList.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
     const igst = itemsList.reduce((s, i) => s + (parseFloat(i.amount) || 0) * (parseFloat(i.igst_rate || gstRate) || 0) / 100, 0)
-    setCalculated({ subtotal, igst_amount: igst, total: subtotal + igst })
+    setCalculated({ subtotal, igst_amount: igst, total_amount: subtotal + igst })
   }
 
   const setGSTSlab = (rate) => {
@@ -111,11 +108,13 @@ export default function QuotationForm() {
     setSaving(true)
     try {
       const data = {
-        ...form,
+        quotation_date: form.quotation_date,
+        validity_date: form.validity_date,
         subtotal: calculated.subtotal,
         igst_amount: calculated.igst_amount,
-        total_amount: calculated.total,
-        items: items.map(i => ({ ...i, quantity: parseFloat(i.quantity), rate: parseFloat(i.rate), igst_rate: parseFloat(i.igst_rate || form.igst_rate), amount: parseFloat(i.amount) }))
+        total_amount: calculated.total_amount,
+        notes: `${form.customer_name || ''}|||${form.additional_info || ''}|||${form.actual_notes || ''}`,
+        items: items.map(i => ({ ...i, quantity: parseFloat(i.quantity), rate: parseFloat(i.rate), igst_rate: parseFloat(i.igst_rate || form.igst_rate || 18), amount: parseFloat(i.amount) }))
       }
       if (isEdit) {
         await api.put(`/quotations/${id}`, data)
@@ -191,7 +190,7 @@ export default function QuotationForm() {
             <span>IGST @ {form.igst_rate}%</span>
             <div className="flex items-center gap-2">
               {manualOverride.igst ? (
-                <input type="number" value={calculated.igst_amount} onChange={e => setCalculated({...calculated, igst_amount: parseFloat(e.target.value)||0, total: calculated.subtotal + parseFloat(e.target.value||0)})} className="input-field w-28 text-right text-sm" />
+                <input type="number" value={calculated.igst_amount} onChange={e => setCalculated({...calculated, igst_amount: parseFloat(e.target.value)||0, total_amount: calculated.subtotal + parseFloat(e.target.value||0)})} className="input-field w-28 text-right text-sm" />
               ) : (
                 <span className="font-medium">₹{calculated.igst_amount.toFixed(2)}</span>
               )}
@@ -202,12 +201,12 @@ export default function QuotationForm() {
           <div className="flex justify-between items-center text-base font-bold">
             <span>Total</span>
             <div className="flex items-center gap-2">
-              {manualOverride.total ? (
-                <input type="number" value={calculated.total} onChange={e => setCalculated({...calculated, total: parseFloat(e.target.value)||0})} className="input-field w-32 text-right" />
+              {manualOverride.total_amount ? (
+                <input type="number" value={calculated.total_amount} onChange={e => setCalculated({...calculated, total: parseFloat(e.target.value)||0})} className="input-field w-32 text-right" />
               ) : (
-                <span>₹{calculated.total.toFixed(2)}</span>
+                <span>₹{calculated.total_amount.toFixed(2)}</span>
               )}
-              <button onClick={() => setManualOverride({...manualOverride, total: !manualOverride.total})} className="text-xs text-primary-600">{manualOverride.total ? 'Reset' : 'Override'}</button>
+              <button onClick={() => setManualOverride({...manualOverride, total: !manualOverride.total_amount})} className="text-xs text-primary-600">{manualOverride.total_amount ? 'Reset' : 'Override'}</button>
             </div>
           </div>
         </div>
