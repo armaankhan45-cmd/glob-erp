@@ -19,10 +19,12 @@ export function numberToWords(num) {
   return result + ' Only';
 }
 
+// ALL CAPS version for print format (e.g., "TWENTY ONE LAKH TWENTY FOUR THOUSAND ONLY")
 export function numberToWordsCaps(num) {
   return numberToWords(num).toUpperCase().replace('RUPEES ', '').replace(' RUPEES', '');
 }
 
+// Indian number format with 2 decimals (e.g., "18,00,000.00")
 export function formatIndian(num) {
   if (num === null || num === undefined || isNaN(num)) return '0.00';
   const n = parseFloat(num);
