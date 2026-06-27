@@ -15,6 +15,7 @@ exports.up = async function(knex) {
     table.text('bank_name');
     table.text('account_no');
     table.text('ifsc');
+    table.text('branch');
     table.text('upi_id');
     table.text('invoice_prefix').defaultTo('GST-');
     table.text('quotation_prefix').defaultTo('Q-');
