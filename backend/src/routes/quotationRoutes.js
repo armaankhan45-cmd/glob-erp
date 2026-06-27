@@ -9,6 +9,16 @@ function getFY(date = new Date()) {
   const y = date.getFullYear();
   if (m < 3) return `${(y - 1) % 100}-${y % 100}`;
   return `${y % 100}-${(y + 1) % 100}`;
+;
+
+function formatDate(d) {
+  if (!d) return '';
+  const dt = new Date(d);
+  if (isNaN(dt.getTime())) return String(d);
+  const dd = String(dt.getDate()).padStart(2, '0');
+  const mm = String(dt.getMonth() + 1).padStart(2, '0');
+  const yyyy = dt.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
 }
 
 // List quotations
@@ -47,11 +57,23 @@ router.get('/:id', auth, async (req, res) => {
     
     const parts = (quotation.notes || '').split('|||');
     
+    // Also get customer name from customers table if linked
+    let customerName = parts[0] || '';
+    let customerStateCode = '';
+    if (quotation.customer_id) {
+      const customer = await db('customers').where({ id: quotation.customer_id }).first();
+      if (customer) {
+        customerName = customer.name || customerName;
+        customerStateCode = customer.state_code || (customer.gstin ? customer.gstin.substring(0,2) : '');
+      }
+    }
+    
     res.json({ 
       success: true, 
       quotation: { 
         ...quotation, 
-        customer_name: parts[0] || '', 
+        customer_name: customerName,
+        customer_state_code: customerStateCode,
         additional_info: parts[1] || '', 
         actual_notes: parts[2] || '' 
       }, 
@@ -72,15 +94,14 @@ router.post('/', auth, async (req, res) => {
     const orgId = req.user.organization_id;
 
     const org = await db('organizations').where({ id: orgId }).first();
-    const settings = await db('settings').where({ organization_id: orgId, key: 'quotation_prefix' }).first();
-    const prefix = settings?.value || org.quotation_prefix || 'Q-';
+    const prefix = org.quotation_prefix || 'Q-';
     
     const last = await db('quotations').where({ organization_id: orgId }).orderBy('id', 'desc').first('id');
     const nextNo = (last?.id || 0) + 1;
     const fy = getFY(new Date(qData.quotation_date));
     const quotationNumber = `${prefix}${String(nextNo).padStart(4, '0')}/${fy}`;
 
-    // Store customer in notes field
+    // Store additional info in notes field
     const notes = `${customer_name || ''}|||${additional_info || ''}|||${actual_notes || ''}`;
 
     const data = {
@@ -164,12 +185,32 @@ router.post('/:id/convert', auth, async (req, res) => {
     
     const qItems = await db('quotation_items').where({ quotation_id: quotation.id });
     
+    // Get customer state code for proper GST split
+    const customer = quotation.customer_id ? await db('customers').where({ id: quotation.customer_id }).first() : null;
+    const custStateCode = customer?.state_code || (customer?.gstin ? customer.gstin.substring(0,2) : '');
+    const orgStateCode = (await db('organizations').where({ id: orgId }).first())?.state_code || '27';
+    const isIntra = custStateCode === orgStateCode;
+    
     // Create invoice
     const org = await db('organizations').where({ id: orgId }).first();
     const last = await db('invoices').where({ organization_id: orgId }).orderBy('id', 'desc').first('id');
     const nextNo = (last?.id || 0) + 1;
     const fy = getFY();
     const invoiceNumber = `${org.invoice_prefix || 'GST-'}${String(nextNo).padStart(4, '0')}/${fy}`;
+
+    // Calculate proper CGST/SGST/IGST based on state
+    let cgstAmount = 0, sgstAmount = 0, igstAmount = 0;
+    if (isIntra) {
+      // Split IGST into CGST + SGST for intra-state
+      const totalGst = parseFloat(quotation.igst_amount) || (parseFloat(quotation.cgst_amount) + parseFloat(quotation.sgst_amount));
+      cgstAmount = totalGst / 2;
+      sgstAmount = totalGst / 2;
+      igstAmount = 0;
+    } else {
+      cgstAmount = parseFloat(quotation.cgst_amount) || 0;
+      sgstAmount = parseFloat(quotation.sgst_amount) || 0;
+      igstAmount = parseFloat(quotation.igst_amount) || (parseFloat(quotation.cgst_amount) + parseFloat(quotation.sgst_amount));
+    }
 
     const invoiceData = {
       organization_id: orgId,
@@ -178,9 +219,9 @@ router.post('/:id/convert', auth, async (req, res) => {
       invoice_date: new Date().toISOString().split('T')[0],
       due_date: new Date(Date.now() + 30*86400000).toISOString().split('T')[0],
       subtotal: quotation.subtotal,
-      cgst_amount: quotation.cgst_amount,
-      sgst_amount: quotation.sgst_amount,
-      igst_amount: quotation.igst_amount,
+      cgst_amount: cgstAmount,
+      sgst_amount: sgstAmount,
+      igst_amount: igstAmount,
       total_amount: quotation.total_amount,
       status: 'Pending',
       payment_status: 'Unpaid',
@@ -190,20 +231,23 @@ router.post('/:id/convert', auth, async (req, res) => {
     const [invoice] = await db('invoices').insert(invoiceData).returning('id');
     const invoiceId = invoice.id || invoice;
 
-    // Convert items
+    // Convert items with proper CGST/SGST/IGST rates
     if (qItems.length > 0) {
-      const invItems = qItems.map(item => ({
-        invoice_id: invoiceId,
-        description: item.description,
-        hsn_code: item.hsn_code,
-        quantity: item.quantity,
-        unit: item.unit,
-        rate: item.rate,
-        cgst_rate: 0,
-        sgst_rate: 0,
-        igst_rate: item.igst_rate,
-        amount: item.amount
-      }));
+      const invItems = qItems.map(item => {
+        const itemGstRate = parseFloat(item.igst_rate) || 18;
+        return {
+          invoice_id: invoiceId,
+          description: item.description,
+          hsn_code: item.hsn_code,
+          quantity: item.quantity,
+          unit: item.unit,
+          rate: item.rate,
+          cgst_rate: isIntra ? itemGstRate / 2 : 0,
+          sgst_rate: isIntra ? itemGstRate / 2 : 0,
+          igst_rate: isIntra ? 0 : itemGstRate,
+          amount: item.amount
+        };
+      });
       await db('invoice_items').insert(invItems);
     }
 
@@ -232,8 +276,15 @@ router.get('/:id/pdf', auth, async (req, res) => {
     const items = await db('quotation_items').where({ quotation_id: quotation.id });
     const org = await db('organizations').where({ id: req.user.organization_id }).first();
     const parts = (quotation.notes || '').split('|||');
+    
+    // Get customer name from customers table
+    let customerName = parts[0] || '';
+    if (quotation.customer_id) {
+      const customer = await db('customers').where({ id: quotation.customer_id }).first();
+      if (customer) customerName = customer.name || customerName;
+    }
 
-    const html = generateQuotationHTML(quotation, items, org, parts[0]||'', parts[1]||'');
+    const html = generateQuotationHTML(quotation, items, org, customerName, parts[1]||'');
 
     try {
       const puppeteer = require('puppeteer');
@@ -256,14 +307,12 @@ router.get('/:id/pdf', auth, async (req, res) => {
 });
 
 function formatIndian(num) {
-  if (num === null || num === undefined || isNaN(num)) return '0/-';
+  if (num === null || num === undefined || isNaN(num)) return '0.00';
   const n = parseFloat(num);
-  const isWhole = n === Math.floor(n);
-  const formatted = new Intl.NumberFormat('en-IN', {
-    minimumFractionDigits: isWhole ? 0 : 2,
+  return new Intl.NumberFormat('en-IN', {
+    minimumFractionDigits: 2,
     maximumFractionDigits: 2
   }).format(n);
-  return formatted + '/-';
 }
 
 function generateQuotationHTML(quotation, items, org, customerName, additionalInfo) {
@@ -280,7 +329,11 @@ function generateQuotationHTML(quotation, items, org, customerName, additionalIn
       if (n < 10000000) return inW(Math.floor(n/100000)) + ' Lakh' + (n%100000 ? ' '+inW(n%100000) : '');
       return inW(Math.floor(n/10000000)) + ' Crore' + (n%10000000 ? ' '+inW(n%10000000) : '');
     }
-    return inW(Math.floor(num)) + ' Rupees Only';
+    const rupees = Math.round(Math.floor(num));
+    const paise = Math.round((num - Math.floor(num)) * 100);
+    let result = inW(rupees) + ' Rupees';
+    if (paise > 0) result += ' and ' + inW(paise) + ' Paise';
+    return result + ' Only';
   }
   function numberToWordsCaps(num) {
     return numberToWords(num).toUpperCase().replace('RUPEES ', '').replace(' RUPEES', '');
@@ -289,18 +342,16 @@ function generateQuotationHTML(quotation, items, org, customerName, additionalIn
   const qNum = (quotation.quotation_number || '').split('/')[0];
   const hasCGST = parseFloat(quotation.cgst_amount) > 0;
   const hasIGST = parseFloat(quotation.igst_amount) > 0;
-  const gstRate = hasIGST
-    ? parseFloat(items[0]?.igst_rate || 18)
-    : (hasCGST ? parseFloat(items[0]?.cgst_rate || 9) * 2 : 0);
+  const gstRate = hasIGST ? parseFloat(items[0]?.igst_rate || 18) : (hasCGST ? parseFloat(items[0]?.cgst_rate || 9) * 2 : 18);
   const totalGST = parseFloat(quotation.igst_amount) + parseFloat(quotation.cgst_amount) + parseFloat(quotation.sgst_amount);
 
   const itemsHTML = items.map((item, i) => `
     <tr>
-      <td style="border:1.5px solid #000;padding:3px 4px;text-align:center;vertical-align:top;width:7%">${i+1}</td>
-      <td style="border:1.5px solid #000;padding:3px 4px;width:47%;font-size:9pt;line-height:1.35;white-space:pre-line">${item.description || ''}</td>
-      <td style="border:1.5px solid #000;padding:3px 4px;text-align:center;vertical-align:top;width:12%">${item.quantity}${item.unit && item.unit !== 'Unit' ? ' ' + item.unit : ''}</td>
-      <td style="border:1.5px solid #000;padding:3px 4px;text-align:right;vertical-align:top;width:17%">${formatIndian(item.rate)}</td>
-      <td style="border:1.5px solid #000;padding:3px 4px;text-align:right;font-weight:bold;vertical-align:top;width:17%">${formatIndian(item.amount)}</td>
+      <td style="border:1.5px solid #000;padding:4px 5px;text-align:center;vertical-align:top;width:6%">${i+1}</td>
+      <td style="border:1.5px solid #000;padding:4px 5px;width:50%;font-size:8.5pt;line-height:1.3;white-space:pre-line">${item.description || ''}</td>
+      <td style="border:1.5px solid #000;padding:4px 5px;text-align:center;vertical-align:top;width:10%">${item.quantity}${item.unit && item.unit !== 'Unit' ? ' ' + item.unit : ''}</td>
+      <td style="border:1.5px solid #000;padding:4px 5px;text-align:right;vertical-align:top;width:17%">₹${formatIndian(item.rate)}</td>
+      <td style="border:1.5px solid #000;padding:4px 5px;text-align:right;font-weight:bold;vertical-align:top;width:17%">₹${formatIndian(item.amount)}</td>
     </tr>
   `).join('');
 
@@ -308,27 +359,34 @@ function generateQuotationHTML(quotation, items, org, customerName, additionalIn
     @page { size: A4; margin: 0; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: Georgia, serif; font-size: 10pt; }
-    .letterhead-space { height: ${letterheadMm}mm; }
+    .page { width: 210mm; height: 297mm; display: flex; flex-direction: column; overflow: hidden; }
+    .letterhead { height: ${letterheadMm}mm; flex-shrink: 0; }
+    .content { flex: 1; display: flex; flex-direction: column; border: 2px solid #000; margin: 0 10mm; }
+    .sign-space { height: 30mm; flex-shrink: 0; }
     table { width: 100%; border-collapse: collapse; }
-    th { border: 1.5px solid #000; padding: 5px 4px; background: #e8e8e8; text-align: center; }
+    th { border: 1.5px solid #000; padding: 5px; background: #e8e8e8; text-align: center; font-weight: bold; }
   </style></head><body>
-    <div class="letterhead-space"></div>
-    <div style="padding:0 12mm 6mm">
-      <h2 style="text-align:center;font-size:22pt;font-family:Georgia,serif;margin-bottom:2px">Quotation <u>No</u> :- ${qNum}</h2>
-      <p style="text-align:center;font-size:12pt;font-weight:bold;text-transform:uppercase;margin-bottom:2px">${(customerName||'').toUpperCase()}</p>
-      ${additionalInfo ? `<p style="text-align:center;font-size:10pt;margin-bottom:2px">${additionalInfo}</p>` : ''}
-      <p style="text-align:center;font-size:9pt;margin-bottom:8px;color:#555">Date: ${quotation.quotation_date}${quotation.validity_date ? ' | Valid till: ' + quotation.validity_date : ''}</p>
-      <table style="font-size:9.5pt">
-        <thead><tr><th style="width:7%">SR No.</th><th style="width:47%">Particulars</th><th style="width:12%">Quantity</th><th style="width:17%">Rate (INR)</th><th style="width:17%">Amount (INR)</th></tr></thead>
-        <tbody>${itemsHTML}</tbody>
-      </table>
-      <table style="font-size:9.5pt;margin-top:0">
-        ${gstRate > 0 ? `<tr><td style="border-left:1.5px solid #000;border-bottom:1.5px solid #000;padding:4px 6px;text-align:right;width:78%">GST: ${gstRate}%</td><td style="border:1.5px solid #000;padding:4px 6px;text-align:right;font-weight:bold">${formatIndian(totalGST)}</td></tr>` : ''}
-        <tr style="background:#f0f0f0"><td style="border-left:1.5px solid #000;border-bottom:1.5px solid #000;padding:5px 6px;text-align:right;font-size:11pt;width:78%"><strong>Total :</strong></td><td style="border:1.5px solid #000;padding:5px 6px;text-align:right;font-size:11pt;font-weight:bold">₹${formatIndian(quotation.total_amount)}</td></tr>
-      </table>
-      <p style="margin-top:8px;font-size:10pt;font-weight:bold">${numberToWordsCaps(quotation.total_amount)}</p>
-      <div style="margin-top:8px;font-size:8.5pt;color:#444;border-top:1px solid #ddd;padding-top:4px"><strong>GSTIN:</strong> ${org.gstin || ''} | <strong>State:</strong> ${org.state || ''} (${org.state_code || ''})</div>
-      ${org.bank_name ? `<div style="margin-top:3px;font-size:8.5pt;color:#444"><strong>Bank:</strong> ${org.bank_name} | <strong>A/C:</strong> ${org.account_no || ''} | <strong>IFSC:</strong> ${org.ifsc || ''}</div>` : ''}
+    <div class="page">
+      <div class="letterhead"></div>
+      <div class="content">
+        <div style="text-align:center;padding:8px 0 2px;font-size:20pt;font-weight:bold">Quotation <u>No</u> :- ${qNum}</div>
+        <div style="text-align:center;font-size:12pt;font-weight:bold;text-transform:uppercase;padding:2px 8px">${(customerName||'').toUpperCase()}</div>
+        ${additionalInfo ? `<div style="text-align:center;font-size:9pt;padding:0 8px 2px">${additionalInfo}</div>` : ''}
+        <div style="flex:1;padding:4px 5px 0;overflow:hidden">
+          <table style="font-size:9pt">
+            <thead><tr><th style="width:6%">SR No.</th><th style="width:50%">Particulars</th><th style="width:10%">Quantity</th><th style="width:17%">Rate (INR)</th><th style="width:17%">Amount (INR)</th></tr></thead>
+            <tbody>${itemsHTML}</tbody>
+          </table>
+        </div>
+        <div style="padding:0 5px 6px;flex-shrink:0">
+          <table style="font-size:9pt">
+            ${gstRate > 0 ? `<tr><td style="border-left:1.5px solid #000;border-bottom:1.5px solid #000;border-top:1.5px solid #000;border-right:1.5px solid #000;padding:4px 6px;text-align:right;width:76%">GST: ${gstRate}%</td><td style="border:1.5px solid #000;padding:4px 6px;text-align:right;font-weight:bold">₹${formatIndian(totalGST)}</td></tr>` : ''}
+            <tr style="background:#f0f0f0"><td style="border-left:1.5px solid #000;border-bottom:1.5px solid #000;border-top:1.5px solid #000;border-right:1.5px solid #000;padding:5px 6px;text-align:right;font-size:11pt;width:76%"><strong>Total :</strong></td><td style="border:1.5px solid #000;padding:5px 6px;text-align:right;font-size:11pt;font-weight:bold">₹${formatIndian(quotation.total_amount)}</td></tr>
+          </table>
+          <div style="border:1.5px solid #000;border-top:none;padding:6px 8px;font-size:10pt;font-weight:bold;text-align:center;background:#fafafa">${numberToWordsCaps(quotation.total_amount)}</div>
+        </div>
+      </div>
+      <div class="sign-space"></div>
     </div>
   </body></html>`;
 }
