@@ -12,8 +12,8 @@ export function numberToWords(num) {
     return inW(Math.floor(n/10000000)) + ' Crore' + (n%10000000 ? ' '+inW(n%10000000) : '');
   }
   
-  const rupees = Math.floor(num);
-  const paise = Math.round((num - rupees) * 100);
+  const rupees = Math.round(Math.floor(num));
+  const paise = Math.round((num - Math.floor(num)) * 100);
   let result = inW(rupees) + ' Rupees';
   if (paise > 0) result += ' and ' + inW(paise) + ' Paise';
   return result + ' Only';
