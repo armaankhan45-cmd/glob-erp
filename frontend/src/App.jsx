@@ -16,6 +16,7 @@ import CustomerDetail from './pages/CustomerDetail'
 import Purchases from './pages/Purchases'
 import PurchaseNew from './pages/PurchaseNew'
 import PurchaseDetail from './pages/PurchaseDetail'
+import PurchaseEdit from './pages/PurchaseEdit'
 import GSTReports from './pages/GSTReports'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
@@ -54,6 +55,7 @@ export default function App() {
         <Route path="purchases" element={<Purchases />} />
         <Route path="purchases/new" element={<PurchaseNew />} />
         <Route path="purchases/:id" element={<PurchaseDetail />} />
+        <Route path="purchases/:id/edit" element={<PurchaseEdit />} />
         <Route path="gst" element={<GSTReports />} />
         <Route path="reports" element={<Reports />} />
         <Route path="settings" element={<Settings />} />
