@@ -174,7 +174,7 @@ export default function AIAssistant() {
     // Welcome message
     setMessages([{
       role: 'assistant',
-      content: `# 👋 Welcome to Glob ERP AI Assistant!\n\nI'm your **personal ERP expert** — I can do everything a developer can do:\n\n🔍 **Debug & Diagnose** — Check system health, find errors, identify issues\n🔧 **Fix Problems** — Auto-repair broken tables, missing columns, failed routes\n📝 **Write Code** — Read, modify, and create source code files on your server\n📊 **Query Data** — Run SQL queries, list records, check invoices\n⚙️ **Manage Settings** — View and update your ERP configuration\n\n### Quick Start:\nJust type what you need, like:\n- "My quotations are failing, fix it"\n- "Show me the invoice routes code"\n- "Add a column for phone numbers to customers table"\n- "How many unpaid invoices do I have?"\n\n${!aiStatus?.aiEnabled ? `---\n💡 **Unlock Full AI Mode** — Add a free API key:\n\n**Option 1: Google Gemini 2.5 Pro** (FREE, most powerful)\n1. Go to https://aistudio.google.com/apikey\n2. Create free key\n3. Add \`GEMINI_API_KEY\` to Render env vars\n\n**Option 2: Groq Llama 3.3 70B** (FREE, very fast)\n1. Go to https://console.groq.com/keys\n2. Create free key\n3. Add \`GROQ_API_KEY\` to Render env vars\n\n**Option 3: OpenAI GPT-4o** (PAID, very capable)\n1. Go to https://platform.openai.com/api-keys\n2. Add \`OPENAI_API_KEY\` to Render env vars\n\nCurrently running in **rule-based mode** — I can still diagnose, fix, and query your ERP!` : `🚀 **Full AI mode active** — Powered by ${aiStatus?.primaryProvider || 'AI'}`}`,
+      content: `# 👋 Welcome to Glob ERP AI Assistant!\n\nI'm your **personal ERP expert** — powered by **FREE AI** (no paid API needed!)\n\nI can do everything a developer can do:\n\n🔍 **Debug & Diagnose** — Check system health, find errors, identify issues\n🔧 **Fix Problems** — Auto-repair broken tables, missing columns, failed routes\n📝 **Write Code** — Read, modify, and create source code files on your server\n📊 **Query Data** — Run SQL queries, list records, check invoices\n⚙️ **Manage Settings** — View and update your ERP configuration\n\n### Quick Start:\nJust type what you need, like:\n- "My quotations are failing, fix it"\n- "Show me the invoice routes code"\n- "Add a column for phone numbers to customers table"\n- "How many unpaid invoices do I have?"\n\n🆓 **This AI is 100% FREE** — Powered by Pollinations AI (no API key needed, no signup, no credit card). You can also add your own free API keys in Render for even faster responses:\n\n- **Gemini 2.5 Pro** — Free at https://aistudio.google.com/apikey\n- **Groq** — Free at https://console.groq.com/keys\n- **DeepSeek** — Free at https://platform.deepseek.com\n\nBut you **don't need to** — the AI works right now, for free! 🎉`,
       toolCalls: []
     }])
   }, [])
@@ -248,11 +248,11 @@ export default function AIAssistant() {
               AI Assistant
             </h1>
             <div className="flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full ${aiStatus?.aiEnabled ? 'bg-green-400 animate-pulse' : 'bg-yellow-400'}`}></span>
+              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
               <span className="text-xs text-gray-500">
                 {aiStatus?.aiEnabled 
-                  ? `${aiStatus.primaryProvider} • ${aiStatus.toolsAvailable} tools` 
-                  : 'Rule-based mode • Add free API key for full AI'}
+                  ? `🆓 ${aiStatus.primaryProvider || 'AI'} • ${aiStatus.toolsAvailable} tools` 
+                  : '🆓 Free AI Active • 15 tools'}
               </span>
             </div>
           </div>
@@ -308,7 +308,7 @@ export default function AIAssistant() {
                 {msg.role === 'assistant' && msg.provider && (
                   <div className="mt-1.5 flex items-center gap-1.5">
                     <span className="text-[10px] text-gray-400 font-medium">
-                      {msg.provider === 'gemini' ? '✨ Gemini AI' : '⚡ Rule-based'}
+                      {msg.provider === 'rule-based' ? '⚡ Rule-based' : msg.provider === 'fallback' ? '⚡ Fallback' : `🆓 ${msg.provider}`}
                     </span>
                   </div>
                 )}
@@ -393,9 +393,9 @@ export default function AIAssistant() {
 
       {/* Footer info */}
       <div className="flex items-center justify-center gap-4 mt-2 text-[10px] text-gray-400">
-        <span>Glob ERP AI v2.0</span>
+        <span>Glob ERP AI v3.0</span>
         <span>•</span>
-        <span>{aiStatus?.aiEnabled ? `Powered by ${aiStatus?.primaryProvider || 'AI'}` : 'Rule-based mode'}</span>
+        <span>🆓 100% Free AI</span>
         <span>•</span>
         <span>{aiStatus?.toolsAvailable || 15} tools available</span>
       </div>
