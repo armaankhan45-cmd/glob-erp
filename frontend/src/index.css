@@ -1,9 +1,24 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: 'Inter', sans-serif;
+@layer base {
+  :root {
+    --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+    --color-brand-gray: #1A1A1A;
+    --color-brand-orange: #ef4d23;
+    --color-brand-dark: #0b0f1a;
+    --color-brand-page: #ededed;
+    --color-brand-hero: #d9d9d9;
+    --color-brand-tray: #f5f2ee;
+  }
+
+  body {
+    @apply font-sans antialiased;
+    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  }
 }
 
 @page {
@@ -28,40 +43,48 @@ body {
   }
 }
 
-.print-area {
-  width: 210mm;
-  height: 297mm;
-  overflow: hidden;
+/* ── Convix-style cards ── */
+@layer components {
+  .card {
+    @apply bg-white rounded-2xl p-5 shadow-sm border border-neutral-200/60;
+  }
+
+  .btn-primary {
+    @apply bg-brand-orange text-white font-semibold rounded-xl px-5 py-2.5 hover:bg-brand-orange/90 active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-secondary {
+    @apply bg-white text-neutral-700 font-medium rounded-xl px-4 py-2.5 border border-neutral-200 hover:bg-neutral-50 active:scale-[0.98] transition-all duration-150;
+  }
+
+  .btn-danger {
+    @apply bg-red-500 text-white font-medium rounded-xl px-4 py-2.5 hover:bg-red-600 transition-all duration-150;
+  }
+
+  .input-field {
+    @apply w-full bg-brand-gray border-none rounded-xl h-11 px-4 text-white placeholder:text-white/20 focus:ring-2 focus:ring-brand-orange/20 focus:outline-none transition-all duration-150;
+  }
+
+  .sidebar-link {
+    @apply flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-150;
+  }
+  .sidebar-link.active {
+    @apply bg-brand-orange text-white;
+  }
+
+  /* App-specific input style (non-dark pages) */
+  .input-field-light {
+    @apply w-full bg-white border border-neutral-200 rounded-xl h-11 px-4 text-neutral-800 placeholder:text-neutral-400 focus:ring-2 focus:ring-brand-orange/20 focus:border-brand-orange/30 focus:outline-none transition-all duration-150;
+  }
 }
 
-.sidebar-link {
-  @apply flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors;
-}
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
 
-.sidebar-link:hover {
-  @apply bg-white/10;
-}
-
-.sidebar-link.active {
-  @apply bg-primary-600 text-white shadow-lg;
-}
-
-.btn-primary {
-  @apply bg-primary-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
-}
-
-.btn-secondary {
-  @apply bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-300 transition-colors;
-}
-
-.btn-danger {
-  @apply bg-red-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-red-700 transition-colors;
-}
-
-.input-field {
-  @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all;
-}
-
-.card {
-  @apply bg-white rounded-xl shadow-sm border border-gray-100 p-6;
+/* ── Selection ── */
+::selection {
+  background: rgba(239, 77, 35, 0.2);
 }
