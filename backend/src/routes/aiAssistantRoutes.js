@@ -482,9 +482,9 @@ async function executeTool(name, args, orgId) {
 }
 
 // ═══════════════════════════════════════════════
-// MULTI-PROVIDER AI INTEGRATION
-// Supports: Gemini 2.5 Pro, Gemini 2.5 Flash, OpenAI GPT-4o, Groq Llama, Cerebras, OpenRouter
-// Priority order: Gemini Pro → Groq → Cerebras → Gemini Flash → OpenRouter → OpenAI
+// MULTI-PROVIDER AI INTEGRATION — ALL FREE!
+// Supports: Pollinations (FREE, NO KEY), Gemini, Groq, Cerebras, OpenRouter, DeepSeek, OpenAI
+// Priority: Pollinations (always free) → Gemini Pro → Groq → DeepSeek → Cerebras → OpenRouter → OpenAI
 // ═══════════════════════════════════════════════
 
 async function callAI(messages, toolDefs) {
@@ -493,21 +493,29 @@ async function callAI(messages, toolDefs) {
   const cerebrasKey = process.env.CEREBRAS_API_KEY;
   const openrouterKey = process.env.OPENROUTER_API_KEY;
   const openaiKey = process.env.OPENAI_API_KEY;
+  const deepseekKey = process.env.DEEPSEEK_API_KEY;
   
-  // ── Strategy: Try providers in order of BEST FREE value ──
-  // 1. Gemini 2.5 Pro — Most powerful free model, 100 req/day
-  // 2. Groq Llama 3.3 70B — Very fast, 1000 req/day, tool calling
-  // 3. Cerebras — Very fast, 1M tokens/day
-  // 4. Gemini 2.5 Flash — Fast, 1500 req/day
-  // 5. OpenRouter — Multi-model gateway, 50 req/day free
-  // 6. OpenAI GPT-4o — Paid only, but most capable
+  // ── Strategy: ALWAYS FREE first, then keyed providers for higher limits ──
+  // 0. Pollinations AI — 100% FREE, NO API KEY, NO signup, works instantly!
+  //    Uses OpenAI-compatible API, supports tool calling
+  //    Anonymous: ~1 req/15sec, Registered: ~1 req/5sec (free)
+  // 1. Gemini 2.5 Pro — Most powerful free model (if key provided)
+  // 2. Groq Llama 3.3 70B — Very fast, 1000 req/day (if key provided)
+  // 3. DeepSeek V3 — Great for code, 5M free tokens (if key provided)
+  // 4. Cerebras — Very fast, 1M tokens/day (if key provided)
+  // 5. Gemini 2.5 Flash — Fast, 1500 req/day (if key provided)
+  // 6. OpenRouter — Multi-model gateway, 50 req/day free (if key provided)
+  // 7. OpenAI GPT-4o — Paid only (if key provided)
 
+  // ── ALWAYS TRY: Pollinations AI (FREE, no key needed) ──
+  const pollResult = await callPollinations(messages, toolDefs);
+  if (pollResult) return { ...pollResult, provider: 'Pollinations AI (Free)' };
+
+  // ── Then try keyed providers for higher rate limits ──
   if (geminiKey) {
-    // Try Gemini 2.5 Pro first (most powerful free model)
     const proResult = await callGemini(messages, toolDefs, geminiKey, 'gemini-2.5-pro');
     if (proResult) return { ...proResult, provider: 'Gemini 2.5 Pro' };
     
-    // Fallback to Gemini 2.5 Flash (more daily quota)
     const flashResult = await callGemini(messages, toolDefs, geminiKey, 'gemini-2.5-flash');
     if (flashResult) return { ...flashResult, provider: 'Gemini 2.5 Flash' };
   }
@@ -515,6 +523,11 @@ async function callAI(messages, toolDefs) {
   if (groqKey) {
     const result = await callGroq(messages, toolDefs, groqKey);
     if (result) return { ...result, provider: 'Groq Llama 3.3 70B' };
+  }
+
+  if (deepseekKey) {
+    const result = await callDeepSeek(messages, toolDefs, deepseekKey);
+    if (result) return { ...result, provider: 'DeepSeek V3' };
   }
 
   if (cerebrasKey) {
@@ -532,7 +545,181 @@ async function callAI(messages, toolDefs) {
     if (result) return { ...result, provider: 'OpenAI GPT-4o' };
   }
 
-  return null; // No AI available — fall back to rule-based
+  return null; // All providers failed — fall back to rule-based
+}
+
+// ── POLLINATIONS AI (100% FREE, NO API KEY NEEDED!) ──
+// OpenAI-compatible API, supports tool calling, no signup required
+// Endpoint: https://text.pollinations.ai/openai
+// Anonymous: ~1 req/15sec, Free registered: ~1 req/5sec
+async function callPollinations(messages, toolDefs) {
+  const url = 'https://text.pollinations.ai/openai';
+
+  const pollMessages = [
+    { role: 'system', content: SYSTEM_PROMPT }
+  ];
+
+  for (const msg of messages) {
+    if (msg.role === 'user') {
+      pollMessages.push({ role: 'user', content: msg.content });
+    } else if (msg.role === 'assistant' || msg.role === 'model') {
+      pollMessages.push({ role: 'assistant', content: msg.content });
+    } else if (msg.role === 'tool_call') {
+      pollMessages.push({ 
+        role: 'assistant', 
+        content: null,
+        tool_calls: [{ id: `call_${msg.name}_${Date.now()}`, type: 'function', function: { name: msg.name, arguments: JSON.stringify(msg.args || {}) } }]
+      });
+    } else if (msg.role === 'tool_result') {
+      pollMessages.push({
+        role: 'tool',
+        tool_call_id: `call_${msg.name}`,
+        content: JSON.stringify(msg.result)
+      });
+    }
+  }
+
+  // Convert tool definitions to OpenAI format
+  const pollTools = toolDefs.map(td => ({
+    type: 'function',
+    function: {
+      name: td.name,
+      description: td.description,
+      parameters: td.parameters || { type: 'object', properties: {} }
+    }
+  }));
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+        // NO API KEY NEEDED! 🎉
+      },
+      body: JSON.stringify({
+        model: 'openai',  // Free: GPT-OSS 20B Reasoning model (supports tools!)
+        messages: pollMessages,
+        tools: pollTools,
+        temperature: 0.7,
+        max_tokens: 4096
+      }),
+      timeout: 60000
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('Pollinations error:', response.status, errText.substring(0, 200));
+      return null;
+    }
+
+    const data = await response.json();
+    const choice = data.choices?.[0];
+    if (!choice) return null;
+
+    const toolCalls = [];
+    if (choice.message?.tool_calls) {
+      for (const tc of choice.message.tool_calls) {
+        try {
+          toolCalls.push({
+            name: tc.function.name,
+            args: JSON.parse(tc.function.arguments)
+          });
+        } catch (e) {}
+      }
+    }
+
+    return {
+      text: choice.message?.content || '',
+      toolCalls,
+      finishReason: choice.finish_reason
+    };
+  } catch (err) {
+    console.error('Pollinations fetch error:', err.message);
+    return null;
+  }
+}
+
+// ── DEEPSEEK API (Free tier: 5M tokens, great for code) ──
+async function callDeepSeek(messages, toolDefs, apiKey) {
+  const url = 'https://api.deepseek.com/v1/chat/completions';
+
+  const dsMessages = [
+    { role: 'system', content: SYSTEM_PROMPT }
+  ];
+
+  for (const msg of messages) {
+    if (msg.role === 'user') {
+      dsMessages.push({ role: 'user', content: msg.content });
+    } else if (msg.role === 'assistant' || msg.role === 'model') {
+      dsMessages.push({ role: 'assistant', content: msg.content });
+    } else if (msg.role === 'tool_call') {
+      dsMessages.push({ 
+        role: 'assistant', 
+        content: null,
+        tool_calls: [{ id: `call_${msg.name}_${Date.now()}`, type: 'function', function: { name: msg.name, arguments: JSON.stringify(msg.args || {}) } }]
+      });
+    } else if (msg.role === 'tool_result') {
+      dsMessages.push({
+        role: 'tool',
+        tool_call_id: `call_${msg.name}`,
+        content: JSON.stringify(msg.result)
+      });
+    }
+  }
+
+  const dsTools = toolDefs.map(td => ({
+    type: 'function',
+    function: {
+      name: td.name,
+      description: td.description,
+      parameters: td.parameters || { type: 'object', properties: {} }
+    }
+  }));
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: dsMessages,
+        tools: dsTools,
+        temperature: 0.7,
+        max_tokens: 4096
+      }),
+      timeout: 60000
+    });
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    const choice = data.choices?.[0];
+    if (!choice) return null;
+
+    const toolCalls = [];
+    if (choice.message?.tool_calls) {
+      for (const tc of choice.message.tool_calls) {
+        try {
+          toolCalls.push({
+            name: tc.function.name,
+            args: JSON.parse(tc.function.arguments)
+          });
+        } catch (e) {}
+      }
+    }
+
+    return {
+      text: choice.message?.content || '',
+      toolCalls,
+      finishReason: choice.finish_reason
+    };
+  } catch (err) {
+    console.error('DeepSeek fetch error:', err.message);
+    return null;
+  }
 }
 
 // ── GEMINI API ──
@@ -990,7 +1177,7 @@ function ruleBasedResponse(msg, orgId) {
 
 ---
 
-**Tip:** For full AI capabilities (natural conversation, code writing, complex debugging), add a **Gemini API key** to your Render environment variables as \`GEMINI_API_KEY\`. Get one free at https://aistudio.google.com/apikey`
+🆓 **This AI is 100% FREE** — powered by Pollinations AI. No API key, no signup, no credit card needed!`
   };
 }
 
@@ -1004,122 +1191,92 @@ router.post('/chat', auth, adminOnly, async (req, res) => {
     const orgId = req.user.organization_id;
     const userMessage = messages[messages.length - 1]?.content || '';
     
-    // Try AI providers (Gemini Pro → OpenAI → Groq → Gemini Flash)
-    const hasAnyAI = !!(process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY || process.env.GROQ_API_KEY);
-    
-    if (hasAnyAI) {
-      // ── AI FLOW ──
-      const allMessages = [
-        ...messages.map(m => ({ role: m.role === 'user' ? 'user' : 'model', content: m.content })),
-      ];
+    // ── ALWAYS USE AI FLOW ──
+    // Pollinations AI is FREE and needs NO API key, so AI is ALWAYS available!
+    // Other providers (Gemini, Groq, DeepSeek) are tried for higher rate limits if keys are set
+    const allMessages = [
+      ...messages.map(m => ({ role: m.role === 'user' ? 'user' : 'model', content: m.content })),
+    ];
 
-      let maxIterations = 5;
-      let currentMessages = [...allMessages];
-      let finalResponse = '';
-      let usedProvider = 'unknown';
+    let maxIterations = 5;
+    let currentMessages = [...allMessages];
+    let finalResponse = '';
+    let usedProvider = 'unknown';
 
-      while (maxIterations-- > 0) {
-        const aiResponse = await callAI(currentMessages, TOOL_DEFINITIONS);
-        
-        if (!aiResponse) {
-          // All AI providers failed, fall back to rule-based
-          const ruleResult = ruleBasedResponse(userMessage, orgId);
-          if (ruleResult.toolCalls?.length > 0) {
-            const toolResults = [];
-            for (const tc of ruleResult.toolCalls) {
-              const result = await executeTool(tc.name, tc.args, orgId);
-              toolResults.push({ name: tc.name, result });
-            }
-            return res.json({
-              success: true,
-              message: ruleResult.text,
-              toolCalls: ruleResult.toolCalls.map((tc, i) => ({ name: tc.name, args: tc.args, result: toolResults[i].result })),
-              provider: 'fallback'
-            });
-          }
-          return res.json({ success: true, message: ruleResult.text, provider: 'fallback' });
-        }
-
-        usedProvider = aiResponse.provider || usedProvider;
-        const extracted = aiResponse;
-
-        if (extracted.toolCalls.length > 0) {
-          // Execute tools and continue conversation
+    while (maxIterations-- > 0) {
+      const aiResponse = await callAI(currentMessages, TOOL_DEFINITIONS);
+      
+      if (!aiResponse) {
+        // All AI providers failed (even Pollinations), fall back to rule-based
+        const ruleResult = ruleBasedResponse(userMessage, orgId);
+        if (ruleResult.toolCalls?.length > 0) {
           const toolResults = [];
-          for (const tc of extracted.toolCalls) {
+          for (const tc of ruleResult.toolCalls) {
             const result = await executeTool(tc.name, tc.args, orgId);
-            toolResults.push({ name: tc.name, args: tc.args, result });
+            toolResults.push({ name: tc.name, result });
           }
-
-          // Add model's tool call + results to conversation
-          currentMessages.push({ role: 'model', content: extracted.text || `Calling ${extracted.toolCalls.map(t => t.name).join(', ')}...` });
-          for (const tr of toolResults) {
-            currentMessages.push({ role: 'tool_result', name: tr.name, result: tr.result });
-          }
-
-          // If there's text along with tool calls, include it
-          if (extracted.text) finalResponse = extracted.text;
-
-          // Continue the loop to get the final response
-          continue;
+          return res.json({
+            success: true,
+            message: ruleResult.text,
+            toolCalls: ruleResult.toolCalls.map((tc, i) => ({ name: tc.name, args: tc.args, result: toolResults[i].result })),
+            provider: 'fallback'
+          });
         }
-
-        // No more tool calls — this is the final response
-        finalResponse = extracted.text || finalResponse;
-        
-        // Collect all tool calls from the conversation for the frontend
-        const toolCallsInConversation = [];
-        for (let i = 0; i < currentMessages.length; i++) {
-          if (currentMessages[i].role === 'tool_result') {
-            toolCallsInConversation.push({
-              name: currentMessages[i].name,
-              result: currentMessages[i].result
-            });
-          }
-        }
-
-        return res.json({
-          success: true,
-          message: finalResponse,
-          toolCalls: toolCallsInConversation,
-          provider: usedProvider
-        });
+        return res.json({ success: true, message: ruleResult.text, provider: 'fallback' });
       }
 
-      // Max iterations reached — return what we have
-      return res.json({
-        success: true,
-        message: finalResponse || 'I processed your request but hit the iteration limit. Try a more specific question.',
-        provider: usedProvider
-      });
+      usedProvider = aiResponse.provider || usedProvider;
+      const extracted = aiResponse;
 
-    } else {
-      // ── RULE-BASED FLOW ──
-      const ruleResult = ruleBasedResponse(userMessage, orgId);
-      
-      if (ruleResult.toolCalls?.length > 0) {
+      if (extracted.toolCalls.length > 0) {
+        // Execute tools and continue conversation
         const toolResults = [];
-        for (const tc of ruleResult.toolCalls) {
+        for (const tc of extracted.toolCalls) {
           const result = await executeTool(tc.name, tc.args, orgId);
           toolResults.push({ name: tc.name, args: tc.args, result });
         }
 
-        // Generate a human-readable summary of the tool results
-        let summary = ruleResult.text + '\n\n';
+        // Add model's tool call + results to conversation
+        currentMessages.push({ role: 'model', content: extracted.text || `Calling ${extracted.toolCalls.map(t => t.name).join(', ')}...` });
         for (const tr of toolResults) {
-          summary += formatToolResult(tr.name, tr.result);
+          currentMessages.push({ role: 'tool_result', name: tr.name, result: tr.result });
         }
 
-        return res.json({
-          success: true,
-          message: summary,
-          toolCalls: toolResults,
-          provider: 'rule-based'
-        });
+        // If there's text along with tool calls, include it
+        if (extracted.text) finalResponse = extracted.text;
+
+        // Continue the loop to get the final response
+        continue;
       }
 
-      return res.json({ success: true, message: ruleResult.text, provider: 'rule-based' });
+      // No more tool calls — this is the final response
+      finalResponse = extracted.text || finalResponse;
+      
+      // Collect all tool calls from the conversation for the frontend
+      const toolCallsInConversation = [];
+      for (let i = 0; i < currentMessages.length; i++) {
+        if (currentMessages[i].role === 'tool_result') {
+          toolCallsInConversation.push({
+            name: currentMessages[i].name,
+            result: currentMessages[i].result
+          });
+        }
+      }
+
+      return res.json({
+        success: true,
+        message: finalResponse,
+        toolCalls: toolCallsInConversation,
+        provider: usedProvider
+      });
     }
+
+    // Max iterations reached — return what we have
+    return res.json({
+      success: true,
+      message: finalResponse || 'I processed your request but hit the iteration limit. Try a more specific question.',
+      provider: usedProvider
+    });
 
   } catch (err) {
     console.error('AI Chat error:', err);
@@ -1200,23 +1357,26 @@ router.get('/status', auth, async (req, res) => {
     GROQ_API_KEY: !!process.env.GROQ_API_KEY,
     CEREBRAS_API_KEY: !!process.env.CEREBRAS_API_KEY,
     OPENROUTER_API_KEY: !!process.env.OPENROUTER_API_KEY,
-    OPENAI_API_KEY: !!process.env.OPENAI_API_KEY
+    OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
+    DEEPSEEK_API_KEY: !!process.env.DEEPSEEK_API_KEY
   };
-  const hasAnyAI = Object.values(keys).some(Boolean);
   
-  const active = [];
+  // Pollinations AI is ALWAYS available (no key needed)!
+  const active = ['Pollinations AI (Free)'];
   if (keys.GEMINI_API_KEY) active.push('Gemini 2.5 Pro + Flash');
   if (keys.GROQ_API_KEY) active.push('Groq Llama 3.3 70B');
+  if (keys.DEEPSEEK_API_KEY) active.push('DeepSeek V3');
   if (keys.CEREBRAS_API_KEY) active.push('Cerebras Llama 3.3');
   if (keys.OPENROUTER_API_KEY) active.push('OpenRouter');
   if (keys.OPENAI_API_KEY) active.push('OpenAI GPT-4o');
   
   res.json({
     success: true,
-    aiEnabled: hasAnyAI,
-    providers: active.length > 0 ? active : ['Rule-based'],
-    primaryProvider: active[0] || 'Rule-based',
-    toolsAvailable: TOOL_DEFINITIONS.length
+    aiEnabled: true, // ALWAYS true now — Pollinations is free and needs no key!
+    providers: active,
+    primaryProvider: 'Pollinations AI (Free)',
+    toolsAvailable: TOOL_DEFINITIONS.length,
+    note: 'AI is always enabled! Pollinations AI works for free without any API key. Add your own keys for higher rate limits.'
   });
 });
 
