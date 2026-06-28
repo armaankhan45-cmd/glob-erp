@@ -68,6 +68,7 @@ export default function InvoiceEdit() {
       setForm({
         customer_id: inv.customer_id || '',
         invoice_date: (inv.invoice_date || '').split('T')[0],
+        invoice_number: inv.invoice_number || '',
         discount: inv.discount || 0,
         round_off: inv.round_off || 0,
         notes: inv.notes || '',
@@ -124,6 +125,7 @@ export default function InvoiceEdit() {
     try {
       await api.put(`/invoices/${id}/full`, {
         customer_id: form.customer_id,
+        invoice_number: form.invoice_number || undefined,
         invoice_date: form.invoice_date || null,
         due_date: null,
         discount: form.discount,
@@ -174,6 +176,7 @@ export default function InvoiceEdit() {
               {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Invoice No.</label><input type="text" value={form.invoice_number || ''} onChange={e => setForm({...form, invoice_number: e.target.value})} className="input-field font-mono" /></div>
           <div><label className="block text-sm font-medium text-gray-700 mb-1">Invoice Date</label><input type="date" value={form.invoice_date || ''} onChange={e => setForm({...form, invoice_date: e.target.value})} className="input-field" /></div>
         </div>
       </div>
