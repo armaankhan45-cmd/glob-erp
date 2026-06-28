@@ -14,7 +14,6 @@ export default function QuotationDetail() {
   const [customerSize, setCustomerSize] = useState(() => localStorage.getItem('quotCustSize') || '14')
   const [shareOpen, setShareOpen] = useState(false)
   const [sharing, setSharing] = useState(false)
-  const printRef = useRef(null)
 
   useEffect(() => { loadQuotation() }, [id])
 
@@ -59,35 +58,6 @@ export default function QuotationDetail() {
     }
   }
 
-  // Generate actual PDF blob from the backend HTML
-  const generatePDF = async () => {
-    const token = localStorage.getItem('token')
-    const pdfUrl = `${api.defaults.baseURL}/quotations/${id}/pdf?token=${token}`
-    const res = await fetch(pdfUrl)
-    const html = await res.text()
-    // Use a hidden iframe to print to PDF
-    return new Promise((resolve) => {
-      const iframe = document.createElement('iframe')
-      iframe.style.position = 'fixed'
-      iframe.style.right = '0'
-      iframe.style.bottom = '0'
-      iframe.style.width = '0'
-      iframe.style.height = '0'
-      iframe.style.border = 'none'
-      document.body.appendChild(iframe)
-      iframe.contentDocument.write(html)
-      iframe.contentDocument.close()
-      setTimeout(() => {
-        iframe.contentWindow.print()
-        setTimeout(() => {
-          document.body.removeChild(iframe)
-          resolve()
-        }, 1000)
-      }, 500)
-    })
-  }
-
-  // WhatsApp share with PDF — downloads the HTML, opens WhatsApp with file share intent
   const handleWhatsApp = async () => {
     setSharing(true)
     try {
@@ -96,38 +66,22 @@ export default function QuotationDetail() {
       const qNum = quotation.quotation_number || ''
       const custName = quotation.customer_name || ''
       const total = fmt(quotation.total_amount)
-
-      // Try Web Share API with file
       try {
         const response = await fetch(pdfUrl)
         const htmlBlob = await response.blob()
         const file = new File([htmlBlob], `Quotation_${qNum.replace(/\//g, '-')}.html`, { type: 'text/html' })
-
         if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({
-            text: `*QUOTATION ${qNum}*\nCustomer: ${custName}\nTotal: ₹${total}`,
-            files: [file]
-          })
-          setShareOpen(false)
-          setSharing(false)
-          return
+          await navigator.share({ text: `*QUOTATION ${qNum}*\nCustomer: ${custName}\nTotal: ₹${total}`, files: [file] })
+          setShareOpen(false); setSharing(false); return
         }
-      } catch (shareErr) {
-        // Fallback if share API fails or not supported
-      }
-
-      // Fallback: Open WhatsApp with message containing the PDF link
+      } catch (shareErr) {}
       const viewUrl = `${window.location.origin}/app/quotations/${id}`
       const msg = `*QUOTATION ${qNum}*\nCustomer: ${custName}\nTotal: ₹${total}\n\n📄 View & Print: ${viewUrl}\n📥 Direct PDF: ${pdfUrl}`
       window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
-    } catch (err) {
-      alert('Share failed: ' + err.message)
-    }
-    setShareOpen(false)
-    setSharing(false)
+    } catch (err) { alert('Share failed: ' + err.message) }
+    setShareOpen(false); setSharing(false)
   }
 
-  // Email share with PDF attachment
   const handleEmail = async () => {
     setSharing(true)
     try {
@@ -136,37 +90,23 @@ export default function QuotationDetail() {
       const qNum = quotation.quotation_number || ''
       const custName = quotation.customer_name || ''
       const total = fmt(quotation.total_amount)
-
-      // Try to send via backend email endpoint (sends actual PDF attachment)
+      const emailTo = prompt('Enter email address to send quotation:')
+      if (!emailTo) { setSharing(false); return }
       try {
-        await api.post(`/quotations/${id}/share-email`, {
-          to: '', // user will enter
-          subject: `Quotation ${qNum} - ${org?.name || 'Our Company'}`,
-          message: `Dear ${custName},\n\nPlease find our quotation below:\n\nQuotation No: ${qNum}\nTotal Amount: ₹${total}\n\nThank you for your interest.\n\nBest regards,\n${org?.name || 'Our Company'}`
-        })
-        // If backend has email configured, it sends; otherwise fallback
-        const emailTo = prompt('Enter email address to send quotation:')
-        if (!emailTo) { setSharing(false); return }
         await api.post(`/quotations/${id}/share-email`, { to: emailTo })
         alert('Quotation sent via email!')
       } catch (backendErr) {
-        // Fallback: mailto link with PDF link
         const subject = `Quotation ${qNum} - ${org?.name || 'Our Company'}`
-        const body = `Dear ${custName},\n\nPlease find our quotation below:\n\nQuotation No: ${qNum}\nTotal Amount: ₹${total}\n\n📄 View & Print: ${window.location.origin}/app/quotations/${id}\n📥 Direct PDF: ${pdfUrl}\n\nBest regards,\n${org?.name || 'Our Company'}`
-        window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank')
+        const body = `Dear ${custName},\n\nPlease find our quotation below:\n\nQuotation No: ${qNum}\nTotal Amount: ₹${total}\n\n📄 View: ${window.location.origin}/app/quotations/${id}\n📥 PDF: ${pdfUrl}\n\nBest regards,\n${org?.name || 'Our Company'}`
+        window.open(`mailto:${emailTo}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank')
       }
-    } catch (err) {
-      alert('Email share failed: ' + err.message)
-    }
-    setShareOpen(false)
-    setSharing(false)
+    } catch (err) { alert('Email share failed: ' + err.message) }
+    setShareOpen(false); setSharing(false)
   }
 
   if (!quotation) return <div className="flex justify-center py-20"><div className="animate-spin h-8 w-8 border-4 border-primary-500 border-t-transparent rounded-full"></div></div>
 
   const letterheadMm = org?.print_letterhead_mm || 65
-
-  // Extract just the number part — remove prefix like "Q-" and zero-padding
   const rawNum = quotation.quotation_number?.split('/')[0] || ''
   const qNum = rawNum.replace(/^[A-Za-z\-]+/, '').replace(/^0+/, '') || rawNum
 
@@ -191,7 +131,6 @@ export default function QuotationDetail() {
         <button onClick={() => navigate('/app/quotations')} className="p-2 hover:bg-gray-100 rounded-lg"><ArrowLeft size={20} /></button>
         <h1 className="text-xl font-bold flex-1">Quotation {quotation.quotation_number}</h1>
         
-        {/* Customer size control */}
         <div className="flex items-center gap-1 text-sm">
           <span className="text-gray-500 text-xs">Name:</span>
           {[10,12,14,16,18,20].map(s => (
@@ -206,7 +145,6 @@ export default function QuotationDetail() {
         <button onClick={handlePrint} className="btn-secondary flex items-center gap-2"><Printer size={16} /> Print</button>
         <button onClick={() => { const token = localStorage.getItem('token'); window.open(`${api.defaults.baseURL}/quotations/${id}/pdf?token=${token}`, '_blank') }} className="btn-secondary flex items-center gap-2"><Download size={16} /> PDF</button>
         
-        {/* Share button */}
         <div className="relative">
           <button onClick={() => setShareOpen(!shareOpen)} className="btn-secondary flex items-center gap-2"><Share2 size={16} /> Share</button>
           {shareOpen && (
@@ -229,7 +167,7 @@ export default function QuotationDetail() {
       {/* Quotation Print Layout */}
       <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily: 'Georgia, serif', fontSize: '10pt', width: '210mm', height: '297mm', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'white' }}>
         
-        {/* Letterhead space — BLANK, no text */}
+        {/* Letterhead space — BLANK */}
         <div style={{ height: `${letterheadMm}mm`, flexShrink: 0 }}></div>
 
         {/* Quotation number — OUTSIDE the box, CENTERED */}
@@ -237,7 +175,7 @@ export default function QuotationDetail() {
           Quotation <u>No</u> :- {qNum}
         </div>
 
-        {/* Bordered box starts here */}
+        {/* Bordered box */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', border: '2px solid #000', margin: '0 10mm', overflow: 'hidden' }}>
           
           {/* Customer name — INSIDE the box, LEFT-aligned, bigger */}
@@ -276,33 +214,30 @@ export default function QuotationDetail() {
             </table>
           </div>
 
-          {/* Total + Amount in words — INSIDE the box */}
+          {/* Total box — Words in left cell, Amount in right cell, side by side */}
           <div style={{ padding: '0 5px 6px', flexShrink: 0 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt' }}>
               <tbody>
                 {gstRate > 0 && (
                   <tr>
-                    <td style={{ border: '1.5px solid #000', padding: '4px 6px', textAlign: 'right', width: '76%' }}>
+                    <td style={{ border: '1.5px solid #000', padding: '4px 6px', textAlign: 'right', width: '55%' }}>
                       GST: {gstRate}%
                     </td>
-                    <td style={{ border: '1.5px solid #000', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold' }}>
+                    <td style={{ border: '1.5px solid #000', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold', width: '45%' }}>
                       ₹{fmt(totalGST)}
                     </td>
                   </tr>
                 )}
                 <tr style={{ background: '#f0f0f0' }}>
-                  <td style={{ border: '1.5px solid #000', padding: '5px 6px', textAlign: 'right', fontSize: '11pt' }}>
-                    <strong>Total</strong>
-                  </td>
-                  <td style={{ border: '1.5px solid #000', padding: '5px 6px', fontSize: '9pt', fontWeight: 'bold', textAlign: 'center', background: '#fafafa' }}>
-                    {numberToWordsCaps(quotation.total_amount)}
+                  <td colSpan={2} style={{ border: '1.5px solid #000', padding: '6px 8px', fontSize: '10pt', fontWeight: 'bold' }}>
+                    Total : {numberToWordsCaps(quotation.total_amount)}
                   </td>
                 </tr>
-                <tr>
-                  <td style={{ border: '1.5px solid #000', padding: '5px 6px', textAlign: 'right', fontSize: '11pt', background: '#f0f0f0' }}>
-                    <strong>₹{fmt(quotation.total_amount)}</strong>
+                <tr style={{ background: '#f5f5f5' }}>
+                  <td style={{ border: '1.5px solid #000', padding: '5px 8px', textAlign: 'right', fontSize: '12pt', fontWeight: 'bold' }}>
+                    ₹{fmt(quotation.total_amount)}
                   </td>
-                  <td style={{ border: '1.5px solid #000', padding: '5px 6px', textAlign: 'center', fontSize: '8pt', color: '#555' }}>
+                  <td style={{ border: '1.5px solid #000', padding: '5px 8px', textAlign: 'center', fontSize: '9pt', fontWeight: 'bold' }}>
                     Total Amount
                   </td>
                 </tr>
@@ -311,7 +246,7 @@ export default function QuotationDetail() {
           </div>
         </div>
 
-        {/* Sign space — BLANK, no text */}
+        {/* Sign space — BLANK */}
         <div style={{ height: '30mm', flexShrink: 0 }}></div>
       </div>
     </div>
