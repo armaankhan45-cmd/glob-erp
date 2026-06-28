@@ -133,7 +133,7 @@ router.post('/', auth, async (req, res) => {
     const last = await db('quotations').where({ organization_id: orgId }).orderBy('id', 'desc').first('id');
     const nextNo = (last?.id || 0) + 1;
     const fy = getFY(new Date(body.quotation_date || Date.now()));
-    const quotationNumber = `${prefix}${String(nextNo).padStart(4, '0')}/${fy}`;
+    const quotationNumber = `${prefix}${nextNo}/${fy}`;
 
     // Build ONLY valid columns for quotations table
     const insertData = sanitizeDates(cleanForTable({
