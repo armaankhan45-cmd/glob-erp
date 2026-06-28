@@ -51,7 +51,7 @@ export default function MainLayout() {
   const [aiOpen, setAiOpen] = useState(false)
   const [aiInput, setAiInput] = useState('')
   const [aiMessages, setAiMessages] = useState([
-    { role: 'assistant', content: 'Hi! 👋 I\'m your ERP AI assistant. I can **debug**, **fix errors**, **write code**, **run SQL**, and more. What do you need?' }
+    { role: 'assistant', content: 'Hi! 👋 I\'m your **FREE** ERP AI assistant — no paid API needed! I can **debug**, **fix errors**, **write code**, **run SQL**, and more. What do you need?' }
   ])
   const [aiLoading, setAiLoading] = useState(false)
   const [aiStatus, setAiStatus] = useState(null)
@@ -139,7 +139,7 @@ export default function MainLayout() {
                   <div>
                     <span className="font-bold text-sm">AI Assistant</span>
                     <div className="text-[10px] opacity-80">
-                      {aiStatus?.aiEnabled ? `✨ ${aiStatus.primaryProvider}` : '⚡ Rule-based'}
+                      🆓 {aiStatus?.primaryProvider || 'Free AI'}
                     </div>
                   </div>
                 </div>
