@@ -250,9 +250,11 @@ export default function AIAssistant() {
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
               <span className="text-xs text-gray-500">
-                {aiStatus?.aiEnabled 
-                  ? `🆓 ${aiStatus.primaryProvider || 'AI'} • ${aiStatus.toolsAvailable} tools` 
-                  : '🆓 Free AI Active • 15 tools'}
+                🆓 {aiStatus?.aiEnabled 
+                  ? (aiStatus.providers?.length > 1 
+                    ? `${aiStatus.primaryProvider} +${aiStatus.providers.length - 1} more` 
+                    : aiStatus.primaryProvider || 'AI')
+                  : 'Free AI Active'} • {aiStatus?.toolsAvailable || 15} tools
               </span>
             </div>
           </div>
