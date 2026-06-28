@@ -1184,7 +1184,7 @@ function ruleBasedResponse(msg, orgId) {
 
 router.post('/chat', auth, adminOnly, async (req, res) => {
   try {
-    const { messages = [] } = req.body;
+    const { messages = [], provider: requestedProvider } = req.body;
     const orgId = req.user.organization_id;
     const userMessage = messages[messages.length - 1]?.content || '';
     
@@ -1194,6 +1194,44 @@ router.post('/chat', auth, adminOnly, async (req, res) => {
     const allMessages = [
       ...messages.map(m => ({ role: m.role === 'user' ? 'user' : 'model', content: m.content })),
     ];
+
+    // If user selected a specific provider, try ONLY that one first
+    if (requestedProvider && requestedProvider !== 'auto') {
+      const singleResult = await callSingleProvider(requestedProvider, allMessages, TOOL_DEFINITIONS);
+      if (singleResult) {
+        // Handle tool calls in a loop
+        let currentMessages = [...allMessages];
+        let finalResponse = singleResult.text || '';
+        let maxIter = 5;
+        currentMessages.push({ role: 'model', content: singleResult.text || 'Processing...' });
+        
+        while (singleResult.toolCalls?.length > 0 && maxIter-- > 0) {
+          const toolResults = [];
+          for (const tc of singleResult.toolCalls) {
+            const result = await executeTool(tc.name, tc.args, orgId);
+            toolResults.push({ name: tc.name, args: tc.args, result });
+          }
+          for (const tr of toolResults) {
+            currentMessages.push({ role: 'tool_result', name: tr.name, result: tr.result });
+          }
+          // Get next response with tool results
+          const nextResult = await callSingleProvider(requestedProvider, currentMessages, TOOL_DEFINITIONS);
+          if (!nextResult) break;
+          finalResponse = nextResult.text || finalResponse;
+          if (!nextResult.toolCalls?.length) {
+            const toolCallsInConversation = [];
+            for (let i = 0; i < currentMessages.length; i++) {
+              if (currentMessages[i].role === 'tool_result') toolCallsInConversation.push({ name: currentMessages[i].name, result: currentMessages[i].result });
+            }
+            return res.json({ success: true, message: finalResponse, toolCalls: toolCallsInConversation, provider: singleResult.provider });
+          }
+          singleResult.toolCalls = nextResult.toolCalls;
+          currentMessages.push({ role: 'model', content: nextResult.text || 'Processing...' });
+        }
+        return res.json({ success: true, message: finalResponse, provider: singleResult.provider });
+      }
+      // If selected provider fails, fall through to auto
+    }
 
     let maxIterations = 5;
     let currentMessages = [...allMessages];
@@ -1347,6 +1385,53 @@ function formatToolResult(name, result) {
 // ═══════════════════════════════════════════════
 // QUICK ACTION ENDPOINTS
 // ═══════════════════════════════════════════════
+
+// ── Call a single specific provider by name ──
+async function callSingleProvider(providerName, messages, toolDefs) {
+  switch (providerName) {
+    case 'Groq Llama 3.3 70B':
+      if (process.env.GROQ_API_KEY) {
+        const r = await callGroq(messages, toolDefs, process.env.GROQ_API_KEY);
+        return r ? { ...r, provider: 'Groq Llama 3.3 70B' } : null;
+      }
+      return null;
+    case 'Gemini 2.5 Pro':
+      if (process.env.GEMINI_API_KEY) {
+        const r = await callGemini(messages, toolDefs, process.env.GEMINI_API_KEY, 'gemini-2.5-pro');
+        return r ? { ...r, provider: 'Gemini 2.5 Pro' } : null;
+      }
+      return null;
+    case 'Gemini 2.5 Flash':
+      if (process.env.GEMINI_API_KEY) {
+        const r = await callGemini(messages, toolDefs, process.env.GEMINI_API_KEY, 'gemini-2.5-flash');
+        return r ? { ...r, provider: 'Gemini 2.5 Flash' } : null;
+      }
+      return null;
+    case 'DeepSeek V3':
+      if (process.env.DEEPSEEK_API_KEY) {
+        const r = await callDeepSeek(messages, toolDefs, process.env.DEEPSEEK_API_KEY);
+        return r ? { ...r, provider: 'DeepSeek V3' } : null;
+      }
+      return null;
+    case 'Cerebras':
+      if (process.env.CEREBRAS_API_KEY) {
+        const r = await callCerebras(messages, toolDefs, process.env.CEREBRAS_API_KEY);
+        return r ? { ...r, provider: 'Cerebras' } : null;
+      }
+      return null;
+    case 'OpenRouter':
+      if (process.env.OPENROUTER_API_KEY) {
+        const r = await callOpenRouter(messages, toolDefs, process.env.OPENROUTER_API_KEY);
+        return r ? { ...r, provider: 'OpenRouter' } : null;
+      }
+      return null;
+    case 'Pollinations AI (Free)':
+      const r = await callPollinations(messages, toolDefs);
+      return r ? { ...r, provider: 'Pollinations AI (Free)' } : null;
+    default:
+      return null;
+  }
+}
 
 // ── HELPER: Safe fetch with AbortController timeout ──
 async function safeFetch(url, options = {}, timeoutMs = 60000) {
