@@ -1,42 +1,183 @@
 import { useState, useRef, useEffect } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import api from '../api/client'
-import { Bot, Send, X, Trash2, Lightbulb } from 'lucide-react'
+import { Bot, Send, X, Trash2, Lightbulb, ChevronDown, ChevronRight, Copy, Check, Cpu, Zap } from 'lucide-react'
+
+// ═══════════════════════════════════════════════
+// MARKDOWN RENDERER
+// ═══════════════════════════════════════════════
+
+function MarkdownText({ text }) {
+  if (!text) return null
+  
+  // Split by code blocks first
+  const parts = text.split(/(```[\s\S]*?```)/g)
+  
+  return (
+    <div className="markdown-content" style={{ lineHeight: 1.65 }}>
+      {parts.map((part, i) => {
+        // Code block
+        if (part.startsWith('```')) {
+          const lines = part.slice(3, -3).split('\n')
+          const lang = lines[0]?.trim() || ''
+          const code = lines.slice(lang ? 1 : 0).join('\n').trim()
+          return <CodeBlock key={i} language={lang} code={code} />
+        }
+        
+        // Process inline markdown line by line
+        return <span key={i}>{processInline(part)}</span>
+      })}
+    </div>
+  )
+}
+
+function processInline(text) {
+  const lines = text.split('\n')
+  return lines.map((line, i) => {
+    // Headers
+    if (line.startsWith('### ')) return <div key={i} className="font-bold text-sm mt-2 mb-1">{processBold(line.slice(4))}</div>
+    if (line.startsWith('## ')) return <div key={i} className="font-bold text-base mt-3 mb-1">{processBold(line.slice(3))}</div>
+    if (line.startsWith('# ')) return <div key={i} className="font-bold text-lg mt-3 mb-1">{processBold(line.slice(2))}</div>
+    
+    // List items
+    if (line.match(/^[-*]\s/)) return <div key={i} className="ml-3 flex"><span className="mr-2">•</span><span>{processBold(line.replace(/^[-*]\s/, ''))}</span></div>
+    if (line.match(/^\d+\.\s/)) {
+      const num = line.match(/^(\d+)\.\s/)[1]
+      return <div key={i} className="ml-3 flex"><span className="mr-2 text-gray-500">{num}.</span><span>{processBold(line.replace(/^\d+\.\s/, ''))}</span></div>
+    }
+    
+    // Empty line
+    if (line.trim() === '') return <div key={i} className="h-2" />
+    
+    // Horizontal rule
+    if (line.match(/^---+$/)) return <hr key={i} className="border-gray-200 my-2" />
+    
+    // Regular line
+    return <div key={i}>{processBold(line)}{i < lines.length - 1 ? '' : ''}</div>
+  })
+}
+
+function processBold(text) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g)
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={i}>{part.slice(2, -2)}</strong>
+    }
+    // Inline code
+    const codeParts = part.split(/(`[^`]+`)/g)
+    return codeParts.map((cp, j) => {
+      if (cp.startsWith('`') && cp.endsWith('`')) {
+        return <code key={`${i}-${j}`} className="bg-gray-100 text-red-600 px-1 py-0.5 rounded text-xs font-mono">{cp.slice(1, -1)}</code>
+      }
+      return <span key={`${i}-${j}`}>{cp}</span>
+    })
+  })
+}
+
+// ═══════════════════════════════════════════════
+// CODE BLOCK WITH COPY BUTTON
+// ═══════════════════════════════════════════════
+
+function CodeBlock({ language, code }) {
+  const [copied, setCopied] = useState(false)
+  
+  const handleCopy = () => {
+    navigator.clipboard.writeText(code)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+  
+  return (
+    <div className="my-2 rounded-lg overflow-hidden border border-gray-700 bg-gray-900">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-gray-800 text-gray-400 text-xs">
+        <span className="font-mono">{language || 'code'}</span>
+        <button onClick={handleCopy} className="flex items-center gap-1 hover:text-white transition-colors">
+          {copied ? <><Check size={12} /> Copied!</> : <><Copy size={12} /> Copy</>}
+        </button>
+      </div>
+      <pre className="p-3 overflow-x-auto text-xs text-gray-100 font-mono leading-relaxed" style={{ maxWidth: '100%' }}>
+        <code>{code}</code>
+      </pre>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════
+// TOOL CALL DISPLAY
+// ═══════════════════════════════════════════════
+
+function ToolCallDisplay({ name, args, result, expanded: defaultExpanded = false }) {
+  const [expanded, setExpanded] = useState(defaultExpanded)
+  const success = result && !result.error
+  const icon = success ? '✅' : '❌'
+  
+  return (
+    <div className="my-1.5 border rounded-lg overflow-hidden text-xs">
+      <button 
+        onClick={() => setExpanded(!expanded)} 
+        className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors ${success ? 'bg-green-50 hover:bg-green-100 text-green-800' : 'bg-red-50 hover:bg-red-100 text-red-800'}`}
+      >
+        <span>{icon}</span>
+        <Cpu size={12} />
+        <span className="font-mono font-medium">{name}</span>
+        {args && Object.keys(args).length > 0 && (
+          <span className="text-gray-500 truncate">{Object.entries(args).map(([k,v]) => `${k}=${typeof v === 'string' ? v : JSON.stringify(v)}`).join(', ')}</span>
+        )}
+        <span className="ml-auto">{expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>
+      </button>
+      {expanded && result && (
+        <div className="bg-gray-900 text-gray-100 p-3 font-mono text-[10px] max-h-48 overflow-auto">
+          <pre>{JSON.stringify(result, null, 2).substring(0, 2000)}</pre>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════
+// SUGGESTIONS
+// ═══════════════════════════════════════════════
 
 const SUGGESTIONS = [
-  'Fix the last error that happened',
-  'Run a health check on the system',
-  'Show me recent errors',
-  'What features are not working?',
-  'Check if all database tables exist',
-  'How do I change my invoice format?',
-  'Reset the admin password',
-  'Add a new HSN code mapping',
+  { icon: '🔍', text: 'Run full system diagnosis' },
+  { icon: '⚠️', text: 'Show recent errors' },
+  { icon: '🔧', text: 'Fix all errors automatically' },
+  { icon: '📊', text: 'How many invoices do I have?' },
+  { icon: '📋', text: 'Check table structure of invoices' },
+  { icon: '📄', text: 'Read the invoice routes code' },
+  { icon: '⚙️', text: 'Show my current settings' },
+  { icon: '🔢', text: 'Run a SQL query' },
+  { icon: '📝', text: 'List all route files' },
+  { icon: '💡', text: 'What can you do?' },
 ]
 
+// ═══════════════════════════════════════════════
+// MAIN AI ASSISTANT COMPONENT
+// ═══════════════════════════════════════════════
+
 export default function AIAssistant() {
-  const [messages, setMessages] = useState([
-    {
-      role: 'assistant',
-      content: `Hello! I'm your **Glob ERP AI Assistant** 🤖
-
-I can help you:
-- 🔍 **Diagnose & fix errors** in your ERP
-- 📊 **Check system health** (tables, routes, connections)
-- 🛠️ **Run repairs** when something breaks
-- 💡 **Answer questions** about how to use features
-- 📋 **View recent errors** and suggest fixes
-
-Just tell me what you need, like "fix the last error" or "check system health"!`
-    }
-  ])
+  const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [isMinimized, setIsMinimized] = useState(false)
+  const [aiStatus, setAiStatus] = useState(null)
   const chatEndRef = useRef(null)
+  const inputRef = useRef(null)
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  useEffect(() => {
+    // Check AI status on mount
+    api.get('/ai/status').then(res => setAiStatus(res.data)).catch(() => {})
+    
+    // Welcome message
+    setMessages([{
+      role: 'assistant',
+      content: `# 👋 Welcome to Glob ERP AI Assistant!\n\nI'm your **personal ERP expert** — I can do everything a developer can do:\n\n🔍 **Debug & Diagnose** — Check system health, find errors, identify issues\n🔧 **Fix Problems** — Auto-repair broken tables, missing columns, failed routes\n📝 **Write Code** — Read, modify, and create source code files on your server\n📊 **Query Data** — Run SQL queries, list records, check invoices\n⚙️ **Manage Settings** — View and update your ERP configuration\n\n### Quick Start:\nJust type what you need, like:\n- "My quotations are failing, fix it"\n- "Show me the invoice routes code"\n- "Add a column for phone numbers to customers table"\n- "How many unpaid invoices do I have?"\n\n${!aiStatus?.aiEnabled ? '---\n💡 **Tip:** Add a `GEMINI_API_KEY` environment variable on Render for full AI capabilities. Get a free key at https://aistudio.google.com/apikey\n\nCurrently running in **rule-based mode** — I can still diagnose, fix, and query your ERP!' : '🚀 **Full AI mode active** — Powered by Google Gemini'}`,
+      toolCalls: []
+    }])
+  }, [])
 
   const sendMessage = async (text) => {
     if (!text.trim() || loading) return
@@ -47,182 +188,36 @@ Just tell me what you need, like "fix the last error" or "check system health"!`
     setLoading(true)
 
     try {
-      // The AI assistant calls the backend diagnose/health endpoints and processes user requests
-      const response = await processUserMessage(userMsg)
-      setMessages(prev => [...prev, { role: 'assistant', content: response }])
+      const allMessages = [...messages, { role: 'user', content: userMsg }]
+        .filter(m => m.role === 'user' || m.role === 'assistant')
+        .map(m => ({ role: m.role, content: m.content }))
+      
+      // Remove the welcome message for the API call
+      if (allMessages.length > 0 && allMessages[0].role === 'assistant') {
+        allMessages.shift()
+      }
+
+      const res = await api.post('/ai/chat', { messages: allMessages })
+      const data = res.data
+      
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: data.message || 'No response',
+        toolCalls: data.toolCalls || [],
+        provider: data.provider
+      }])
     } catch (err) {
-      setMessages(prev => [...prev, { role: 'assistant', content: `❌ Error: ${err.message}\n\nI couldn't process your request. Try again or check the Diagnostics page manually.`, isError: true }])
+      const errMsg = err.response?.data?.msg || err.message
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `❌ **Error:** ${errMsg}\n\nThe AI service might be temporarily unavailable. Try again or use the Diagnostics page directly.`,
+        toolCalls: [],
+        isError: true
+      }])
     } finally {
       setLoading(false)
+      inputRef.current?.focus()
     }
-  }
-
-  const processUserMessage = async (msg) => {
-    const lower = msg.toLowerCase()
-
-    // Health check
-    if (lower.includes('health') || lower.includes('check') || lower.includes('diagnos') || lower.includes('status')) {
-      try {
-        const res = await api.get('/diagnose')
-        const data = res.data
-        const tableCount = Object.keys(data.tables || {}).length
-        const existingTables = Object.values(data.tables || {}).filter(v => v === 'exists').length
-        const createdTables = Object.values(data.tables || {}).filter(v => v === 'created').length
-        const routeCount = Object.keys(data.routes || {}).length
-        const loadedRoutes = Object.values(data.routes || {}).filter(v => v.loaded).length
-        const failedRoutes = Object.values(data.routes || {}).filter(v => !v.loaded).length
-
-        let status = '✅ HEALTHY'
-        let details = ''
-        if (data.status === 'fixed') { status = '🔧 FIXED (issues auto-repaired)'; details = `\n\n**Auto-fixes applied:** ${data.fixes?.length || 0}` }
-        if (data.status === 'issues_found') { status = '⚠️ ISSUES FOUND'; details = `\n\n**Errors:** ${data.errors?.length || 0}` }
-        if (data.status === 'critical') { status = '🚨 CRITICAL'; details = '\n\n**Database connection may be down!**' }
-
-        let failedList = ''
-        if (failedRoutes > 0) {
-          failedList = '\n\n**Failed Routes:**\n' + Object.entries(data.routes || {})
-            .filter(([, v]) => !v.loaded)
-            .map(([mount, v]) => `- ❌ ${mount}: ${v.error}`)
-            .join('\n')
-        }
-
-        let fixesList = ''
-        if (data.fixes?.length > 0) {
-          fixesList = '\n\n**Auto-fixes applied:**\n' + data.fixes.map(f => `- ✅ ${f.type}: ${f.table || ''} ${f.column || ''}`).join('\n')
-        }
-
-        return `🔍 **System Health Report**
-
-**Status:** ${status}
-**Database Tables:** ${existingTables}/${tableCount} exist${createdTables > 0 ? `, ${createdTables} created` : ''}
-**API Routes:** ${loadedRoutes}/${routeCount} loaded${failedRoutes > 0 ? `, ${failedRoutes} FAILED` : ''}
-**Fixes Applied:** ${data.fixes?.length || 0}
-**Errors Remaining:** ${data.errors?.length || 0}${details}${fixesList}${failedList}`
-      } catch (err) {
-        return `❌ Could not reach the diagnostics endpoint. The server might be down.\n\nError: ${err.message}`
-      }
-    }
-
-    // Recent errors
-    if (lower.includes('error') || lower.includes('recent') || lower.includes('what broke') || lower.includes('what failed')) {
-      try {
-        const res = await api.get('/diagnose/errors')
-        const errors = res.data.errors || []
-        if (errors.length === 0) {
-          return '✅ **No recent errors!** Everything is working smoothly.'
-        }
-        const errorList = errors.slice(0, 10).map((e, i) => 
-          `${i + 1}. **${e.area || e.method || 'Runtime'}** ${e.url || ''}\n   ${e.error}\n   _${new Date(e.time).toLocaleString()}_`
-        ).join('\n\n')
-        return `⚠️ **Recent Errors (${errors.length}):**\n\n${errorList}\n\n💡 _Say "fix the last error" to run diagnostics and auto-fix_`
-      } catch (err) {
-        return `❌ Could not fetch errors: ${err.message}`
-      }
-    }
-
-    // Fix / repair
-    if (lower.includes('fix') || lower.includes('repair') || lower.includes('solve') || lower.includes('broken')) {
-      try {
-        const res = await api.get('/diagnose')
-        const data = res.data
-        
-        if (data.status === 'healthy') {
-          return '✅ **System is already healthy!** No issues to fix.'
-        }
-
-        let result = `🔧 **Auto-Fix Results:**\n\n**Status:** ${data.status}\n`
-
-        if (data.fixes?.length > 0) {
-          result += `\n**Fixes Applied (${data.fixes.length}):**\n` + 
-            data.fixes.map(f => {
-              if (f.type === 'table_created') return `✅ Created missing table "${f.table}"`
-              if (f.type === 'column_added') return `✅ Added column "${f.column}" to table "${f.table}"`
-              if (f.type === 'seed_data_inserted') return `✅ Inserted seed data (admin user, org)`
-              return `✅ ${f.type}: ${f.table || ''} ${f.column || ''}`
-            }).join('\n')
-        }
-
-        if (data.errors?.length > 0) {
-          result += `\n\n**Remaining Issues (${data.errors.length}):**\n` +
-            data.errors.map(e => `❌ ${e.area}: ${e.error || e.message}`).join('\n')
-          result += '\n\n⚠️ Some issues cannot be auto-fixed. Check the Diagnostics page for details.'
-        }
-
-        return result
-      } catch (err) {
-        return `❌ Could not run auto-fix: ${err.message}\n\nTry visiting the Diagnostics page manually at /app/diagnostics`
-      }
-    }
-
-    // Table info
-    if (lower.includes('table') || lower.includes('database') || lower.includes('column')) {
-      try {
-        const res = await api.get('/diagnose')
-        const tables = res.data.tables || {}
-        const tableList = Object.entries(tables).map(([name, status]) => {
-          const icon = status === 'exists' ? '✅' : status === 'created' ? '🔧' : '❌'
-          return `${icon} ${name}`
-        }).join('\n')
-        return `📊 **Database Tables:**\n\n${tableList}\n\n💡 _Say "check table [name]" for column details_`
-      } catch (err) {
-        return `❌ Could not fetch table info: ${err.message}`
-      }
-    }
-
-    // Specific table check
-    const tableMatch = lower.match(/check table (\w+)/)
-    if (tableMatch) {
-      try {
-        const res = await api.get(`/diagnose/table/${tableMatch[1]}`)
-        const data = res.data
-        if (!data.exists) return `❌ Table "${tableMatch[1]}" does NOT exist!`
-        
-        let result = `📋 **Table: ${data.table}**\n\n**Columns (${data.actualColumns?.length || 0}):**\n`
-        result += (data.columnDetails || []).map(c => `- ${c.column_name} (${c.data_type}, ${c.is_nullable === 'YES' ? 'nullable' : 'required'})`).join('\n')
-        
-        if (data.missingColumns?.length > 0) {
-          result += `\n\n⚠️ **Missing columns:** ${data.missingColumns.join(', ')}\n💡 _Run "fix errors" to auto-add them_`
-        }
-        return result
-      } catch (err) {
-        return `❌ Could not check table: ${err.message}`
-      }
-    }
-
-    // How-to questions
-    if (lower.includes('how') || lower.includes('change') || lower.includes('setting') || lower.includes('invoice format') || lower.includes('quotation format')) {
-      if (lower.includes('invoice format') || lower.includes('invoice font') || lower.includes('invoice text')) {
-        return `📝 **Changing Invoice Format:**\n\n1. Go to **Settings** page (/app/settings)\n2. Scroll to **"Invoice Text Settings"**\n3. Change:\n   - Font Family (Arial, Georgia, etc.)\n   - Font Size (8-14pt)\n   - Description Size\n   - Bold/Normal text\n4. Click **Save All Settings**\n\n💡 You can also upload your **stamp** and **signature** in the Images section — they'll auto-appear on invoices!`
-      }
-      if (lower.includes('quotation format') || lower.includes('quotation font')) {
-        return `📝 **Changing Quotation Format:**\n\n1. Go to **Settings** page (/app/settings)\n2. Scroll to **"Quotation Font Settings"**\n3. Change font family and size\n4. On any Quotation detail page, use the **Name size buttons** (10-20) and **Bold ON/OFF** to adjust\n5. Click **Save All Settings**`
-      }
-      if (lower.includes('password') || lower.includes('reset')) {
-        return `🔐 **Reset Password:**\n\n1. Go to **Settings** page (/app/settings)\n2. Scroll to **"Change Password"**\n3. Enter your current password and new password\n4. Click "Change Password"\n\nIf you're locked out, go to the login page and click "Forgot Password".`
-      }
-      if (lower.includes('hsn') || lower.includes('auto detect')) {
-        return `🔢 **HSN Auto-Detect:**\n\nThe system automatically suggests HSN codes based on item descriptions:\n- **SS TANK** → HSN 7309\n- **CHASSIS** → HSN 8708\n- **VALVE** → HSN 8481\n- **PIPE** → HSN 7307\n\nJust type the description and the HSN field will auto-fill! You can also manually select from the HSN dropdown.`
-      }
-      return `💡 **Settings Help:**\n\nGo to **Settings** (/app/settings) to change:\n- Company details & GSTIN\n- Bank details & UPI\n- Logo, stamp, signature uploads\n- Invoice & quotation fonts\n- Print layout (letterhead space)\n- Document numbering prefixes\n\nWhat specific setting do you need help with?`
-    }
-
-    // GST reports
-    if (lower.includes('gst report') || lower.includes('gst pay') || lower.includes('tax report')) {
-      return `📊 **GST Reports:**\n\nGo to **GST Reports** (/app/gst) to see:\n- Monthly sales & purchase GST\n- How much GST you need to pay\n- Carry-forward balance to next month\n- Drill-down into individual bills\n\nThe report calculates: **Output GST (Sales) - Input GST (Purchases) = GST Payable/Credit**`
-    }
-
-    // Share / WhatsApp / Email
-    if (lower.includes('share') || lower.includes('whatsapp') || lower.includes('email') || lower.includes('send')) {
-      return `📤 **Sharing Invoices & Quotations:**\n\nOn any Invoice or Quotation detail page:\n1. Click the **Share** button\n2. Choose:\n   - **WhatsApp** — Opens WhatsApp with the document attached/link\n   - **Email** — Sends the document as email with PDF attachment\n\n💡 The share feature uses the Web Share API on mobile to attach files directly!`
-    }
-
-    // General help
-    if (lower.includes('help') || lower.includes('what can you do') || lower.includes('feature')) {
-      return `🤖 **I can help you with:**\n\n🔍 **Diagnostics:**\n- "Check system health" — full system diagnosis\n- "Show recent errors" — view runtime errors\n- "Fix the errors" — auto-repair issues\n- "Check table invoices" — inspect a table\n\n💡 **How-To:**\n- "How to change invoice format"\n- "How to reset password"\n- "How does HSN auto-detect work"\n- "How to share via WhatsApp"\n\nJust ask me anything about your ERP!`
-    }
-
-    // Default response
-    return `🤔 I'm not sure how to help with that. Here are some things I can do:\n\n- **"Check system health"** — Run diagnostics\n- **"Show recent errors"** — View errors\n- **"Fix the errors"** — Auto-repair issues\n- **"How to change invoice format"** — Help with settings\n- **"Check table invoices"** — Inspect a database table\n\nWhat would you like to do?`
   }
 
   const handleKeyDown = (e) => {
@@ -235,101 +230,172 @@ Just tell me what you need, like "fix the last error" or "check system health"!`
   const clearChat = () => {
     setMessages([{
       role: 'assistant',
-      content: '🗑️ Chat cleared! How can I help you?'
+      content: '🗑️ Chat cleared! How can I help you?',
+      toolCalls: []
     }])
   }
 
   return (
-    <div className="max-w-4xl mx-auto h-[calc(100vh-8rem)] flex flex-col">
+    <div className="max-w-5xl mx-auto h-[calc(100vh-8rem)] flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-blue-600 rounded-xl flex items-center justify-center">
+          <div className="w-11 h-11 bg-gradient-to-br from-purple-500 via-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/20">
             <Bot size={22} className="text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold">AI Assistant</h1>
-            <p className="text-xs text-gray-500">Your ERP helper — diagnose, fix, and learn</p>
+            <h1 className="text-xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+              AI Assistant
+            </h1>
+            <div className="flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full ${aiStatus?.aiEnabled ? 'bg-green-400 animate-pulse' : 'bg-yellow-400'}`}></span>
+              <span className="text-xs text-gray-500">
+                {aiStatus?.aiEnabled ? `Gemini AI • ${aiStatus.toolsAvailable} tools` : 'Rule-based mode • Add GEMINI_API_KEY for full AI'}
+              </span>
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={clearChat} className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-red-500" title="Clear chat">
-            <Trash2 size={18} />
-          </button>
-        </div>
+        <button onClick={clearChat} className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-red-500 transition-colors" title="Clear chat">
+          <Trash2 size={18} />
+        </button>
       </div>
 
       {/* Chat Area */}
-      <div className="flex-1 overflow-y-auto bg-white rounded-xl border shadow-sm p-4 space-y-4 mb-4">
-        {messages.map((msg, i) => (
-          <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
-              msg.role === 'user' 
-                ? 'bg-primary-600 text-white rounded-br-md' 
-                : msg.isError 
-                  ? 'bg-red-50 text-red-800 border border-red-200 rounded-bl-md' 
-                  : 'bg-gray-100 text-gray-800 rounded-bl-md'
-            }`}>
-              <div className="whitespace-pre-wrap" style={{ lineHeight: 1.6 }}>
-                {msg.content.split('**').map((part, idx) => 
-                  idx % 2 === 1 ? <strong key={idx}>{part}</strong> : <span key={idx}>{part}</span>
+      <div className="flex-1 overflow-y-auto bg-white rounded-2xl border shadow-sm mb-4" style={{ minHeight: 0 }}>
+        <div className="p-5 space-y-5">
+          {messages.map((msg, i) => (
+            <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              {/* AI Avatar */}
+              {msg.role === 'assistant' && (
+                <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 mr-3 mt-1">
+                  <Bot size={16} className="text-white" />
+                </div>
+              )}
+              
+              <div className={`max-w-[85%] ${msg.role === 'user' ? '' : ''}`}>
+                {/* Message bubble */}
+                <div className={`rounded-2xl px-4 py-3 text-sm ${
+                  msg.role === 'user' 
+                    ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-br-md' 
+                    : msg.isError 
+                      ? 'bg-red-50 text-red-800 border border-red-200 rounded-bl-md' 
+                      : 'bg-gray-50 text-gray-800 border border-gray-100 rounded-bl-md'
+                }`}>
+                  {msg.role === 'user' ? (
+                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                  ) : (
+                    <MarkdownText text={msg.content} />
+                  )}
+                </div>
+                
+                {/* Tool calls display */}
+                {msg.toolCalls?.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {msg.toolCalls.map((tc, j) => (
+                      <ToolCallDisplay 
+                        key={j} 
+                        name={tc.name} 
+                        args={tc.args} 
+                        result={tc.result} 
+                      />
+                    ))}
+                  </div>
+                )}
+                
+                {/* Provider badge */}
+                {msg.role === 'assistant' && msg.provider && (
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    <span className="text-[10px] text-gray-400 font-medium">
+                      {msg.provider === 'gemini' ? '✨ Gemini AI' : '⚡ Rule-based'}
+                    </span>
+                  </div>
                 )}
               </div>
-            </div>
-          </div>
-        ))}
-        {loading && (
-          <div className="flex justify-start">
-            <div className="bg-gray-100 rounded-2xl rounded-bl-md px-4 py-3">
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <div className="flex gap-1">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+              
+              {/* User Avatar */}
+              {msg.role === 'user' && (
+                <div className="w-8 h-8 bg-gray-300 rounded-xl flex items-center justify-center flex-shrink-0 ml-3 mt-1">
+                  <span className="text-xs font-bold text-gray-600">You</span>
                 </div>
-                Thinking...
+              )}
+            </div>
+          ))}
+          
+          {/* Loading indicator */}
+          {loading && (
+            <div className="flex justify-start">
+              <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 mr-3 mt-1">
+                <Bot size={16} className="text-white" />
+              </div>
+              <div className="bg-gray-50 border border-gray-100 rounded-2xl rounded-bl-md px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex gap-1">
+                    <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                    <div className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                  </div>
+                  <span className="text-xs text-gray-500">Thinking...</span>
+                </div>
               </div>
             </div>
-          </div>
-        )}
-        <div ref={chatEndRef} />
+          )}
+          
+          <div ref={chatEndRef} />
+        </div>
       </div>
 
-      {/* Suggestions */}
-      {messages.length <= 1 && (
-        <div className="flex flex-wrap gap-2 mb-3">
+      {/* Suggestions — show when few messages */}
+      {messages.length <= 2 && (
+        <div className="flex flex-wrap gap-2 mb-3 px-1">
           {SUGGESTIONS.map((s, i) => (
             <button
               key={i}
-              onClick={() => sendMessage(s)}
-              className="text-xs px-3 py-1.5 bg-purple-50 text-purple-700 rounded-full hover:bg-purple-100 border border-purple-200 transition-colors"
+              onClick={() => sendMessage(s.text)}
+              className="text-xs px-3 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl hover:border-purple-300 hover:bg-purple-50 hover:text-purple-700 transition-all shadow-sm flex items-center gap-1.5"
             >
-              <Lightbulb size={12} className="inline mr-1" />{s}
+              <span>{s.icon}</span>
+              <span>{s.text}</span>
             </button>
           ))}
         </div>
       )}
 
-      {/* Input */}
-      <div className="flex gap-2">
+      {/* Input Area */}
+      <div className="flex gap-2 items-end">
         <div className="flex-1 relative">
-          <input
-            type="text"
+          <textarea
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask me anything about your ERP..."
+            placeholder="Ask me anything — debug errors, write code, query data, fix problems..."
             disabled={loading}
-            className="w-full pl-4 pr-12 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm disabled:opacity-50"
+            rows={1}
+            className="w-full pl-4 pr-4 py-3 border-2 border-gray-200 rounded-2xl focus:ring-2 focus:ring-purple-400 focus:border-purple-400 text-sm resize-none disabled:opacity-50 transition-all"
+            style={{ minHeight: '48px', maxHeight: '120px' }}
+            onInput={(e) => {
+              e.target.style.height = '48px'
+              e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'
+            }}
           />
         </div>
         <button
           onClick={() => sendMessage(input)}
           disabled={loading || !input.trim()}
-          className="px-4 py-3 bg-gradient-to-r from-purple-500 to-blue-600 text-white rounded-xl hover:shadow-lg disabled:opacity-50 disabled:hover:shadow-none transition-all flex items-center gap-2"
+          className="p-3 bg-gradient-to-r from-purple-500 to-blue-600 text-white rounded-2xl hover:shadow-lg hover:shadow-purple-500/25 disabled:opacity-40 disabled:hover:shadow-none transition-all flex items-center justify-center"
+          style={{ minWidth: '48px', height: '48px' }}
         >
-          <Send size={18} />
+          <Send size={20} />
         </button>
+      </div>
+
+      {/* Footer info */}
+      <div className="flex items-center justify-center gap-4 mt-2 text-[10px] text-gray-400">
+        <span>Glob ERP AI v2.0</span>
+        <span>•</span>
+        <span>{aiStatus?.aiEnabled ? 'Powered by Google Gemini' : 'Rule-based mode'}</span>
+        <span>•</span>
+        <span>{aiStatus?.toolsAvailable || 15} tools available</span>
       </div>
     </div>
   )
