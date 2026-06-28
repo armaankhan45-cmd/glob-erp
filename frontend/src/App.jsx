@@ -23,6 +23,7 @@ import Settings from './pages/Settings'
 import FontSettings from './pages/FontSettings'
 import ExportData from './pages/ExportData'
 import Diagnostics from './pages/Diagnostics'
+import AIAssistant from './pages/AIAssistant'
 import MainLayout from './layouts/MainLayout'
 import LandingPage from './pages/LandingPage'
 
@@ -63,6 +64,7 @@ export default function App() {
         <Route path="font-settings" element={<FontSettings />} />
         <Route path="export" element={<ExportData />} />
         <Route path="diagnostics" element={<Diagnostics />} />
+        <Route path="ai-assistant" element={<AIAssistant />} />
       </Route>
     </Routes>
   )
