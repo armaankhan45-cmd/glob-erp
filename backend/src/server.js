@@ -127,7 +127,13 @@ app.get('/api/setup', async (req, res) => {
 });
 
 function safe(path) {
-  try { return require(path); } catch(e) { console.error('Route error:', path, e.message); return express.Router(); }
+  try { return require(path); } catch(e) { 
+    console.error('❌ Route load FAILED:', path, '→', e.message);
+    // Create a fallback router that returns 500 for any request
+    const fallback = express.Router();
+    fallback.all('*', (req, res) => res.status(500).json({ success: false, msg: `Route ${path} failed to load: ${e.message}` }));
+    return fallback;
+  }
 }
 
 app.use('/api/auth', safe('./routes/authRoutes'));
