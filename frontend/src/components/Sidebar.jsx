@@ -1,9 +1,10 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { LayoutDashboard, FileText, FileSpreadsheet, Users, ShoppingCart, Calculator, BarChart3, Settings, Download, Type, RefreshCw, LogOut, Factory, Activity } from 'lucide-react'
+import { LayoutDashboard, FileText, FileSpreadsheet, Users, ShoppingCart, Calculator, BarChart3, Settings, Download, Type, RefreshCw, LogOut, Factory, Activity, Bot } from 'lucide-react'
 
 const navItems = [
   { label: 'Dashboard', path: '/app/dashboard', icon: LayoutDashboard, section: 'MAIN' },
+  { label: 'AI Assistant', path: '/app/ai-assistant', icon: Bot, section: 'MAIN' },
   { label: 'GST Invoices', path: '/app/invoices', icon: FileText, section: 'SALES' },
   { label: 'Quotations', path: '/app/quotations', icon: FileSpreadsheet, section: 'SALES' },
   { label: 'Customers', path: '/app/customers', icon: Users, section: 'SALES' },
