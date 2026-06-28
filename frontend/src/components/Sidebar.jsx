@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { LayoutDashboard, FileText, FileSpreadsheet, Users, ShoppingCart, Calculator, BarChart3, Settings, Download, RefreshCw, LogOut, Factory, Activity, Bot } from 'lucide-react'
+import { LayoutDashboard, FileText, FileSpreadsheet, Users, ShoppingCart, Calculator, BarChart3, Settings, Download, RefreshCw, LogOut, Factory, Activity, Bot, Rocket } from 'lucide-react'
 
 const navItems = [
   { label: 'Dashboard', path: '/app/dashboard', icon: LayoutDashboard, section: 'MAIN' },
@@ -13,6 +13,7 @@ const navItems = [
   { label: 'Reports', path: '/app/reports', icon: BarChart3, section: 'FINANCE' },
   { label: 'Export Excel', path: '/app/export', icon: Download, section: 'SYSTEM' },
   { label: 'Settings', path: '/app/settings', icon: Settings, section: 'SYSTEM' },
+  { label: 'Deploy Control', path: '/app/deploy', icon: Rocket, section: 'SYSTEM' },
   { label: 'Diagnostics', path: '/app/diagnostics', icon: Activity, section: 'SYSTEM' },
 ]
 
@@ -33,19 +34,24 @@ export default function Sidebar({ isOpen, onClose }) {
 
   return (
     <>
-      {isOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={onClose} />}
-      <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-brand-dark text-white flex flex-col transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+      {isOpen && <div className="fixed inset-0 bg-black/60 z-40 lg:hidden backdrop-blur-sm" onClick={onClose} />}
+      <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-[280px] flex flex-col transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
+        style={{ background: 'rgba(6,8,15,0.97)', backdropFilter: 'blur(20px)', borderRight: '1px solid rgba(255,255,255,0.06)' }}>
+        
         {/* Logo Area */}
-        <div className="p-5 border-b border-white/5 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0" style={{ background: '#ef4d23' }}>
+        <div className="p-5 flex items-center gap-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0"
+            style={{ background: 'linear-gradient(135deg, #ef4d23, #ff6b35)' }}>
             {user?.organization?.logo_url
-              ? <img src={user.organization.logo_url} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} />
+              ? <img src={user.organization.logo_url} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '10px' }} />
               : <Factory size={20} className="text-white" />
             }
           </div>
           <div>
-            <h1 className="font-semibold text-sm tracking-tight">{user?.organization?.name ? user.organization.name.split(' ').slice(0,2).join(' ') : 'Glob ERP'}</h1>
-            <p className="text-[10px] text-white/40">Fabrication Manager</p>
+            <h1 className="font-bold text-sm tracking-tight text-white">
+              {user?.organization?.name ? user.organization.name.split(' ').slice(0, 2).join(' ') : 'Glob ERP'}
+            </h1>
+            <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>Fabrication Manager</p>
           </div>
         </div>
 
@@ -53,13 +59,14 @@ export default function Sidebar({ isOpen, onClose }) {
         <nav className="flex-1 overflow-y-auto p-3 space-y-3">
           {Object.entries(sections).map(([section, items]) => (
             <div key={section}>
-              <p className="text-[10px] text-white/25 uppercase tracking-widest px-3 mb-1 font-semibold">{section}</p>
+              <p className="text-[9px] uppercase tracking-widest px-3 mb-1 font-bold"
+                style={{ color: 'rgba(255,255,255,0.18)' }}>{section}</p>
               {items.map(item => (
                 <NavLink
                   key={item.path}
                   to={item.path}
                   onClick={onClose}
-                  className={({ isActive }) => `sidebar-link ${isActive ? 'active bg-brand-orange text-white' : 'text-white/50 hover:text-white/80 hover:bg-white/5'}`}
+                  className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
                 >
                   <item.icon size={16} />
                   <span>{item.label}</span>
@@ -69,22 +76,50 @@ export default function Sidebar({ isOpen, onClose }) {
           ))}
         </nav>
 
-        {/* Bottom */}
-        <div className="p-3 border-t border-white/5 space-y-1">
-          <button
-            onClick={() => window.location.reload()}
-            className="sidebar-link w-full text-white/30 hover:text-white/60 hover:bg-white/5"
-          >
-            <RefreshCw size={14} />
-            <span>Refresh</span>
-          </button>
-          <button
-            onClick={handleLogout}
-            className="sidebar-link w-full text-red-400/60 hover:text-red-400 hover:bg-red-500/10"
-          >
-            <LogOut size={14} />
-            <span>Logout</span>
-          </button>
+        {/* Bottom — Org info + User + Actions INSIDE sidebar */}
+        <div className="p-3 space-y-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          {/* Organization & User Card */}
+          <div className="p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 font-extrabold text-sm text-white"
+                style={{ background: 'linear-gradient(135deg, #ef4d23, #ff6b35)' }}>
+                {user?.name?.charAt(0)?.toUpperCase() || 'A'}
+              </div>
+              <div className="min-w-0 flex-1">
+                <h4 className="text-[11px] font-bold text-white leading-tight truncate">
+                  {user?.organization?.name || 'GLOB FABRICATION AND ENTERPRISES'}
+                </h4>
+                <div className="text-[10px] font-semibold mt-0.5" style={{ color: '#ef4d23' }}>
+                  {user?.role === 'admin' ? 'Admin' : user?.role || 'User'}
+                </div>
+                <div className="text-[9px] truncate mt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                  {user?.email || 'admin@globfabrication.com'}
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Action Buttons */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => window.location.reload()}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-[11px] font-medium transition-all duration-200"
+              style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.35)' }}
+              onMouseEnter={e => { e.target.style.color = 'rgba(255,255,255,0.7)'; e.target.style.background = 'rgba(255,255,255,0.06)' }}
+              onMouseLeave={e => { e.target.style.color = 'rgba(255,255,255,0.35)'; e.target.style.background = 'rgba(255,255,255,0.03)' }}
+            >
+              <RefreshCw size={12} /> Refresh
+            </button>
+            <button
+              onClick={handleLogout}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-[11px] font-medium transition-all duration-200"
+              style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.1)', color: 'rgba(239,68,68,0.5)' }}
+              onMouseEnter={e => { e.target.style.color = '#ef4444'; e.target.style.background = 'rgba(239,68,68,0.12)' }}
+              onMouseLeave={e => { e.target.style.color = 'rgba(239,68,68,0.5)'; e.target.style.background = 'rgba(239,68,68,0.06)' }}
+            >
+              <LogOut size={12} /> Logout
+            </button>
+          </div>
         </div>
       </aside>
     </>
