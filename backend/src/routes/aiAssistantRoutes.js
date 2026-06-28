@@ -483,38 +483,53 @@ async function executeTool(name, args, orgId) {
 
 // ═══════════════════════════════════════════════
 // MULTI-PROVIDER AI INTEGRATION
-// Supports: Gemini 2.5 Pro, Gemini 2.0 Flash, OpenAI GPT-4o, Groq
+// Supports: Gemini 2.5 Pro, Gemini 2.5 Flash, OpenAI GPT-4o, Groq Llama, Cerebras, OpenRouter
+// Priority order: Gemini Pro → Groq → Cerebras → Gemini Flash → OpenRouter → OpenAI
 // ═══════════════════════════════════════════════
 
 async function callAI(messages, toolDefs) {
   const geminiKey = process.env.GEMINI_API_KEY;
-  const openaiKey = process.env.OPENAI_API_KEY;
   const groqKey = process.env.GROQ_API_KEY;
+  const cerebrasKey = process.env.CEREBRAS_API_KEY;
+  const openrouterKey = process.env.OPENROUTER_API_KEY;
+  const openaiKey = process.env.OPENAI_API_KEY;
   
-  // Priority: Gemini Pro > OpenAI > Groq > Gemini Flash
-  // Gemini 2.5 Pro is the most capable, free tier has lower limits
-  // OpenAI GPT-4o is extremely capable but needs paid key
-  // Groq uses Llama 3.3 70B — fast, free, good but not as smart
-  // Gemini Flash is fast and free but less capable
+  // ── Strategy: Try providers in order of BEST FREE value ──
+  // 1. Gemini 2.5 Pro — Most powerful free model, 100 req/day
+  // 2. Groq Llama 3.3 70B — Very fast, 1000 req/day, tool calling
+  // 3. Cerebras — Very fast, 1M tokens/day
+  // 4. Gemini 2.5 Flash — Fast, 1500 req/day
+  // 5. OpenRouter — Multi-model gateway, 50 req/day free
+  // 6. OpenAI GPT-4o — Paid only, but most capable
 
   if (geminiKey) {
-    // Try Gemini 2.5 Pro first (most powerful)
+    // Try Gemini 2.5 Pro first (most powerful free model)
     const proResult = await callGemini(messages, toolDefs, geminiKey, 'gemini-2.5-pro');
-    if (proResult) return { ...proResult, provider: 'gemini-2.5-pro' };
+    if (proResult) return { ...proResult, provider: 'Gemini 2.5 Pro' };
     
-    // Fallback to Gemini 2.0 Flash if Pro rate-limited
-    const flashResult = await callGemini(messages, toolDefs, geminiKey, 'gemini-2.0-flash');
-    if (flashResult) return { ...flashResult, provider: 'gemini-2.0-flash' };
-  }
-
-  if (openaiKey) {
-    const result = await callOpenAI(messages, toolDefs, openaiKey);
-    if (result) return { ...result, provider: 'openai-gpt-4o' };
+    // Fallback to Gemini 2.5 Flash (more daily quota)
+    const flashResult = await callGemini(messages, toolDefs, geminiKey, 'gemini-2.5-flash');
+    if (flashResult) return { ...flashResult, provider: 'Gemini 2.5 Flash' };
   }
 
   if (groqKey) {
     const result = await callGroq(messages, toolDefs, groqKey);
-    if (result) return { ...result, provider: 'groq-llama' };
+    if (result) return { ...result, provider: 'Groq Llama 3.3 70B' };
+  }
+
+  if (cerebrasKey) {
+    const result = await callCerebras(messages, toolDefs, cerebrasKey);
+    if (result) return { ...result, provider: 'Cerebras' };
+  }
+
+  if (openrouterKey) {
+    const result = await callOpenRouter(messages, toolDefs, openrouterKey);
+    if (result) return { ...result, provider: 'OpenRouter' };
+  }
+
+  if (openaiKey) {
+    const result = await callOpenAI(messages, toolDefs, openaiKey);
+    if (result) return { ...result, provider: 'OpenAI GPT-4o' };
   }
 
   return null; // No AI available — fall back to rule-based
@@ -728,6 +743,153 @@ async function callGroq(messages, toolDefs, apiKey) {
     };
   } catch (err) {
     console.error('Groq fetch error:', err.message);
+    return null;
+  }
+}
+
+// ── CEREBRAS API (Free, very fast Llama 3.3 70B) ──
+async function callCerebras(messages, toolDefs, apiKey) {
+  const url = 'https://api.cerebras.ai/v1/chat/completions';
+
+  const cbrMessages = [
+    { role: 'system', content: SYSTEM_PROMPT }
+  ];
+
+  for (const msg of messages) {
+    if (msg.role === 'user') {
+      cbrMessages.push({ role: 'user', content: msg.content });
+    } else if (msg.role === 'assistant' || msg.role === 'model') {
+      cbrMessages.push({ role: 'assistant', content: msg.content });
+    }
+  }
+
+  // Cerebras uses OpenAI-compatible API with tool calling
+  const cbrTools = toolDefs.map(td => ({
+    type: 'function',
+    function: {
+      name: td.name,
+      description: td.description,
+      parameters: td.parameters || { type: 'object', properties: {} }
+    }
+  }));
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b',
+        messages: cbrMessages,
+        tools: cbrTools,
+        temperature: 0.7,
+        max_tokens: 4096
+      }),
+      timeout: 30000
+    });
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    const choice = data.choices?.[0];
+    if (!choice) return null;
+
+    const toolCalls = [];
+    if (choice.message?.tool_calls) {
+      for (const tc of choice.message.tool_calls) {
+        try {
+          toolCalls.push({
+            name: tc.function.name,
+            args: JSON.parse(tc.function.arguments)
+          });
+        } catch (e) {}
+      }
+    }
+
+    return {
+      text: choice.message?.content || '',
+      toolCalls,
+      finishReason: choice.finish_reason
+    };
+  } catch (err) {
+    console.error('Cerebras fetch error:', err.message);
+    return null;
+  }
+}
+
+// ── OPENROUTER API (Free tier, multi-model gateway) ──
+async function callOpenRouter(messages, toolDefs, apiKey) {
+  const url = 'https://openrouter.ai/api/v1/chat/completions';
+
+  const orMessages = [
+    { role: 'system', content: SYSTEM_PROMPT }
+  ];
+
+  for (const msg of messages) {
+    if (msg.role === 'user') {
+      orMessages.push({ role: 'user', content: msg.content });
+    } else if (msg.role === 'assistant' || msg.role === 'model') {
+      orMessages.push({ role: 'assistant', content: msg.content });
+    }
+  }
+
+  const orTools = toolDefs.map(td => ({
+    type: 'function',
+    function: {
+      name: td.name,
+      description: td.description,
+      parameters: td.parameters || { type: 'object', properties: {} }
+    }
+  }));
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': 'https://glob-erp.vercel.app',
+        'X-Title': 'Glob ERP AI Assistant'
+      },
+      body: JSON.stringify({
+        // Use a free model — tries them in order
+        model: 'google/gemini-2.5-flash-preview-05-20',
+        models: ['google/gemini-2.5-flash-preview-05-20', 'meta-llama/llama-3.3-70b-instruct'],
+        messages: orMessages,
+        tools: orTools,
+        temperature: 0.7,
+        max_tokens: 4096
+      }),
+      timeout: 30000
+    });
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    const choice = data.choices?.[0];
+    if (!choice) return null;
+
+    const toolCalls = [];
+    if (choice.message?.tool_calls) {
+      for (const tc of choice.message.tool_calls) {
+        try {
+          toolCalls.push({
+            name: tc.function.name,
+            args: JSON.parse(tc.function.arguments)
+          });
+        } catch (e) {}
+      }
+    }
+
+    return {
+      text: choice.message?.content || '',
+      toolCalls,
+      finishReason: choice.finish_reason
+    };
+  } catch (err) {
+    console.error('OpenRouter fetch error:', err.message);
     return null;
   }
 }
@@ -1033,27 +1195,28 @@ function formatToolResult(name, result) {
 // ═══════════════════════════════════════════════
 
 router.get('/status', auth, async (req, res) => {
-  const geminiKey = !!process.env.GEMINI_API_KEY;
-  const openaiKey = !!process.env.OPENAI_API_KEY;
-  const groqKey = !!process.env.GROQ_API_KEY;
-  const hasAnyAI = geminiKey || openaiKey || groqKey;
+  const keys = {
+    GEMINI_API_KEY: !!process.env.GEMINI_API_KEY,
+    GROQ_API_KEY: !!process.env.GROQ_API_KEY,
+    CEREBRAS_API_KEY: !!process.env.CEREBRAS_API_KEY,
+    OPENROUTER_API_KEY: !!process.env.OPENROUTER_API_KEY,
+    OPENAI_API_KEY: !!process.env.OPENAI_API_KEY
+  };
+  const hasAnyAI = Object.values(keys).some(Boolean);
   
-  const providers = [];
-  if (geminiKey) providers.push('Gemini 2.5 Pro', 'Gemini 2.0 Flash');
-  if (openaiKey) providers.push('OpenAI GPT-4o');
-  if (groqKey) providers.push('Groq Llama 3.3 70B');
+  const active = [];
+  if (keys.GEMINI_API_KEY) active.push('Gemini 2.5 Pro + Flash');
+  if (keys.GROQ_API_KEY) active.push('Groq Llama 3.3 70B');
+  if (keys.CEREBRAS_API_KEY) active.push('Cerebras Llama 3.3');
+  if (keys.OPENROUTER_API_KEY) active.push('OpenRouter');
+  if (keys.OPENAI_API_KEY) active.push('OpenAI GPT-4o');
   
   res.json({
     success: true,
     aiEnabled: hasAnyAI,
-    providers: providers.length > 0 ? providers : ['Rule-based'],
-    primaryProvider: geminiKey ? 'Gemini 2.5 Pro' : openaiKey ? 'OpenAI GPT-4o' : groqKey ? 'Groq Llama' : 'Rule-based',
-    toolsAvailable: TOOL_DEFINITIONS.length,
-    setupInstructions: hasAnyAI ? undefined : {
-      gemini: '1. Go to https://aistudio.google.com/apikey  2. Create free key  3. Add GEMINI_API_KEY to Render env vars',
-      groq: '1. Go to https://console.groq.com/keys  2. Create free key  3. Add GROQ_API_KEY to Render env vars',
-      openai: '1. Go to https://platform.openai.com/api-keys  2. Create key (paid)  3. Add OPENAI_API_KEY to Render env vars'
-    }
+    providers: active.length > 0 ? active : ['Rule-based'],
+    primaryProvider: active[0] || 'Rule-based',
+    toolsAvailable: TOOL_DEFINITIONS.length
   });
 });
 
