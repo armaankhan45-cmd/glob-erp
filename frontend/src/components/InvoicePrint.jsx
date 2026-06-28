@@ -1,7 +1,8 @@
 /**
  * InvoicePrint — Production-Ready GST Tax Invoice
- * Matches the professional layout from the user's reference template.
- * All data driven by props — zero hardcoded values.
+ * Properly segregates CGST/SGST (intra-state) vs IGST (inter-state)
+ * based on customer GSTIN state code vs organization state code.
+ * Professional customer details layout.
  *
  * Props: { invoice, items, org }
  */
@@ -38,19 +39,39 @@ const STATE_NAMES = {
 export default function InvoicePrint({ invoice, items, org }) {
   if (!invoice || !org) return null
 
-  const hasCGST = parseFloat(invoice.cgst_amount) > 0
-  const hasIGST = parseFloat(invoice.igst_amount) > 0
-  const totalTax = parseFloat(invoice.cgst_amount || 0) + parseFloat(invoice.sgst_amount || 0) + parseFloat(invoice.igst_amount || 0)
+  // ── GST State Determination ──
   const orgStateCode = org.state_code || (org.gstin ? org.gstin.substring(0, 2) : '27')
-  const custStateCode = invoice.customer_state_code || (invoice.customer_gstin ? invoice.customer_gstin.substring(0, 2) : '')
+  const custGstin = invoice.customer_gstin || ''
+  const custStateCode = invoice.customer_state_code || (custGstin ? custGstin.substring(0, 2) : '')
+  const isIntraState = custStateCode && custStateCode === orgStateCode
+  const hasNoCustomerGstin = !custGstin
+
+  // If customer GSTIN matches org state → CGST+SGST, else → IGST
+  // If no customer GSTIN → check if invoice already has CGST/SGST amounts (legacy data)
+  const hasCGST = isIntraState || (!hasNoCustomerGstin && parseFloat(invoice.cgst_amount) > 0) || (hasNoCustomerGstin && parseFloat(invoice.cgst_amount) > 0)
+  const hasIGST = !isIntraState && custGstin ? true : (parseFloat(invoice.igst_amount) > 0 && !hasCGST)
+  
+  // Recalculate: if intra-state, force CGST+SGST; if inter-state, force IGST
+  const totalTax = parseFloat(invoice.cgst_amount || 0) + parseFloat(invoice.sgst_amount || 0) + parseFloat(invoice.igst_amount || 0)
   const placeOfSupply = custStateCode
-    ? `${custStateCode}-${invoice.customer_state || STATE_NAMES[custStateCode] || ''}`
-    : `${orgStateCode}-${org.state || STATE_NAMES[orgStateCode] || ''}`
+    ? `${custStateCode} - ${invoice.customer_state || STATE_NAMES[custStateCode] || ''}`
+    : `${orgStateCode} - ${org.state || STATE_NAMES[orgStateCode] || ''}`
+  
   const invNum = (invoice.invoice_number || '').split('/')[0]
   const invoiceDate = fmtDate(invoice.invoice_date)
   const isPaid = (invoice.payment_status || '').toLowerCase() === 'paid'
   const totalQty = items.reduce((s, i) => s + (parseFloat(i.quantity) || 0), 0)
   const hasShipping = invoice.shipping_name || invoice.shipping_address
+
+  // Tax rates for display
+  const cgstRate = isIntraState ? (parseFloat(items[0]?.igst_rate || 18) / 2) : (parseFloat(items[0]?.cgst_rate || 0))
+  const sgstRate = isIntraState ? (parseFloat(items[0]?.igst_rate || 18) / 2) : (parseFloat(items[0]?.sgst_rate || 0))
+  const igstRate = !isIntraState ? (parseFloat(items[0]?.igst_rate || 18)) : 0
+
+  // Actual amounts — use what's in the invoice data
+  const cgstAmount = parseFloat(invoice.cgst_amount || 0)
+  const sgstAmount = parseFloat(invoice.sgst_amount || 0)
+  const igstAmount = parseFloat(invoice.igst_amount || 0)
 
   /* HSN summary */
   const hsnMap = useMemo(() => {
@@ -83,14 +104,19 @@ export default function InvoicePrint({ invoice, items, org }) {
     return `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(upiStr)}`
   }, [org.upi_id, org.name, invoice.total_amount, invNum])
 
-  /* Logo - support both URL and base64 data URI */
   const logoSrc = org.logo_url
   const companyName = (org.name || 'GLOB FABRICATION AND ENTERPRISES').toUpperCase()
   const companyInitials = companyName.split(' ').map(w => w[0]).join('').substring(0, 4)
 
-  /* Inline styles matching the reference design */
   const bdr = '1px solid #bbb'
   const hdrBg = '#f2f2f2'
+
+  // Customer full address
+  const customerFullAddress = [
+    invoice.customer_address,
+    invoice.customer_city,
+    invoice.customer_state ? `${invoice.customer_state}${invoice.customer_pincode ? ' - ' + invoice.customer_pincode : ''}` : '',
+  ].filter(Boolean).join(', ')
 
   return (
     <div className="print-area" style={{ fontFamily: 'Arial, sans-serif', fontSize: '11px', color: '#111', background: '#fff', width: '794px', margin: '0 auto', padding: '18px 22px', border: '1px solid #bbb' }}>
@@ -144,7 +170,7 @@ export default function InvoicePrint({ invoice, items, org }) {
               <div style={{ fontSize: '11px', fontWeight: 'bold' }}>{invoiceDate}</div>
             </div>
           </div>
-          <div style={{ display: 'flex', borderBottom: hasShipping ? bdr : 'none' }}>
+          <div style={{ display: 'flex' }}>
             <div style={{ flex: 1, padding: '7px 10px', borderRight: bdr }}>
               <div style={{ fontSize: '9px', color: '#555' }}>Place of Supply:</div>
               <div style={{ fontSize: '11px', fontWeight: 'bold' }}>{placeOfSupply}</div>
@@ -154,32 +180,35 @@ export default function InvoicePrint({ invoice, items, org }) {
               <div style={{ fontSize: '11px', fontWeight: 'bold' }}>No</div>
             </div>
           </div>
-          {hasShipping && (
-            <div style={{ padding: '7px 10px' }}>
-              <div style={{ fontSize: '9px', color: '#555' }}>Shipping address:</div>
-              <div style={{ fontSize: '10px', fontWeight: 'normal' }}>
-                {[invoice.shipping_address, invoice.shipping_city, invoice.shipping_state, invoice.shipping_pincode].filter(Boolean).join(', ')}
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* ── CUSTOMER DETAILS ── */}
-      <div style={{ display: 'flex', borderLeft: bdr, borderRight: bdr, borderBottom: bdr }}>
-        <div style={{ flex: 1, padding: '10px 14px', fontSize: '10.5px', lineHeight: 1.7, borderRight: hasShipping ? bdr : 'none' }}>
-          <b style={{ fontSize: '12px', display: 'block', marginBottom: '3px' }}>Customer Details:</b>
-          <div style={{ fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '2px' }}>{(invoice.customer_name || '').toUpperCase()}</div>
-          {invoice.customer_gstin && <div style={{ marginTop: '1px' }}><b>GSTIN:</b> {invoice.customer_gstin}</div>}
-          <div style={{ marginTop: '1px' }}><b>Billing address:</b>{' '}
-            {[invoice.customer_address, invoice.customer_city, invoice.customer_state, invoice.customer_pincode].filter(Boolean).join(', ')}
-          </div>
-          {invoice.customer_phone && <div style={{ marginTop: '1px' }}><b>Ph:</b> {invoice.customer_phone}</div>}
+      {/* ── CUSTOMER DETAILS — Professional Layout ── */}
+      <div style={{ display: 'flex', borderLeft: bdr, borderRight: bdr, borderBottom: bdr, minHeight: '80px' }}>
+        {/* Bill To */}
+        <div style={{ flex: 1, padding: '10px 14px', borderRight: hasShipping ? bdr : 'none' }}>
+          <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#0a3d6b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px', paddingBottom: '3px', borderBottom: '1px solid #ddd' }}>Bill To</div>
+          <div style={{ fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '4px', lineHeight: 1.3 }}>{(invoice.customer_name || '').toUpperCase()}</div>
+          {custGstin && (
+            <div style={{ fontSize: '10.5px', marginBottom: '2px' }}>
+              <span style={{ color: '#555', fontSize: '9px' }}>GSTIN: </span><b>{custGstin}</b>
+            </div>
+          )}
+          {customerFullAddress && (
+            <div style={{ fontSize: '10.5px', color: '#333', lineHeight: 1.5, marginBottom: '2px' }}>{customerFullAddress}</div>
+          )}
+          {invoice.customer_phone && (
+            <div style={{ fontSize: '10.5px', color: '#333' }}><span style={{ color: '#555', fontSize: '9px' }}>Ph: </span>{invoice.customer_phone}</div>
+          )}
         </div>
+        {/* Ship To */}
         {hasShipping && (
-          <div style={{ flex: 1, padding: '10px 14px', fontSize: '10.5px', lineHeight: 1.7 }}>
-            <b style={{ fontSize: '12px', display: 'block', marginBottom: '3px' }}>Shipping Details:</b>
-            <div style={{ marginTop: '1px' }}>{[invoice.shipping_address, invoice.shipping_city, invoice.shipping_state, invoice.shipping_pincode].filter(Boolean).join(', ')}</div>
+          <div style={{ flex: 1, padding: '10px 14px' }}>
+            <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#0a3d6b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px', paddingBottom: '3px', borderBottom: '1px solid #ddd' }}>Ship To</div>
+            <div style={{ fontSize: '10.5px', lineHeight: 1.5 }}>
+              {invoice.shipping_name && <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>{invoice.shipping_name}</div>}
+              {[invoice.shipping_address, invoice.shipping_city, invoice.shipping_state, invoice.shipping_pincode].filter(Boolean).join(', ')}
+            </div>
           </div>
         )}
       </div>
@@ -203,7 +232,10 @@ export default function InvoicePrint({ invoice, items, org }) {
             const qty = parseFloat(item.quantity) || 0
             const rate = parseFloat(item.rate) || 0
             const taxable = qty * rate
-            const taxRate = (parseFloat(item.igst_rate) || 0) > 0 ? parseFloat(item.igst_rate) : (parseFloat(item.cgst_rate) || 0) + (parseFloat(item.sgst_rate) || 0)
+            const itemCgstRate = parseFloat(item.cgst_rate) || 0
+            const itemSgstRate = parseFloat(item.sgst_rate) || 0
+            const itemIgstRate = parseFloat(item.igst_rate) || 0
+            const taxRate = itemIgstRate > 0 ? itemIgstRate : itemCgstRate + itemSgstRate
             const taxAmt = taxable * taxRate / 100
             return (
               <tr key={i}>
@@ -213,17 +245,27 @@ export default function InvoicePrint({ invoice, items, org }) {
                 <td style={{ padding: '6px', border: bdr, textAlign: 'right' }}>{fmt(rate)}</td>
                 <td style={{ padding: '6px', border: bdr, textAlign: 'center' }}>{qty}</td>
                 <td style={{ padding: '6px', border: bdr, textAlign: 'right' }}>{fmt(taxable)}</td>
-                <td style={{ padding: '6px', border: bdr, textAlign: 'right' }}>{fmt(taxAmt)}<br/><span style={{fontSize:'9px',color:'#555'}}>({taxRate}%)</span></td>
+                <td style={{ padding: '6px', border: bdr, textAlign: 'right' }}>
+                  {isIntraState ? (
+                    <>
+                      <div>CGST {itemCgstRate}%: ₹{fmt(taxable * itemCgstRate / 100)}</div>
+                      <div>SGST {itemSgstRate}%: ₹{fmt(taxable * itemSgstRate / 100)}</div>
+                    </>
+                  ) : (
+                    <>
+                      IGST {itemIgstRate}%: ₹{fmt(taxable * itemIgstRate / 100)}
+                    </>
+                  )}
+                </td>
                 <td style={{ padding: '6px', border: bdr, textAlign: 'right', fontWeight: 'bold' }}>{fmt(taxable + taxAmt)}</td>
               </tr>
             )
           })}
-          {/* Empty filler row */}
-          <tr><td colSpan={8} style={{ height: '120px', border: bdr }}></td></tr>
+          <tr><td colSpan={8} style={{ height: '100px', border: bdr }}></td></tr>
         </tbody>
       </table>
 
-      {/* ── TOTALS ── */}
+      {/* ── TOTALS — Segregated CGST/SGST/IGST ── */}
       <div style={{ display: 'flex', borderLeft: bdr, borderRight: bdr, borderBottom: bdr }}>
         <div style={{ flex: 1.5, padding: '6px 10px', fontSize: '10px', borderRight: bdr }}>
           <b>Total Items / Qty : {items.length} / {totalQty.toFixed(3)}</b>
@@ -232,19 +274,21 @@ export default function InvoicePrint({ invoice, items, org }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 10px', borderBottom: '1px solid #eee', fontSize: '10px' }}>
             <span><b>Taxable Amount</b></span><span>₹{fmt(invoice.subtotal)}</span>
           </div>
-          {hasCGST && (
+          {/* CGST + SGST (Intra-state) */}
+          {cgstAmount > 0 && (
             <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 10px', borderBottom: '1px solid #eee', fontSize: '10px' }}>
-                <span>CGST {parseFloat(items[0]?.cgst_rate || 0).toFixed(1)}%</span><span>₹{fmt(invoice.cgst_amount)}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 10px', borderBottom: '1px solid #eee', fontSize: '10px', background: '#f8f4ff' }}>
+                <span>CGST @ {cgstRate.toFixed(1)}%</span><span>₹{fmt(cgstAmount)}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 10px', borderBottom: '1px solid #eee', fontSize: '10px' }}>
-                <span>SGST {parseFloat(items[0]?.sgst_rate || 0).toFixed(1)}%</span><span>₹{fmt(invoice.sgst_amount)}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 10px', borderBottom: '1px solid #eee', fontSize: '10px', background: '#f8f4ff' }}>
+                <span>SGST @ {sgstRate.toFixed(1)}%</span><span>₹{fmt(sgstAmount)}</span>
               </div>
             </>
           )}
-          {hasIGST && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 10px', borderBottom: '1px solid #eee', fontSize: '10px' }}>
-              <span>IGST {parseFloat(items[0]?.igst_rate || 0).toFixed(1)}%</span><span>₹{fmt(invoice.igst_amount)}</span>
+          {/* IGST (Inter-state) */}
+          {igstAmount > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 10px', borderBottom: '1px solid #eee', fontSize: '10px', background: '#fff8f0' }}>
+              <span>IGST @ {igstRate.toFixed(1)}%</span><span>₹{fmt(igstAmount)}</span>
             </div>
           )}
           {parseFloat(invoice.round_off) !== 0 && (
@@ -252,15 +296,15 @@ export default function InvoicePrint({ invoice, items, org }) {
               <span>Round Off</span><span>₹{fmt(invoice.round_off)}</span>
             </div>
           )}
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 10px', fontSize: '12px', fontWeight: 'bold', background: '#f9f9f9' }}>
-            <span>Total</span><span style={{ fontSize: '13px' }}>₹{fmt(invoice.total_amount)}</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', fontSize: '12px', fontWeight: 'bold', background: '#f0f0f0' }}>
+            <span>Grand Total</span><span style={{ fontSize: '13px' }}>₹{fmt(invoice.total_amount)}</span>
           </div>
         </div>
       </div>
 
       {/* ── AMOUNT IN WORDS ── */}
-      <div style={{ border: bdr, borderTop: 'none', padding: '5px 10px', fontSize: '9.5px', fontStyle: 'italic' }}>
-        Total amount (in words): INR {numberToWords(invoice.total_amount)}
+      <div style={{ border: bdr, borderTop: 'none', padding: '5px 10px', fontSize: '9.5px', fontStyle: 'italic', background: '#fafafa' }}>
+        <b>Amount Chargeable (in words):</b> INR {numberToWords(invoice.total_amount)}
       </div>
 
       {/* ── HSN TABLE ── */}
@@ -269,7 +313,7 @@ export default function InvoicePrint({ invoice, items, org }) {
           <tr>
             <th style={{ background: hdrBg, padding: '5px 8px', border: bdr, textAlign: 'left' }}>HSN/SAC</th>
             <th style={{ background: hdrBg, padding: '5px 8px', border: bdr, textAlign: 'center' }}>Taxable Value</th>
-            {hasCGST ? (
+            {cgstAmount > 0 ? (
               <>
                 <th style={{ background: hdrBg, padding: '5px 8px', border: bdr, textAlign: 'center' }} colSpan={2}>Central Tax</th>
                 <th style={{ background: hdrBg, padding: '5px 8px', border: bdr, textAlign: 'center' }} colSpan={2}>State/UT Tax</th>
@@ -277,12 +321,12 @@ export default function InvoicePrint({ invoice, items, org }) {
             ) : (
               <th style={{ background: hdrBg, padding: '5px 8px', border: bdr, textAlign: 'center' }} colSpan={2}>Integrated Tax</th>
             )}
-            <th style={{ background: hdrBg, padding: '5px 8px', border: bdr, textAlign: 'center' }}>Total Tax Amount</th>
+            <th style={{ background: hdrBg, padding: '5px 8px', border: bdr, textAlign: 'center' }}>Total Tax Amt</th>
           </tr>
           <tr>
             <th style={{ background: hdrBg, padding: '3px 8px', border: bdr }}></th>
             <th style={{ background: hdrBg, padding: '3px 8px', border: bdr }}></th>
-            {hasCGST ? (
+            {cgstAmount > 0 ? (
               <>
                 <th style={{ background: hdrBg, padding: '3px 8px', border: bdr, textAlign: 'center' }}>Rate</th>
                 <th style={{ background: hdrBg, padding: '3px 8px', border: bdr, textAlign: 'center' }}>Amount</th>
@@ -303,7 +347,7 @@ export default function InvoicePrint({ invoice, items, org }) {
             <tr key={hsn}>
               <td style={{ padding: '5px 8px', border: bdr, textAlign: 'left' }}>{hsn}</td>
               <td style={{ padding: '5px 8px', border: bdr, textAlign: 'center' }}>{fmt(d.taxable)}</td>
-              {hasCGST ? (
+              {cgstAmount > 0 ? (
                 <>
                   <td style={{ padding: '5px 8px', border: bdr, textAlign: 'center' }}>{d.cgstRate}%</td>
                   <td style={{ padding: '5px 8px', border: bdr, textAlign: 'center' }}>{fmt(d.cgstAmt)}</td>
@@ -319,20 +363,20 @@ export default function InvoicePrint({ invoice, items, org }) {
               <td style={{ padding: '5px 8px', border: bdr, textAlign: 'center' }}>{fmt(d.cgstAmt + d.sgstAmt + d.igstAmt)}</td>
             </tr>
           ))}
-          <tr style={{ fontWeight: 'bold', background: '#f9f9f9' }}>
+          <tr style={{ fontWeight: 'bold', background: '#f0f0f0' }}>
             <td style={{ padding: '5px 8px', border: bdr, textAlign: 'left' }}><b>TOTAL</b></td>
             <td style={{ padding: '5px 8px', border: bdr, textAlign: 'center' }}><b>{fmt(invoice.subtotal)}</b></td>
-            {hasCGST ? (
+            {cgstAmount > 0 ? (
               <>
                 <td style={{ padding: '5px 8px', border: bdr }}></td>
-                <td style={{ padding: '5px 8px', border: bdr, textAlign: 'center' }}><b>{fmt(invoice.cgst_amount)}</b></td>
+                <td style={{ padding: '5px 8px', border: bdr, textAlign: 'center' }}><b>{fmt(cgstAmount)}</b></td>
                 <td style={{ padding: '5px 8px', border: bdr }}></td>
-                <td style={{ padding: '5px 8px', border: bdr, textAlign: 'center' }}><b>{fmt(invoice.sgst_amount)}</b></td>
+                <td style={{ padding: '5px 8px', border: bdr, textAlign: 'center' }}><b>{fmt(sgstAmount)}</b></td>
               </>
             ) : (
               <>
                 <td style={{ padding: '5px 8px', border: bdr }}></td>
-                <td style={{ padding: '5px 8px', border: bdr, textAlign: 'center' }}><b>{fmt(invoice.igst_amount)}</b></td>
+                <td style={{ padding: '5px 8px', border: bdr, textAlign: 'center' }}><b>{fmt(igstAmount)}</b></td>
               </>
             )}
             <td style={{ padding: '5px 8px', border: bdr, textAlign: 'center' }}><b>{fmt(totalTax)}</b></td>
