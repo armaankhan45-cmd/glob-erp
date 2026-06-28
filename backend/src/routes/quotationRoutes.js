@@ -22,13 +22,16 @@ function sanitizeDates(data) {
   return clean;
 }
 
-// Columns that exist in quotations table
+// Columns that exist in quotations table — quotation_number included for manual override
 const QUOTATION_COLUMNS = [
   'organization_id', 'quotation_number', 'customer_id',
   'quotation_date', 'validity_date',
   'subtotal', 'cgst_amount', 'sgst_amount', 'igst_amount', 'total_amount',
   'status', 'converted_invoice_id', 'notes'
 ];
+
+// Columns that are NOT in the table (must be stripped before SQL insert)
+const VIRTUAL_COLUMNS = ['customer_name', 'additional_info', 'actual_notes', 'quotation_number_override'];
 
 // Columns that exist in quotation_items table
 const ITEM_COLUMNS = [
@@ -127,13 +130,22 @@ router.post('/', auth, async (req, res) => {
     // Build notes field from custom fields
     const notes = `${customer_name}|||${additional_info}|||${actual_notes}`;
 
-    // Get quotation number
+    // Get quotation number — manual override or auto-generate
     const org = await db('organizations').where({ id: orgId }).first();
     const prefix = org.quotation_prefix || 'Q-';
-    const last = await db('quotations').where({ organization_id: orgId }).orderBy('id', 'desc').first('id');
-    const nextNo = (last?.id || 0) + 1;
     const fy = getFY(new Date(body.quotation_date || Date.now()));
-    const quotationNumber = `${prefix}${nextNo}/${fy}`;
+    
+    let quotationNumber;
+    if (body.quotation_number && String(body.quotation_number).trim() !== '') {
+      // User provided a manual number — use it directly with prefix + FY
+      const manualNum = String(body.quotation_number).trim().replace(/[^0-9]/g, '');
+      quotationNumber = `${prefix}${manualNum}/${fy}`;
+    } else {
+      // Auto-generate from last ID
+      const last = await db('quotations').where({ organization_id: orgId }).orderBy('id', 'desc').first('id');
+      const nextNo = (last?.id || 0) + 1;
+      quotationNumber = `${prefix}${nextNo}/${fy}`;
+    }
 
     // Build ONLY valid columns for quotations table
     const insertData = sanitizeDates(cleanForTable({
@@ -540,14 +552,15 @@ function generateQuotationHTML(quotation, items, org, customerName, additionalIn
         </div>
         <div style="padding:0 5px 6px;flex-shrink:0">
           <table style="font-size:9pt">
-            ${gstRate > 0 ? `<tr><td style="border:1.5px solid #000;padding:4px 6px;text-align:right;width:76%">GST: ${gstRate}%</td><td style="border:1.5px solid #000;padding:4px 6px;text-align:right;font-weight:bold">&#8377;${formatIndian(totalGST)}</td></tr>` : ''}
+            ${gstRate > 0 ? `<tr><td style="border:1.5px solid #000;padding:4px 6px;text-align:right;width:55%">GST: ${gstRate}%</td><td style="border:1.5px solid #000;padding:4px 6px;text-align:right;font-weight:bold;width:45%">&#8377;${formatIndian(totalGST)}</td></tr>` : ''}
             <tr style="background:#f0f0f0">
-              <td style="border:1.5px solid #000;padding:5px 6px;text-align:right;font-size:11pt"><strong>Total</strong></td>
-              <td style="border:1.5px solid #000;padding:5px 6px;font-size:9pt;font-weight:bold;text-align:center;background:#fafafa">${numberToWordsCaps(quotation.total_amount)}</td>
+              <td colspan="2" style="border:1.5px solid #000;padding:6px 8px;font-size:10pt;font-weight:bold">
+                Total : ${numberToWordsCaps(quotation.total_amount)}
+              </td>
             </tr>
-            <tr>
-              <td style="border:1.5px solid #000;padding:5px 6px;text-align:right;font-size:11pt;background:#f0f0f0"><strong>&#8377;${formatIndian(quotation.total_amount)}</strong></td>
-              <td style="border:1.5px solid #000;padding:5px 6px;text-align:center;font-size:8pt;color:#555">Total Amount</td>
+            <tr style="background:#f5f5f5">
+              <td style="border:1.5px solid #000;padding:5px 8px;text-align:right;font-size:12pt;font-weight:bold">&#8377;${formatIndian(quotation.total_amount)}</td>
+              <td style="border:1.5px solid #000;padding:5px 8px;text-align:center;font-size:9pt;font-weight:bold">Total Amount</td>
             </tr>
           </table>
         </div>
