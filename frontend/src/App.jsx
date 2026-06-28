@@ -22,6 +22,7 @@ import Reports from './pages/Reports'
 import Settings from './pages/Settings'
 import FontSettings from './pages/FontSettings'
 import ExportData from './pages/ExportData'
+import Diagnostics from './pages/Diagnostics'
 import MainLayout from './layouts/MainLayout'
 import LandingPage from './pages/LandingPage'
 
@@ -61,6 +62,7 @@ export default function App() {
         <Route path="settings" element={<Settings />} />
         <Route path="font-settings" element={<FontSettings />} />
         <Route path="export" element={<ExportData />} />
+        <Route path="diagnostics" element={<Diagnostics />} />
       </Route>
     </Routes>
   )
