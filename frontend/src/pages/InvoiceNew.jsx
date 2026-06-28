@@ -60,13 +60,21 @@ export default function InvoiceNew() {
     status: 'Pending',
     payment_status: 'Unpaid'
   })
-
+  const [invoiceNumber, setInvoiceNumber] = useState('')
+  const [suggestedNumber, setSuggestedNumber] = useState('')
   const [items, setItems] = useState([{ description: '', hsn_code: '', quantity: 1, unit: 'NOS', rate: 0, cgst_rate: 9, sgst_rate: 9, igst_rate: 0, amount: 0 }])
   const [calculated, setCalculated] = useState({ subtotal: 0, cgst_amount: 0, sgst_amount: 0, igst_amount: 0, total_amount: 0 })
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     api.get('/customers').then(res => setCustomers(res.data.customers || [])).catch(() => {})
+    // Fetch next invoice number for auto-suggest
+    api.get('/invoices/next-number').then(res => {
+      if (res.data.success) {
+        setSuggestedNumber(res.data.nextNumber)
+        setInvoiceNumber(res.data.nextNumber)
+      }
+    }).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -121,6 +129,7 @@ export default function InvoiceNew() {
     try {
       await api.post('/invoices', {
         ...form,
+        invoice_number: invoiceNumber || undefined,
         due_date: null,
         ...calculated,
         items: items.map(i => ({ ...i, quantity: parseFloat(i.quantity), rate: parseFloat(i.rate), cgst_rate: parseFloat(i.cgst_rate), sgst_rate: parseFloat(i.sgst_rate), igst_rate: parseFloat(i.igst_rate), amount: parseFloat(i.amount) }))
@@ -193,9 +202,18 @@ export default function InvoiceNew() {
               <button onClick={() => setShowQuickAdd(true)} className="btn-secondary text-sm whitespace-nowrap" title="Quick Add Customer"><Plus size={16} /></button>
             </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Invoice Date</label>
-            <input type="date" value={form.invoice_date} onChange={e => setForm({ ...form, invoice_date: e.target.value })} className="input-field" />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Invoice No. *</label>
+              <input type="text" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} className="input-field font-mono" placeholder={suggestedNumber || 'GST-0001/26-27'} />
+              {suggestedNumber && invoiceNumber !== suggestedNumber && (
+                <button type="button" onClick={() => setInvoiceNumber(suggestedNumber)} className="text-xs text-blue-600 hover:underline mt-1">Use: {suggestedNumber}</button>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Invoice Date</label>
+              <input type="date" value={form.invoice_date} onChange={e => setForm({ ...form, invoice_date: e.target.value })} className="input-field" />
+            </div>
           </div>
         </div>
       </div>
