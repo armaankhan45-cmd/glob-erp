@@ -214,31 +214,33 @@ export default function QuotationDetail() {
             </table>
           </div>
 
-          {/* Total box — Words in left cell, Amount in right cell, side by side */}
+          {/* Total box — Clean format: Words + Amount on same visual block */}
           <div style={{ padding: '0 5px 6px', flexShrink: 0 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt' }}>
               <tbody>
                 {gstRate > 0 && (
                   <tr>
-                    <td style={{ border: '1.5px solid #000', padding: '4px 6px', textAlign: 'right', width: '55%' }}>
+                    <td style={{ border: '1.5px solid #000', padding: '4px 6px', textAlign: 'right', width: '55%', background: '#f8f8f8' }}>
                       GST: {gstRate}%
                     </td>
-                    <td style={{ border: '1.5px solid #000', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold', width: '45%' }}>
+                    <td style={{ border: '1.5px solid #000', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold', width: '45%', background: '#f8f8f8' }}>
                       ₹{fmt(totalGST)}
                     </td>
                   </tr>
                 )}
-                <tr style={{ background: '#f0f0f0' }}>
-                  <td colSpan={2} style={{ border: '1.5px solid #000', padding: '6px 8px', fontSize: '10pt', fontWeight: 'bold' }}>
-                    Total : {numberToWordsCaps(quotation.total_amount)}
+                <tr>
+                  <td colSpan={2} style={{ border: '1.5px solid #000', padding: '8px 10px', background: '#e8e8e8' }}>
+                    <div style={{ fontSize: '10pt', fontWeight: 'bold', textAlign: 'center', letterSpacing: '0.5px' }}>
+                      Total : {numberToWordsCaps(quotation.total_amount)}
+                    </div>
                   </td>
                 </tr>
-                <tr style={{ background: '#f5f5f5' }}>
-                  <td style={{ border: '1.5px solid #000', padding: '5px 8px', textAlign: 'right', fontSize: '12pt', fontWeight: 'bold' }}>
-                    ₹{fmt(quotation.total_amount)}
+                <tr>
+                  <td style={{ border: '1.5px solid #000', padding: '8px 10px', textAlign: 'right', background: '#d4d4d4', width: '55%' }}>
+                    <span style={{ fontSize: '14pt', fontWeight: 'bold' }}>₹{fmt(quotation.total_amount)}</span>
                   </td>
-                  <td style={{ border: '1.5px solid #000', padding: '5px 8px', textAlign: 'center', fontSize: '9pt', fontWeight: 'bold' }}>
-                    Total Amount
+                  <td style={{ border: '1.5px solid #000', padding: '8px 10px', textAlign: 'center', background: '#d4d4d4', width: '45%' }}>
+                    <span style={{ fontSize: '10pt', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>Total Amount</span>
                   </td>
                 </tr>
               </tbody>
