@@ -2,7 +2,7 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
 import Sidebar from '../components/Sidebar'
 import TopBar from '../components/TopBar'
-import { Menu, Bot, X, Send, Copy, Check } from 'lucide-react'
+import { Menu, Bot, X, Send } from 'lucide-react'
 import api from '../api/client'
 
 // Mini markdown for floating chat
@@ -15,27 +15,25 @@ function MiniMarkdown({ text }) {
         if (part.startsWith('```')) {
           const code = part.slice(3, -3).split('\n').slice(1).join('\n').trim()
           return (
-            <pre key={i} className="bg-gray-900 text-gray-100 p-2 rounded text-[10px] font-mono my-1 overflow-x-auto max-h-24">
+            <pre key={i} className="p-2 rounded text-[10px] font-mono my-1 overflow-x-auto max-h-24"
+              style={{ background: 'rgba(0,0,0,0.4)', color: '#e8eaf0' }}>
               {code.substring(0, 500)}
             </pre>
           )
         }
-        // Simple inline: bold + line breaks
         const lines = part.split('\n')
         return lines.map((line, j) => {
           if (line.startsWith('# ')) return <div key={`${i}-${j}`} className="font-bold text-sm mt-1">{line.slice(2)}</div>
           if (line.startsWith('## ')) return <div key={`${i}-${j}`} className="font-bold mt-1">{line.slice(3)}</div>
           if (line.startsWith('- ')) return <div key={`${i}-${j}`} className="ml-2">• {line.slice(2)}</div>
           if (line.trim() === '') return <div key={`${i}-${j}`} className="h-1" />
-          // Bold
           const boldParts = line.split(/(\*\*[^*]+\*\*)/g)
           return <div key={`${i}-${j}`}>
             {boldParts.map((bp, k) => {
               if (bp.startsWith('**') && bp.endsWith('**')) return <strong key={k}>{bp.slice(2, -2)}</strong>
-              // Inline code
               const codeParts = bp.split(/(`[^`]+`)/g)
               return codeParts.map((cp, l) => {
-                if (cp.startsWith('`') && cp.endsWith('`')) return <code key={`${k}-${l}`} className="bg-gray-100 text-red-600 px-0.5 rounded text-[10px] font-mono">{cp.slice(1, -1)}</code>
+                if (cp.startsWith('`') && cp.endsWith('`')) return <code key={`${k}-${l}`} className="px-0.5 rounded text-[10px] font-mono" style={{ background: 'rgba(239,77,35,0.15)', color: '#ef4d23' }}>{cp.slice(1, -1)}</code>
                 return <span key={`${k}-${l}`}>{cp}</span>
               })
             })}
@@ -51,7 +49,7 @@ export default function MainLayout() {
   const [aiOpen, setAiOpen] = useState(false)
   const [aiInput, setAiInput] = useState('')
   const [aiMessages, setAiMessages] = useState([
-    { role: 'assistant', content: 'Hi! 👋 I\'m your **FREE** ERP AI assistant — no paid API needed! I can **debug**, **fix errors**, **write code**, **run SQL**, and more. What do you need?' }
+    { role: 'assistant', content: 'Hi! 👋 I\'m your **Nebula AI** assistant — I can **debug**, **fix errors**, **write code**, **deploy**, **manage GitHub/Render/Vercel**, and more! What do you need?' }
   ])
   const [aiLoading, setAiLoading] = useState(false)
   const [aiStatus, setAiStatus] = useState(null)
@@ -63,17 +61,11 @@ export default function MainLayout() {
     api.get('/ai/status').then(res => setAiStatus(res.data)).catch(() => {})
   }, [])
 
-  // The mini chat now calls the real AI backend
+  useEffect(() => { setAiOpen(false) }, [location.pathname])
 
-  useEffect(() => {
-    setAiOpen(false)
-  }, [location.pathname])
-
-  // Close mini chat when clicking outside
   useEffect(() => {
     function handleClick(e) {
       if (aiOpen && miniChatRef.current && !miniChatRef.current.contains(e.target)) {
-        // Don't close if clicking the toggle button
         const btn = document.getElementById('ai-float-btn')
         if (btn && btn.contains(e.target)) return
         setAiOpen(false)
@@ -106,39 +98,40 @@ export default function MainLayout() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-brand-page">
+    <div className="flex h-screen overflow-hidden" style={{ background: '#080b14' }}>
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="lg:hidden">
-          <button onClick={() => setSidebarOpen(true)} className="p-4 text-neutral-600">
+          <button onClick={() => setSidebarOpen(true)} className="p-4" style={{ color: 'rgba(255,255,255,0.6)' }}>
             <Menu size={24} />
           </button>
         </div>
         <TopBar />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-brand-page">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6" style={{ background: '#080b14' }}>
           <Outlet />
         </main>
       </div>
 
-      {/* Floating AI — not shown on the AI Assistant full page */}
+      {/* Floating AI — not shown on AI Assistant full page */}
       {!location.pathname.includes('ai-assistant') && (
         <>
-          {/* Mini Chat Panel */}
           {aiOpen && (
             <div 
               ref={miniChatRef}
-              className="fixed bottom-24 right-6 w-[380px] bg-white rounded-2xl shadow-2xl border z-50 flex flex-col overflow-hidden"
-              style={{ maxHeight: '520px', animation: 'slideUp 0.2s ease-out' }}
+              className="fixed bottom-24 right-6 w-[380px] rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden"
+              style={{ maxHeight: '520px', animation: 'slideUp 0.2s ease-out', background: 'rgba(12,16,32,0.97)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)' }}
             >
-              <style>{`@keyframes slideUp { from { opacity:0; transform:translateY(20px) } to { opacity:1; transform:translateY(0) } }`}</style>
-              
               {/* Header */}
-              <div className="bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 text-white px-4 py-3 flex items-center justify-between flex-shrink-0">
+              <div className="px-4 py-3 flex items-center justify-between flex-shrink-0"
+                style={{ background: 'rgba(239,77,35,0.06)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                 <div className="flex items-center gap-2">
-                  <Bot size={18} />
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+                    style={{ background: 'linear-gradient(135deg, #ef4d23, #a855f7, #4f8fff)' }}>
+                    <Bot size={16} className="text-white" />
+                  </div>
                   <div>
-                    <span className="font-bold text-sm">AI Assistant</span>
-                    <div className="text-[10px] opacity-80">
+                    <span className="font-bold text-sm text-white">AI Assistant</span>
+                    <div className="text-[10px]" style={{ color: 'rgba(255,255,255,0.35)' }}>
                       🆓 {aiStatus?.primaryProvider || 'Free AI'}
                     </div>
                   </div>
@@ -146,12 +139,19 @@ export default function MainLayout() {
                 <div className="flex items-center gap-1">
                   <button 
                     onClick={() => { setAiOpen(false); navigate('/app/ai-assistant') }} 
-                    className="p-1.5 hover:bg-white/20 rounded-lg transition-colors" 
+                    className="p-1.5 rounded-lg transition-colors"
+                    style={{ color: 'rgba(255,255,255,0.4)' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     title="Open full page"
                   >
                     <Bot size={14} />
                   </button>
-                  <button onClick={() => setAiOpen(false)} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors">
+                  <button onClick={() => setAiOpen(false)} className="p-1.5 rounded-lg transition-colors"
+                    style={{ color: 'rgba(255,255,255,0.4)' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
                     <X size={14} />
                   </button>
                 </div>
@@ -162,15 +162,21 @@ export default function MainLayout() {
                 {aiMessages.map((m, i) => (
                   <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                     {m.role === 'assistant' && (
-                      <div className="w-6 h-6 bg-gradient-to-br from-purple-500 to-blue-600 rounded-lg flex items-center justify-center flex-shrink-0 mr-2 mt-0.5">
+                      <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mr-2 mt-0.5"
+                        style={{ background: 'linear-gradient(135deg, #ef4d23, #a855f7)' }}>
                         <Bot size={12} className="text-white" />
                       </div>
                     )}
                     <div className={`max-w-[85%] rounded-xl px-3 py-2 ${
                       m.role === 'user' 
-                        ? 'bg-purple-600 text-white' 
-                        : 'bg-gray-50 text-gray-800 border border-gray-100'
-                    }`}>
+                        ? 'text-white rounded-br-md' 
+                        : 'rounded-bl-md'
+                    }`}
+                      style={m.role === 'user' 
+                        ? { background: 'linear-gradient(135deg, #ef4d23, #ff6b35)' }
+                        : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#e8eaf0' }
+                      }
+                    >
                       {m.role === 'user' ? (
                         <div className="text-xs whitespace-pre-wrap">{m.content}</div>
                       ) : (
@@ -181,17 +187,19 @@ export default function MainLayout() {
                 ))}
                 {aiLoading && (
                   <div className="flex justify-start">
-                    <div className="w-6 h-6 bg-gradient-to-br from-purple-500 to-blue-600 rounded-lg flex items-center justify-center flex-shrink-0 mr-2">
+                    <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mr-2"
+                      style={{ background: 'linear-gradient(135deg, #ef4d23, #a855f7)' }}>
                       <Bot size={12} className="text-white" />
                     </div>
-                    <div className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
+                    <div className="rounded-xl px-3 py-2"
+                      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
                       <div className="flex items-center gap-2">
                         <div className="flex gap-1">
-                          <div className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                          <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                          <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                          <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: '#ef4d23', animationDelay: '0ms' }}></div>
+                          <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: '#a855f7', animationDelay: '150ms' }}></div>
+                          <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: '#4f8fff', animationDelay: '300ms' }}></div>
                         </div>
-                        <span className="text-[10px] text-gray-400">Thinking...</span>
+                        <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>Thinking...</span>
                       </div>
                     </div>
                   </div>
@@ -201,8 +209,13 @@ export default function MainLayout() {
               {/* Quick suggestions */}
               {aiMessages.length <= 1 && (
                 <div className="px-3 pb-2 flex flex-wrap gap-1">
-                  {['🔍 Diagnose', '⚠️ Errors', '🔧 Fix', '📊 Count invoices'].map(s => (
-                    <button key={s} onClick={() => aiSend(s.replace(/^[^\s]+\s/, ''))} className="text-[10px] px-2 py-1 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 border border-purple-200 transition-colors">
+                  {['🔍 Diagnose', '⚠️ Errors', '🚀 Deploy', '🔧 Fix'].map(s => (
+                    <button key={s} onClick={() => aiSend(s.replace(/^[^\s]+\s/, ''))}
+                      className="text-[10px] px-2 py-1 rounded-lg transition-colors"
+                      style={{ background: 'rgba(239,77,35,0.08)', color: '#ef4d23', border: '1px solid rgba(239,77,35,0.15)' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,77,35,0.15)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'rgba(239,77,35,0.08)'}
+                    >
                       {s}
                     </button>
                   ))}
@@ -210,7 +223,7 @@ export default function MainLayout() {
               )}
               
               {/* Input */}
-              <div className="flex gap-2 p-3 border-t flex-shrink-0 bg-white">
+              <div className="flex gap-2 p-3 flex-shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                 <input
                   type="text"
                   value={aiInput}
@@ -218,9 +231,13 @@ export default function MainLayout() {
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); aiSend(aiInput) } }}
                   placeholder="Ask me anything..."
                   disabled={aiLoading}
-                  className="flex-1 text-xs px-3 py-2 border rounded-xl focus:ring-2 focus:ring-purple-400 focus:border-purple-400 disabled:opacity-50"
+                  className="flex-1 text-xs px-3 py-2 rounded-xl disabled:opacity-50"
+                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff' }}
                 />
-                <button onClick={() => aiSend(aiInput)} disabled={aiLoading || !aiInput.trim()} className="p-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 disabled:opacity-50 transition-colors">
+                <button onClick={() => aiSend(aiInput)} disabled={aiLoading || !aiInput.trim()}
+                  className="p-2 rounded-xl text-white disabled:opacity-50 transition-all"
+                  style={{ background: 'linear-gradient(135deg, #ef4d23, #a855f7)' }}
+                >
                   <Send size={14} />
                 </button>
               </div>
@@ -231,7 +248,8 @@ export default function MainLayout() {
           <button
             id="ai-float-btn"
             onClick={() => setAiOpen(!aiOpen)}
-            className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-br from-purple-500 via-blue-500 to-cyan-500 text-white rounded-full shadow-lg shadow-purple-500/30 hover:shadow-xl hover:shadow-purple-500/40 hover:scale-105 transition-all z-50 flex items-center justify-center"
+            className="fixed bottom-6 right-6 w-14 h-14 text-white rounded-full shadow-lg hover:scale-105 transition-all z-50 flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg, #ef4d23, #a855f7, #4f8fff)', animation: 'pulseGlow 3s ease-in-out infinite', boxShadow: '0 0 20px rgba(239,77,35,0.3)' }}
             title="AI Assistant"
           >
             {aiOpen ? <X size={24} /> : <Bot size={24} />}
