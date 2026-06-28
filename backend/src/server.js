@@ -30,9 +30,10 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // ====== GLOBAL DATA SANITIZATION MIDDLEWARE ======
-// Fixes TWO problems permanently for ALL routes:
+// Fixes multiple problems permanently for ALL routes:
 // 1. Empty string "" for date columns → null (PostgreSQL rejects "" for DATE type)
 // 2. Wrong column name "total" → "total_amount" (our DB uses total_amount, not total)
+// 3. Strips frontend-only columns that don't exist in DB tables
 
 const DATE_FIELDS = [
   'invoice_date', 'due_date', 'quotation_date', 'validity_date',
@@ -46,7 +47,10 @@ const COLUMN_RENAMES = {
   'calculated_total': 'total_amount'
 };
 
-// Columns that do NOT exist in our tables - strip them out to prevent SQL errors
+// Columns that do NOT exist in any table - strip them to prevent SQL errors
+// Note: customer_name, additional_info, actual_notes are used by quotation routes 
+// (stored in notes column via ||| separator) — they must be destructured OUT before SQL insert
+// shipping_* fields are used by invoice routes — same pattern
 const BLOCKED_COLUMNS = [
   'gst_rate', 'bold', 'calculated'
 ];
@@ -95,7 +99,7 @@ app.get('/', (req, res) => {
     success: true, 
     msg: 'Glob ERP API is running!', 
     time: new Date().toISOString(),
-    endpoints: ['/api/health', '/api/setup', '/api/auth/login']
+    endpoints: ['/api/health', '/api/setup', '/api/diagnose', '/api/auth/login']
   });
 });
 
@@ -126,12 +130,95 @@ app.get('/api/setup', async (req, res) => {
   }
 });
 
+// ====== SELF-HEAL DIAGNOSTIC ENDPOINT ======
+const { selfHeal, trackError, getRecentErrors, errorTrackerMiddleware, TABLE_SCHEMAS } = require('./selfHeal');
+
+// Lightweight auth check for diagnose endpoints
+function simpleAuth(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ success: false, msg: 'Login required' });
+  try {
+    const jwt = require('jsonwebtoken');
+    const config = require('./config/env');
+    jwt.verify(token, config.JWT_SECRET);
+    next();
+  } catch { return res.status(401).json({ success: false, msg: 'Invalid token' }); }
+}
+
+app.get('/api/diagnose', simpleAuth, async (req, res) => {
+  try {
+    const report = await selfHeal(db);
+    res.json({ success: true, ...report });
+  } catch(e) {
+    res.status(500).json({ success: false, msg: 'Diagnose failed: ' + e.message, error: e.stack });
+  }
+});
+
+// Recent errors endpoint (for debugging)
+app.get('/api/diagnose/errors', simpleAuth, (req, res) => {
+  res.json({ success: true, errors: getRecentErrors(50), count: getRecentErrors(50).length });
+});
+
+// Quick column checker — given a table name, shows what columns exist vs expected
+app.get('/api/diagnose/table/:name', simpleAuth, async (req, res) => {
+  try {
+    const tableName = req.params.name;
+    const exists = await db.schema.hasTable(tableName);
+    if (!exists) return res.json({ success: false, msg: `Table "${tableName}" does NOT exist` });
+    
+    const expectedSchema = TABLE_SCHEMAS[tableName];
+    const expectedColumns = expectedSchema ? Object.keys(expectedSchema.columns) : [];
+    
+    // Get actual columns from information_schema
+    const actualCols = await db.raw(`
+      SELECT column_name, data_type, is_nullable 
+      FROM information_schema.columns 
+      WHERE table_name = '${tableName}' 
+      ORDER BY ordinal_position
+    `);
+    const actualColumnNames = actualCols.rows.map(r => r.column_name);
+    
+    // Find missing columns
+    const missingColumns = expectedColumns.filter(c => !actualColumnNames.includes(c));
+    // Find extra columns (not in our schema — that's OK, might be auto-migrated)
+    const extraColumns = actualColumnNames.filter(c => !expectedColumns.includes(c));
+    
+    res.json({
+      success: true,
+      table: tableName,
+      exists: true,
+      expectedColumns,
+      actualColumns: actualColumnNames,
+      missingColumns,
+      extraColumns,
+      columnDetails: actualCols.rows,
+      hasMissingColumns: missingColumns.length > 0
+    });
+  } catch(e) {
+    res.status(500).json({ success: false, msg: e.message });
+  }
+});
+
+// Route loading — with self-healing awareness
 function safe(path) {
-  try { return require(path); } catch(e) { 
+  try { 
+    const router = require(path); 
+    // Verify the router actually has routes
+    if (router?.stack?.length === 0) {
+      console.warn(`⚠️  Route ${path} loaded but has 0 routes — might be empty`);
+    }
+    return router;
+  } catch(e) { 
     console.error('❌ Route load FAILED:', path, '→', e.message);
-    // Create a fallback router that returns 500 for any request
+    // Track the error
+    trackError('route_load', e, { originalUrl: path, method: 'LOAD' });
+    // Create a fallback router that returns 500 with helpful info
     const fallback = express.Router();
-    fallback.all('*', (req, res) => res.status(500).json({ success: false, msg: `Route ${path} failed to load: ${e.message}` }));
+    fallback.all('*', (req, res) => res.status(500).json({ 
+      success: false, 
+      msg: `Route ${path} failed to load: ${e.message}`,
+      autoFix: 'Visit /api/diagnose to auto-detect and fix issues'
+    }));
     return fallback;
   }
 }
@@ -155,10 +242,20 @@ app.use('/api/reports', safe('./routes/reportRoutes'));
 app.use('/api/settings', safe('./routes/settingsRoutes'));
 app.use('/api/export', safe('./routes/exportRoutes'));
 
-// Error handler
-app.use((err, req, res, next) => {
-  console.error('Error:', err.message);
-  res.status(500).json({ success: false, msg: err.message });
+// ====== SELF-HEALING ERROR HANDLER ======
+// This catches ALL unhandled errors and:
+// 1. Tracks them in the error log
+// 2. Detects common error patterns and gives helpful auto-fix hints
+// 3. Returns user-friendly error messages
+app.use(errorTrackerMiddleware);
+
+// 404 handler — route not found
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    msg: `Route ${req.method} ${req.originalUrl} not found`,
+    hint: 'Visit /api/diagnose to check all routes'
+  });
 });
 
 app.listen(PORT, () => {
@@ -169,37 +266,32 @@ app.listen(PORT, () => {
 async function setupDB() {
   try {
     console.log('⏳ Auto-setting up database...');
-    const hasOrgs = await db.schema.hasTable('organizations');
-    if (!hasOrgs) {
-      console.log('📦 Creating tables...');
-      const migration = require('./migrations/001_initial_schema');
-      await migration.up(db);
-      console.log('✅ Tables created!');
+    
+    // Run self-heal engine on startup
+    const report = await selfHeal(db);
+    
+    if (report.fixes.length > 0) {
+      console.log(`\n🔧 AUTO-FIXED ${report.fixes.length} issue(s) on startup:`);
+      report.fixes.forEach(f => console.log(`   ✅ ${f.type}: ${f.table || ''} ${f.column || ''}`));
     }
     
-    // Auto-migrate: add missing columns
-    const cols = {
-      branch: await db.schema.hasColumn('organizations', 'branch'),
-      stamp_url: await db.schema.hasColumn('organizations', 'stamp_url'),
-      signature_url: await db.schema.hasColumn('organizations', 'signature_url'),
-    };
-    if (!cols.branch) { await db.schema.table('organizations', table => { table.text('branch'); }); console.log('✅ Added branch column'); }
-    if (!cols.stamp_url) { await db.schema.table('organizations', table => { table.text('stamp_url'); }); console.log('✅ Added stamp_url column'); }
-    if (!cols.signature_url) { await db.schema.table('organizations', table => { table.text('signature_url'); }); console.log('✅ Added signature_url column'); }
-    
-    const orgCount = await db('organizations').count('id as count').first();
-    if (parseInt(orgCount.count) === 0) {
-      console.log('🌱 Inserting seed data...');
-      const seed = require('./seeds/001_initial_data');
-      await seed.seed(db);
-      console.log('✅ Ready! Login: admin@globfabrication.com / admin123');
-    } else {
-      console.log('✅ Database ready (' + orgCount.count + ' organizations)');
+    if (report.errors.length > 0) {
+      console.log(`\n⚠️  ${report.errors.length} issue(s) need attention:`);
+      report.errors.forEach(e => console.log(`   ❌ ${e.area}: ${e.error || e.message}`));
     }
+    
+    console.log('\n✅ Server ready!');
   } catch(e) {
     console.error('⚠️ DB setup error:', e.message);
   }
 }
 
-process.on('uncaughtException', (err) => console.error('UNCAUGHT:', err.message));
-process.on('unhandledRejection', (err) => console.error('UNHANDLED:', err));
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT:', err.message);
+  trackError('uncaught', err);
+});
+
+process.on('unhandledRejection', (err) => {
+  console.error('UNHANDLED:', err?.message || err);
+  trackError('unhandled', err);
+});
