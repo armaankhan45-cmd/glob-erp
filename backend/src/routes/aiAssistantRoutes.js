@@ -495,23 +495,17 @@ async function callAI(messages, toolDefs) {
   const openaiKey = process.env.OPENAI_API_KEY;
   const deepseekKey = process.env.DEEPSEEK_API_KEY;
   
-  // ── Strategy: ALWAYS FREE first, then keyed providers for higher limits ──
-  // 0. Pollinations AI — 100% FREE, NO API KEY, NO signup, works instantly!
-  //    Uses OpenAI-compatible API, supports tool calling
-  //    Anonymous: ~1 req/15sec, Registered: ~1 req/5sec (free)
-  // 1. Gemini 2.5 Pro — Most powerful free model (if key provided)
-  // 2. Groq Llama 3.3 70B — Very fast, 1000 req/day (if key provided)
-  // 3. DeepSeek V3 — Great for code, 5M free tokens (if key provided)
-  // 4. Cerebras — Very fast, 1M tokens/day (if key provided)
-  // 5. Gemini 2.5 Flash — Fast, 1500 req/day (if key provided)
-  // 6. OpenRouter — Multi-model gateway, 50 req/day free (if key provided)
-  // 7. OpenAI GPT-4o — Paid only (if key provided)
+  // ── Strategy: Best keyed providers FIRST, then free fallback ──
+  // Keyed providers have higher rate limits and are faster
+  // Pollinations is the LAST resort (always free but rate-limited)
 
-  // ── ALWAYS TRY: Pollinations AI (FREE, no key needed) ──
-  const pollResult = await callPollinations(messages, toolDefs);
-  if (pollResult) return { ...pollResult, provider: 'Pollinations AI (Free)' };
+  // 1. Groq — Very fast, 1000 req/day (if key provided)
+  if (groqKey) {
+    const result = await callGroq(messages, toolDefs, groqKey);
+    if (result) return { ...result, provider: 'Groq Llama 3.3 70B' };
+  }
 
-  // ── Then try keyed providers for higher rate limits ──
+  // 2. Gemini 2.5 Pro — Most powerful free model (if key provided)
   if (geminiKey) {
     const proResult = await callGemini(messages, toolDefs, geminiKey, 'gemini-2.5-pro');
     if (proResult) return { ...proResult, provider: 'Gemini 2.5 Pro' };
@@ -520,30 +514,33 @@ async function callAI(messages, toolDefs) {
     if (flashResult) return { ...flashResult, provider: 'Gemini 2.5 Flash' };
   }
 
-  if (groqKey) {
-    const result = await callGroq(messages, toolDefs, groqKey);
-    if (result) return { ...result, provider: 'Groq Llama 3.3 70B' };
-  }
-
+  // 3. DeepSeek V3 — Great for code, 5M free tokens (if key provided)
   if (deepseekKey) {
     const result = await callDeepSeek(messages, toolDefs, deepseekKey);
     if (result) return { ...result, provider: 'DeepSeek V3' };
   }
 
+  // 4. Cerebras — Very fast, 1M tokens/day (if key provided)
   if (cerebrasKey) {
     const result = await callCerebras(messages, toolDefs, cerebrasKey);
     if (result) return { ...result, provider: 'Cerebras' };
   }
 
+  // 5. OpenRouter — Multi-model gateway (if key provided)
   if (openrouterKey) {
     const result = await callOpenRouter(messages, toolDefs, openrouterKey);
     if (result) return { ...result, provider: 'OpenRouter' };
   }
 
+  // 6. OpenAI GPT-4o — Paid only (if key provided)
   if (openaiKey) {
     const result = await callOpenAI(messages, toolDefs, openaiKey);
     if (result) return { ...result, provider: 'OpenAI GPT-4o' };
   }
+
+  // 7. Pollinations AI — ALWAYS FREE, NO KEY — last resort fallback
+  const pollResult = await callPollinations(messages, toolDefs);
+  if (pollResult) return { ...pollResult, provider: 'Pollinations AI (Free)' };
 
   return null; // All providers failed — fall back to rule-based
 }
@@ -590,7 +587,7 @@ async function callPollinations(messages, toolDefs) {
   }));
 
   try {
-    const response = await fetch(url, {
+    const response = await safeFetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -603,7 +600,7 @@ async function callPollinations(messages, toolDefs) {
         temperature: 0.7,
         max_tokens: 4096
       }),
-      timeout: 60000
+      // timeout handled by safeFetch
     });
 
     if (!response.ok) {
@@ -677,7 +674,7 @@ async function callDeepSeek(messages, toolDefs, apiKey) {
   }));
 
   try {
-    const response = await fetch(url, {
+    const response = await safeFetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -690,7 +687,7 @@ async function callDeepSeek(messages, toolDefs, apiKey) {
         temperature: 0.7,
         max_tokens: 4096
       }),
-      timeout: 60000
+      // timeout handled by safeFetch
     });
 
     if (!response.ok) return null;
@@ -752,11 +749,11 @@ async function callGemini(messages, toolDefs, apiKey, model = 'gemini-2.5-pro') 
   };
 
   try {
-    const response = await fetch(url, {
+    const response = await safeFetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-      timeout: 60000
+      // timeout handled by safeFetch
     });
 
     if (!response.ok) {
@@ -813,7 +810,7 @@ async function callOpenAI(messages, toolDefs, apiKey) {
   }));
 
   try {
-    const response = await fetch(url, {
+    const response = await safeFetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -826,7 +823,7 @@ async function callOpenAI(messages, toolDefs, apiKey) {
         temperature: 0.7,
         max_tokens: 4096
       }),
-      timeout: 60000
+      // timeout handled by safeFetch
     });
 
     if (!response.ok) {
@@ -889,7 +886,7 @@ async function callGroq(messages, toolDefs, apiKey) {
   }));
 
   try {
-    const response = await fetch(url, {
+    const response = await safeFetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -902,7 +899,7 @@ async function callGroq(messages, toolDefs, apiKey) {
         temperature: 0.7,
         max_tokens: 4096
       }),
-      timeout: 30000
+      // timeout handled by safeFetch
     });
 
     if (!response.ok) return null;
@@ -961,7 +958,7 @@ async function callCerebras(messages, toolDefs, apiKey) {
   }));
 
   try {
-    const response = await fetch(url, {
+    const response = await safeFetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -974,7 +971,7 @@ async function callCerebras(messages, toolDefs, apiKey) {
         temperature: 0.7,
         max_tokens: 4096
       }),
-      timeout: 30000
+      // timeout handled by safeFetch
     });
 
     if (!response.ok) return null;
@@ -1032,7 +1029,7 @@ async function callOpenRouter(messages, toolDefs, apiKey) {
   }));
 
   try {
-    const response = await fetch(url, {
+    const response = await safeFetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1049,7 +1046,7 @@ async function callOpenRouter(messages, toolDefs, apiKey) {
         temperature: 0.7,
         max_tokens: 4096
       }),
-      timeout: 30000
+      // timeout handled by safeFetch
     });
 
     if (!response.ok) return null;
@@ -1351,6 +1348,187 @@ function formatToolResult(name, result) {
 // QUICK ACTION ENDPOINTS
 // ═══════════════════════════════════════════════
 
+// ── HELPER: Safe fetch with AbortController timeout ──
+async function safeFetch(url, options = {}, timeoutMs = 60000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const resp = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(timer);
+    return resp;
+  } catch (err) {
+    clearTimeout(timer);
+    throw err;
+  }
+}
+
+// ═══════════════════════════════════════════════
+// DIAGNOSTIC ENDPOINT — Tests all AI providers
+// ═══════════════════════════════════════════════
+
+router.get('/test', auth, async (req, res) => {
+  const results = {};
+  
+  // 1. Test Pollinations (FREE, no key)
+  try {
+    const t0 = Date.now();
+    const resp = await safeFetch('https://text.pollinations.ai/openai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'openai',
+        messages: [{ role: 'user', content: 'Say OK' }],
+        max_tokens: 10
+      })
+    }, 30000);
+    const data = await resp.json();
+    results.pollinations = {
+      status: resp.ok ? '✅ WORKING' : '❌ FAILED',
+      httpStatus: resp.status,
+      response: data.choices?.[0]?.message?.content || data.error?.message || JSON.stringify(data).substring(0, 200),
+      latency: `${Date.now() - t0}ms`,
+      model: data.model || 'unknown',
+      tier: data.user_tier || 'unknown'
+    };
+  } catch (err) {
+    results.pollinations = { status: '❌ ERROR', error: err.message, code: err.code || 'unknown' };
+  }
+
+  // 2. Test Gemini
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      const t0 = Date.now();
+      const resp = await safeFetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: 'Say OK' }] }],
+          generationConfig: { maxOutputTokens: 10 }
+        })
+      }, 30000);
+      const data = await resp.json();
+      results.gemini = {
+        status: resp.ok ? '✅ WORKING' : '❌ FAILED',
+        httpStatus: resp.status,
+        response: data.candidates?.[0]?.content?.parts?.[0]?.text || data.error?.message || JSON.stringify(data).substring(0, 200),
+        latency: `${Date.now() - t0}ms`
+      };
+    } catch (err) {
+      results.gemini = { status: '❌ ERROR', error: err.message };
+    }
+  } else {
+    results.gemini = { status: '⚠️ NO KEY', note: 'GEMINI_API_KEY not set in Render environment' };
+  }
+
+  // 3. Test Groq
+  if (process.env.GROQ_API_KEY) {
+    try {
+      const t0 = Date.now();
+      const resp = await safeFetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [{ role: 'user', content: 'Say OK' }],
+          max_tokens: 10
+        })
+      }, 15000);
+      const data = await resp.json();
+      results.groq = {
+        status: resp.ok ? '✅ WORKING' : '❌ FAILED',
+        httpStatus: resp.status,
+        response: data.choices?.[0]?.message?.content || data.error?.message || JSON.stringify(data).substring(0, 200),
+        latency: `${Date.now() - t0}ms`
+      };
+    } catch (err) {
+      results.groq = { status: '❌ ERROR', error: err.message };
+    }
+  } else {
+    results.groq = { status: '⚠️ NO KEY', note: 'GROQ_API_KEY not set in Render environment' };
+  }
+
+  // 4. Test DeepSeek
+  if (process.env.DEEPSEEK_API_KEY) {
+    try {
+      const t0 = Date.now();
+      const resp = await safeFetch('https://api.deepseek.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}` },
+        body: JSON.stringify({ model: 'deepseek-chat', messages: [{ role: 'user', content: 'Say OK' }], max_tokens: 10 })
+      }, 15000);
+      const data = await resp.json();
+      results.deepseek = {
+        status: resp.ok ? '✅ WORKING' : '❌ FAILED',
+        httpStatus: resp.status,
+        response: data.choices?.[0]?.message?.content || data.error?.message || JSON.stringify(data).substring(0, 200),
+        latency: `${Date.now() - t0}ms`
+      };
+    } catch (err) {
+      results.deepseek = { status: '❌ ERROR', error: err.message };
+    }
+  } else {
+    results.deepseek = { status: '⚠️ NO KEY', note: 'DEEPSEEK_API_KEY not set in Render environment' };
+  }
+
+  // 5. Test Cerebras
+  if (process.env.CEREBRAS_API_KEY) {
+    try {
+      const t0 = Date.now();
+      const resp = await safeFetch('https://api.cerebras.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.CEREBRAS_API_KEY}` },
+        body: JSON.stringify({ model: 'llama-3.3-70b', messages: [{ role: 'user', content: 'Say OK' }], max_tokens: 10 })
+      }, 15000);
+      const data = await resp.json();
+      results.cerebras = {
+        status: resp.ok ? '✅ WORKING' : '❌ FAILED',
+        httpStatus: resp.status,
+        response: data.choices?.[0]?.message?.content || data.error?.message || JSON.stringify(data).substring(0, 200),
+        latency: `${Date.now() - t0}ms`
+      };
+    } catch (err) {
+      results.cerebras = { status: '❌ ERROR', error: err.message };
+    }
+  } else {
+    results.cerebras = { status: '⚠️ NO KEY', note: 'CEREBRAS_API_KEY not set in Render environment' };
+  }
+
+  // 6. Test OpenRouter
+  if (process.env.OPENROUTER_API_KEY) {
+    try {
+      const t0 = Date.now();
+      const resp = await safeFetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`, 'HTTP-Referer': 'https://glob-erp.vercel.app' },
+        body: JSON.stringify({ model: 'meta-llama/llama-3.3-70b-instruct:free', messages: [{ role: 'user', content: 'Say OK' }], max_tokens: 10 })
+      }, 15000);
+      const data = await resp.json();
+      results.openrouter = {
+        status: resp.ok ? '✅ WORKING' : '❌ FAILED',
+        httpStatus: resp.status,
+        response: data.choices?.[0]?.message?.content || data.error?.message || JSON.stringify(data).substring(0, 200),
+        latency: `${Date.now() - t0}ms`
+      };
+    } catch (err) {
+      results.openrouter = { status: '❌ ERROR', error: err.message };
+    }
+  } else {
+    results.openrouter = { status: '⚠️ NO KEY', note: 'OPENROUTER_API_KEY not set in Render environment' };
+  }
+
+  // Environment summary
+  const envKeys = {
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY ? `✅ Set (${process.env.GEMINI_API_KEY.substring(0, 8)}...)` : '❌ Not set',
+    GROQ_API_KEY: process.env.GROQ_API_KEY ? `✅ Set (${process.env.GROQ_API_KEY.substring(0, 8)}...)` : '❌ Not set',
+    DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY ? `✅ Set (${process.env.DEEPSEEK_API_KEY.substring(0, 8)}...)` : '❌ Not set',
+    CEREBRAS_API_KEY: process.env.CEREBRAS_API_KEY ? `✅ Set (${process.env.CEREBRAS_API_KEY.substring(0, 8)}...)` : '❌ Not set',
+    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ? `✅ Set (${process.env.OPENROUTER_API_KEY.substring(0, 8)}...)` : '❌ Not set',
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY ? `✅ Set (${process.env.OPENAI_API_KEY.substring(0, 8)}...)` : '❌ Not set',
+  };
+
+  res.json({ success: true, environment: envKeys, providers: results });
+});
+
 router.get('/status', auth, async (req, res) => {
   const keys = {
     GEMINI_API_KEY: !!process.env.GEMINI_API_KEY,
@@ -1361,20 +1539,23 @@ router.get('/status', auth, async (req, res) => {
     DEEPSEEK_API_KEY: !!process.env.DEEPSEEK_API_KEY
   };
   
-  // Pollinations AI is ALWAYS available (no key needed)!
-  const active = ['Pollinations AI (Free)'];
-  if (keys.GEMINI_API_KEY) active.push('Gemini 2.5 Pro + Flash');
-  if (keys.GROQ_API_KEY) active.push('Groq Llama 3.3 70B');
-  if (keys.DEEPSEEK_API_KEY) active.push('DeepSeek V3');
-  if (keys.CEREBRAS_API_KEY) active.push('Cerebras Llama 3.3');
-  if (keys.OPENROUTER_API_KEY) active.push('OpenRouter');
-  if (keys.OPENAI_API_KEY) active.push('OpenAI GPT-4o');
+  // Keyed providers first (higher rate limits), then Pollinations as fallback
+  const active = [];
+  let primary = 'Pollinations AI (Free)';
+  if (keys.GROQ_API_KEY) { active.push('Groq Llama 3.3 70B'); primary = primary === 'Pollinations AI (Free)' ? 'Groq Llama 3.3 70B' : primary; }
+  if (keys.GEMINI_API_KEY) { active.push('Gemini 2.5 Pro + Flash'); if (primary === 'Pollinations AI (Free)') primary = 'Gemini 2.5 Pro'; }
+  if (keys.DEEPSEEK_API_KEY) { active.push('DeepSeek V3'); if (primary === 'Pollinations AI (Free)') primary = 'DeepSeek V3'; }
+  if (keys.CEREBRAS_API_KEY) { active.push('Cerebras Llama 3.3'); }
+  if (keys.OPENROUTER_API_KEY) { active.push('OpenRouter'); }
+  if (keys.OPENAI_API_KEY) { active.push('OpenAI GPT-4o'); }
+  // Pollinations is ALWAYS available (no key needed!)
+  active.push('Pollinations AI (Free)');
   
   res.json({
     success: true,
-    aiEnabled: true, // ALWAYS true now — Pollinations is free and needs no key!
+    aiEnabled: true, // ALWAYS true — Pollinations is free and needs no key!
     providers: active,
-    primaryProvider: 'Pollinations AI (Free)',
+    primaryProvider: primary,
     toolsAvailable: TOOL_DEFINITIONS.length,
     note: 'AI is always enabled! Pollinations AI works for free without any API key. Add your own keys for higher rate limits.'
   });
