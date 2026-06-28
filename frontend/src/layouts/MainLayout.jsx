@@ -63,6 +63,8 @@ export default function MainLayout() {
     api.get('/ai/status').then(res => setAiStatus(res.data)).catch(() => {})
   }, [])
 
+  // The mini chat now calls the real AI backend
+
   useEffect(() => {
     setAiOpen(false)
   }, [location.pathname])
@@ -137,7 +139,7 @@ export default function MainLayout() {
                   <div>
                     <span className="font-bold text-sm">AI Assistant</span>
                     <div className="text-[10px] opacity-80">
-                      {aiStatus?.aiEnabled ? '✨ Gemini AI' : '⚡ Rule-based'}
+                      {aiStatus?.aiEnabled ? `✨ ${aiStatus.primaryProvider}` : '⚡ Rule-based'}
                     </div>
                   </div>
                 </div>
