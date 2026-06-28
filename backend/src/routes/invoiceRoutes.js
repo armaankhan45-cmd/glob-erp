@@ -323,6 +323,18 @@ function formatIndian(num) {
   }).format(n);
 }
 
+const STATE_NAMES = {
+  '01':'Jammu & Kashmir','02':'Himachal Pradesh','03':'Punjab','04':'Chandigarh',
+  '05':'Uttarakhand','06':'Haryana','07':'Delhi','08':'Rajasthan','09':'Uttar Pradesh',
+  '10':'Bihar','11':'Sikkim','12':'Arunachal Pradesh','13':'Nagaland','14':'Manipur',
+  '15':'Mizoram','16':'Tripura','17':'Meghalaya','18':'Assam','19':'West Bengal',
+  '20':'Jharkhand','21':'Odisha','22':'Chhattisgarh','23':'Madhya Pradesh',
+  '24':'Gujarat','25':'Daman & Diu','26':'Dadra & Nagar Haveli','27':'Maharashtra',
+  '28':'Andhra Pradesh','29':'Karnataka','30':'Goa','31':'Lakshadweep',
+  '32':'Kerala','33':'Tamil Nadu','34':'Puducherry','35':'Andaman & Nicobar',
+  '36':'Telangana','37':'Ladakh','38':'Other Territory'
+};
+
 function generateInvoiceHTML(invoice, items, org) {
   function numberToWords(num) {
     const a = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten',
@@ -344,13 +356,25 @@ function generateInvoiceHTML(invoice, items, org) {
   }
 
   const invNum = (invoice.invoice_number || '').split('/')[0];
-  const hasCGST = parseFloat(invoice.cgst_amount) > 0;
-  const hasIGST = parseFloat(invoice.igst_amount) > 0;
+  // GST state determination
+  const orgStateCode = org.state_code || (org.gstin ? org.gstin.substring(0, 2) : '27');
+  const custGstin = invoice.customer_gstin || '';
+  const custStateCode = invoice.customer_state_code || (custGstin ? custGstin.substring(0, 2) : '');
+  const isIntraState = custStateCode && custStateCode === orgStateCode;
+  const hasCGST = isIntraState || parseFloat(invoice.cgst_amount) > 0;
+  const hasIGST = !isIntraState && custGstin ? true : (parseFloat(invoice.igst_amount) > 0 && !hasCGST);
   const totalTax = parseFloat(invoice.cgst_amount || 0) + parseFloat(invoice.sgst_amount || 0) + parseFloat(invoice.igst_amount || 0);
+  const cgstAmount = parseFloat(invoice.cgst_amount || 0);
+  const sgstAmount = parseFloat(invoice.sgst_amount || 0);
+  const igstAmount = parseFloat(invoice.igst_amount || 0);
+  const cgstRate = isIntraState ? (parseFloat(items[0]?.igst_rate || 18) / 2) : (parseFloat(items[0]?.cgst_rate || 0));
+  const sgstRate = isIntraState ? (parseFloat(items[0]?.igst_rate || 18) / 2) : (parseFloat(items[0]?.sgst_rate || 0));
+  const igstRate = !isIntraState ? (parseFloat(items[0]?.igst_rate || 18)) : 0;
   const isPaid = (invoice.payment_status || '').toLowerCase() === 'paid';
-  const custStateCode = invoice.customer_state_code || (invoice.customer_gstin ? invoice.customer_gstin.substring(0,2) : '');
-  const orgStateCode = org.state_code || '27';
-  const placeOfSupply = custStateCode ? `${custStateCode} - ${invoice.customer_state || ''}` : `${orgStateCode} - ${org.state || ''}`;
+  const custStateName = invoice.customer_state || (custStateCode ? (STATE_NAMES[custStateCode] || '') : '');
+  const placeOfSupply = custStateCode
+    ? custStateCode + ' - ' + custStateName
+    : orgStateCode + ' - ' + (org.state || '');
   const invoiceDate = formatDate(invoice.invoice_date);
   const hasShipping = invoice.shipping_name || invoice.shipping_address;
 
@@ -461,18 +485,18 @@ function generateInvoiceHTML(invoice, items, org) {
           <div style="margin-bottom:2px"><b>Place of Supply:</b> ${placeOfSupply}</div>
           <div><b>Reverse Charge:</b> No</div>
         </div>
-        <div style="width:${hasShipping ? '32' : '64'}%;padding:5px 10px;font-size:8pt">
-          <div class="section-title">Bill To</div>
-          <div style="font-weight:700;text-transform:uppercase;font-size:9pt">${(invoice.customer_name || '').toUpperCase()}</div>
-          ${invoice.customer_gstin ? `<div><b>GSTIN:</b> ${invoice.customer_gstin}</div>` : ''}
-          <div>${[invoice.customer_address, invoice.customer_city, invoice.customer_state, invoice.customer_pincode].filter(Boolean).join(', ')}</div>
-          ${invoice.customer_phone ? `<div><b>Ph:</b> ${invoice.customer_phone}</div>` : ''}
+        <div style="width:${hasShipping ? '32' : '64'}%;padding:8px 12px;font-size:8.5pt">
+          <div style="font-size:8pt;font-weight:700;color:#0a3d6b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #ddd;padding-bottom:3px;margin-bottom:5px">Bill To</div>
+          <div style="font-size:11pt;font-weight:700;text-transform:uppercase;margin-bottom:3px;line-height:1.3">${(invoice.customer_name || '').toUpperCase()}</div>
+          ${invoice.customer_gstin ? `<div style="font-size:8pt;margin-bottom:2px"><span style="color:#555">GSTIN:</span> <b>${invoice.customer_gstin}</b></div>` : ''}
+          <div style="font-size:8.5pt;color:#333;line-height:1.4;margin-bottom:2px">${[invoice.customer_address, invoice.customer_city, invoice.customer_state, invoice.customer_pincode].filter(Boolean).join(', ')}</div>
+          ${invoice.customer_phone ? `<div style="font-size:8pt;color:#333"><span style="color:#555">Ph:</span> ${invoice.customer_phone}</div>` : ''}
         </div>
         ${hasShipping ? `
-        <div style="width:32%;border-left:1px solid #000;padding:5px 10px;font-size:8pt">
-          <div class="section-title">Ship To</div>
-          <div style="font-weight:700;text-transform:uppercase;font-size:9pt">${(invoice.shipping_name || invoice.customer_name || '').toUpperCase()}</div>
-          <div>${[invoice.shipping_address, invoice.shipping_city, invoice.shipping_state, invoice.shipping_pincode].filter(Boolean).join(', ')}</div>
+        <div style="width:32%;border-left:1px solid #000;padding:8px 12px;font-size:8.5pt">
+          <div style="font-size:8pt;font-weight:700;color:#0a3d6b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #ddd;padding-bottom:3px;margin-bottom:5px">Ship To</div>
+          <div style="font-size:9pt;font-weight:600;margin-bottom:2px">${(invoice.shipping_name || '').toUpperCase()}</div>
+          <div style="font-size:8.5pt;color:#333;line-height:1.4">${[invoice.shipping_address, invoice.shipping_city, invoice.shipping_state, invoice.shipping_pincode].filter(Boolean).join(', ')}</div>
         </div>
         ` : ''}
       </div>
@@ -495,14 +519,14 @@ function generateInvoiceHTML(invoice, items, org) {
           <tbody>${itemsHTML}${emptyRows}</tbody>
         </table>
 
-        <!-- TOTALS -->
+        <!-- TOTALS — Segregated CGST/SGST/IGST -->
         <table style="font-size:8.5pt;flex-shrink:0">
           <tr><td style="border:1px solid #000;padding:3px 6px;text-align:right;width:74%;background:#fafafa">Taxable Amount</td><td style="border:1px solid #000;padding:3px 6px;text-align:right">&#8377;${formatIndian(invoice.subtotal)}</td></tr>
-          ${hasCGST ? `
-            <tr><td style="border:1px solid #000;padding:3px 6px;text-align:right">CGST @ ${parseFloat(items[0]?.cgst_rate||0).toFixed(1)}% on &#8377;${formatIndian(invoice.subtotal)}</td><td style="border:1px solid #000;padding:3px 6px;text-align:right">&#8377;${formatIndian(invoice.cgst_amount)}</td></tr>
-            <tr><td style="border:1px solid #000;padding:3px 6px;text-align:right">SGST @ ${parseFloat(items[0]?.sgst_rate||0).toFixed(1)}% on &#8377;${formatIndian(invoice.subtotal)}</td><td style="border:1px solid #000;padding:3px 6px;text-align:right">&#8377;${formatIndian(invoice.sgst_amount)}</td></tr>
+          ${cgstAmount > 0 ? `
+            <tr style="background:#f8f4ff"><td style="border:1px solid #000;padding:3px 6px;text-align:right">CGST @ ${cgstRate.toFixed(1)}% on &#8377;${formatIndian(invoice.subtotal)}</td><td style="border:1px solid #000;padding:3px 6px;text-align:right">&#8377;${formatIndian(cgstAmount)}</td></tr>
+            <tr style="background:#f8f4ff"><td style="border:1px solid #000;padding:3px 6px;text-align:right">SGST @ ${sgstRate.toFixed(1)}% on &#8377;${formatIndian(invoice.subtotal)}</td><td style="border:1px solid #000;padding:3px 6px;text-align:right">&#8377;${formatIndian(sgstAmount)}</td></tr>
           ` : ''}
-          ${hasIGST ? `<tr><td style="border:1px solid #000;padding:3px 6px;text-align:right">IGST @ ${parseFloat(items[0]?.igst_rate||0).toFixed(1)}% on &#8377;${formatIndian(invoice.subtotal)}</td><td style="border:1px solid #000;padding:3px 6px;text-align:right">&#8377;${formatIndian(invoice.igst_amount)}</td></tr>` : ''}
+          ${igstAmount > 0 ? `<tr style="background:#fff8f0"><td style="border:1px solid #000;padding:3px 6px;text-align:right">IGST @ ${igstRate.toFixed(1)}% on &#8377;${formatIndian(invoice.subtotal)}</td><td style="border:1px solid #000;padding:3px 6px;text-align:right">&#8377;${formatIndian(igstAmount)}</td></tr>` : ''}
           ${parseFloat(invoice.round_off) !== 0 ? `<tr><td style="border:1px solid #000;padding:3px 6px;text-align:right">Round Off</td><td style="border:1px solid #000;padding:3px 6px;text-align:right">${parseFloat(invoice.round_off) > 0 ? '+' : ''} &#8377;${formatIndian(invoice.round_off)}</td></tr>` : ''}
           <tr style="background:#e8e8e8"><td style="border:2px solid #000;padding:5px 6px;text-align:right;font-size:10.5pt"><b>GRAND TOTAL</b></td><td style="border:2px solid #000;padding:5px 6px;text-align:right;font-size:10.5pt;font-weight:800">&#8377;${formatIndian(invoice.total_amount)}</td></tr>
         </table>
