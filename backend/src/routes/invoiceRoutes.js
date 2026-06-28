@@ -191,8 +191,22 @@ router.delete('/:id', auth, async (req, res) => {
   }
 });
 
-// Generate PDF / HTML
-router.get('/:id/pdf', auth, async (req, res) => {
+// Auth middleware that also accepts ?token= in query string (for PDF new-tab access)
+function pdfAuth(req, res, next) {
+  const jwt = require('jsonwebtoken');
+  const config = require('../config/env');
+  // Try header first, then query param
+  let token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) token = req.query.token;
+  if (!token) return res.status(401).json({ success: false, msg: 'Login required' });
+  try {
+    req.user = jwt.verify(token, config.JWT_SECRET);
+    next();
+  } catch { return res.status(401).json({ success: false, msg: 'Invalid token' }); }
+}
+
+// Generate PDF / HTML — supports token in query string for new-tab access
+router.get('/:id/pdf', pdfAuth, async (req, res) => {
   try {
     const db = getDb();
     const invoice = await db('invoices')
@@ -233,6 +247,70 @@ router.get('/:id/pdf', auth, async (req, res) => {
   } catch (err) {
     console.error('PDF error:', err);
     res.status(500).json({ success: false, msg: 'PDF generation failed: ' + err.message });
+  }
+});
+
+// Email sharing endpoint — sends invoice PDF as attachment
+router.post('/:id/share-email', pdfAuth, async (req, res) => {
+  try {
+    const { to } = req.body;
+    if (!to) return res.status(400).json({ success: false, msg: 'Email address required' });
+    
+    const db = getDb();
+    const invoice = await db('invoices')
+      .where({ 'invoices.id': req.params.id, 'invoices.organization_id': req.user.organization_id })
+      .leftJoin('customers', 'invoices.customer_id', 'customers.id')
+      .select('invoices.*',
+        db.raw("COALESCE(customers.name, '(No Customer)') as customer_name"),
+        'customers.gstin as customer_gstin',
+        'customers.address as customer_address', 'customers.city as customer_city',
+        'customers.state as customer_state', 'customers.state_code as customer_state_code',
+        'customers.pincode as customer_pincode', 'customers.phone as customer_phone')
+      .first();
+    if (!invoice) return res.status(404).json({ success: false, msg: 'Invoice not found' });
+
+    const items = await db('invoice_items').where({ invoice_id: invoice.id });
+    const org = await db('organizations').where({ id: req.user.organization_id }).first();
+    const invNum = (invoice.invoice_number || '').split('/')[0];
+    const total = formatIndian(invoice.total_amount);
+
+    // Try sending via nodemailer if configured
+    try {
+      const nodemailer = require('nodemailer');
+      const smtpHost = process.env.SMTP_HOST;
+      if (!smtpHost) throw new Error('SMTP not configured');
+      
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: parseInt(process.env.SMTP_PORT) || 587,
+        secure: false,
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS
+        }
+      });
+
+      const html = generateInvoiceHTML(invoice, items, org);
+
+      await transporter.sendMail({
+        from: `"${org.name || 'Glob ERP'}" <${process.env.SMTP_USER}>`,
+        to,
+        subject: `Tax Invoice ${invNum} - ${org.name || 'Our Company'}`,
+        html: `<p>Dear ${invoice.customer_name || 'Customer'},</p><p>Please find your tax invoice attached:</p><p>Invoice No: ${invNum}<br>Total Amount: ₹${total}</p><p>Thank you for your business.</p><p>Best regards,<br>${org.name || 'Our Company'}</p>`,
+        attachments: [{
+          filename: `Invoice_${invNum.replace(/\//g, '-')}.html`,
+          content: html,
+          contentType: 'text/html'
+        }]
+      });
+
+      return res.json({ success: true, msg: 'Invoice sent via email!' });
+    } catch (smtpErr) {
+      return res.json({ success: false, msg: 'SMTP not configured. Use mailto fallback.' });
+    }
+  } catch (err) {
+    console.error('Share email error:', err);
+    res.status(500).json({ success: false, msg: 'Failed: ' + err.message });
   }
 });
 
