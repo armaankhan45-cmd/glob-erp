@@ -31,6 +31,47 @@ function sanitizeDates(data) {
   return clean;
 }
 
+// Get next invoice number for auto-suggest
+router.get('/next-number', auth, async (req, res) => {
+  try {
+    const db = getDb();
+    const orgId = req.user.organization_id;
+    const org = await db('organizations').where({ id: orgId }).first();
+    const prefix = org.invoice_prefix || 'GST-';
+    
+    // Find the highest invoice number for this org
+    const lastInvoice = await db('invoices')
+      .where({ organization_id: orgId })
+      .orderBy('id', 'desc')
+      .first('invoice_number', 'id');
+    
+    let nextNum = 1;
+    if (lastInvoice?.invoice_number) {
+      // Extract number from format like "GST-0001/26-27" or "26270001"
+      const numPart = lastInvoice.invoice_number.split('/')[0];
+      const digits = numPart.replace(/^[A-Za-z\-]+/, '');
+      if (digits && !isNaN(parseInt(digits))) {
+        nextNum = parseInt(digits) + 1;
+      } else {
+        nextNum = (lastInvoice.id || 0) + 1;
+      }
+    }
+    
+    const fy = getFY(new Date());
+    const suggestedNumber = `${prefix}${String(nextNum).padStart(4, '0')}/${fy}`;
+    
+    res.json({ 
+      success: true, 
+      nextNumber: suggestedNumber,
+      nextNumeric: nextNum,
+      prefix,
+      fy
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, msg: err.message });
+  }
+});
+
 // List invoices
 router.get('/', auth, async (req, res) => {
   try {
@@ -100,11 +141,19 @@ router.post('/', auth, async (req, res) => {
     const orgId = req.user.organization_id;
 
     const org = await db('organizations').where({ id: orgId }).first();
-    const prefix = org.invoice_prefix || 'GST-';
-    const last = await db('invoices').where({ organization_id: orgId }).orderBy('id', 'desc').first('id');
-    const nextNo = (last?.id || 0) + 1;
-    const fy = getFY(new Date(invoiceData.invoice_date));
-    const invoiceNumber = `${prefix}${String(nextNo).padStart(4, '0')}/${fy}`;
+    
+    // Manual invoice number support: if user provides invoice_number, use it
+    // Otherwise auto-generate
+    let invoiceNumber;
+    if (invoiceData.invoice_number && invoiceData.invoice_number.trim()) {
+      invoiceNumber = invoiceData.invoice_number.trim();
+    } else {
+      const prefix = org.invoice_prefix || 'GST-';
+      const last = await db('invoices').where({ organization_id: orgId }).orderBy('id', 'desc').first('id');
+      const nextNo = (last?.id || 0) + 1;
+      const fy = getFY(new Date(invoiceData.invoice_date));
+      invoiceNumber = `${prefix}${String(nextNo).padStart(4, '0')}/${fy}`;
+    }
 
     const data = sanitizeDates({
       ...invoiceData,
@@ -378,6 +427,12 @@ function generateInvoiceHTML(invoice, items, org) {
   const invoiceDate = formatDate(invoice.invoice_date);
   const hasShipping = invoice.shipping_name || invoice.shipping_address;
 
+  // Font settings from org
+  const fontFamily = org.invoice_font_family || "'Segoe UI', Arial, Helvetica, sans-serif";
+  const fontSize = org.invoice_font_size || '9pt';
+  const descSize = org.invoice_desc_size || '8pt';
+  const itemBold = (org.invoice_item_bold === 'true' || org.invoice_item_bold === '1') ? 'font-weight:bold;' : '';
+
   // UPI QR URL (using Google Charts API for server-side HTML)
   const upiId = org.upi_id || '';
   const upiName = encodeURIComponent((org.name || 'GLOB FABRICATION AND ENTERPRISES').replace(/&/g, 'and'));
@@ -410,7 +465,7 @@ function generateInvoiceHTML(invoice, items, org) {
     const total = taxable + taxAmt;
     return `<tr>
       <td style="border:1px solid #000;padding:3px 4px;text-align:center;vertical-align:top">${i+1}</td>
-      <td style="border:1px solid #000;padding:3px 4px;line-height:1.3;white-space:pre-line">${item.description || ''}</td>
+      <td style="border:1px solid #000;padding:3px 4px;line-height:1.3;white-space:pre-line;font-size:${descSize};${itemBold}">${item.description || ''}</td>
       <td style="border:1px solid #000;padding:3px 4px;text-align:center;vertical-align:top">${item.hsn_code || '—'}</td>
       <td style="border:1px solid #000;padding:3px 4px;text-align:right;vertical-align:top">${formatIndian(rate)}</td>
       <td style="border:1px solid #000;padding:3px 4px;text-align:center;vertical-align:top">${qty}</td>
@@ -447,7 +502,7 @@ function generateInvoiceHTML(invoice, items, org) {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
     @page { size: A4; margin: 0; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; font-size: 9pt; color: #1a1a1a; }
+    body { font-family: ${fontFamily}; font-size: ${fontSize}; color: #1a1a1a; }
     .page { width: 210mm; min-height: 297mm; display: flex; flex-direction: column; overflow: hidden; }
     table { width: 100%; border-collapse: collapse; }
     th { border: 1px solid #000; padding: 4px 3px; background: #e8e8e8; text-align: center; font-size: 7.5pt; font-weight: 700; }
@@ -591,7 +646,11 @@ function generateInvoiceHTML(invoice, items, org) {
             <span style="display:inline-block;padding:1px 8px;border-radius:3px;font-size:7pt;font-weight:700;letter-spacing:0.3px;${isPaid ? 'background:#d4edda;color:#155724;border:1px solid #c3e6cb' : 'background:#fff3cd;color:#856404;border:1px solid #ffeaa7'}">${isPaid ? '✓ PAID' : '● UNPAID'}</span>
           </div>
           <div style="text-align:right;margin-top:auto">
-            <div style="font-size:7.5pt;margin-bottom:24px">For <b>${(org.name || '').toUpperCase()}</b></div>
+            <div style="font-size:7.5pt;margin-bottom:4px">For <b>${(org.name || '').toUpperCase()}</b></div>
+            <div style="width:100px;height:80px;position:relative;display:inline-block;margin-bottom:4px">
+              ${org.stamp_url ? `<img src="${org.stamp_url}" style="position:absolute;width:100px;height:80px;object-fit:contain;opacity:0.85">` : ''}
+              ${org.signature_url ? `<img src="${org.signature_url}" style="position:relative;z-index:1;max-height:50px;max-width:90px;object-fit:contain">` : ''}
+            </div>
             <div style="border-top:1px solid #000;display:inline-block;padding-top:2px;font-size:7.5pt;font-weight:600">Authorized Signatory</div>
           </div>
         </div>
