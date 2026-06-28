@@ -482,21 +482,54 @@ async function executeTool(name, args, orgId) {
 }
 
 // ═══════════════════════════════════════════════
-// GEMINI API INTEGRATION
+// MULTI-PROVIDER AI INTEGRATION
+// Supports: Gemini 2.5 Pro, Gemini 2.0 Flash, OpenAI GPT-4o, Groq
 // ═══════════════════════════════════════════════
 
-async function callGemini(messages, toolDefs) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return null;
+async function callAI(messages, toolDefs) {
+  const geminiKey = process.env.GEMINI_API_KEY;
+  const openaiKey = process.env.OPENAI_API_KEY;
+  const groqKey = process.env.GROQ_API_KEY;
+  
+  // Priority: Gemini Pro > OpenAI > Groq > Gemini Flash
+  // Gemini 2.5 Pro is the most capable, free tier has lower limits
+  // OpenAI GPT-4o is extremely capable but needs paid key
+  // Groq uses Llama 3.3 70B — fast, free, good but not as smart
+  // Gemini Flash is fast and free but less capable
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+  if (geminiKey) {
+    // Try Gemini 2.5 Pro first (most powerful)
+    const proResult = await callGemini(messages, toolDefs, geminiKey, 'gemini-2.5-pro');
+    if (proResult) return { ...proResult, provider: 'gemini-2.5-pro' };
+    
+    // Fallback to Gemini 2.0 Flash if Pro rate-limited
+    const flashResult = await callGemini(messages, toolDefs, geminiKey, 'gemini-2.0-flash');
+    if (flashResult) return { ...flashResult, provider: 'gemini-2.0-flash' };
+  }
+
+  if (openaiKey) {
+    const result = await callOpenAI(messages, toolDefs, openaiKey);
+    if (result) return { ...result, provider: 'openai-gpt-4o' };
+  }
+
+  if (groqKey) {
+    const result = await callGroq(messages, toolDefs, groqKey);
+    if (result) return { ...result, provider: 'groq-llama' };
+  }
+
+  return null; // No AI available — fall back to rule-based
+}
+
+// ── GEMINI API ──
+async function callGemini(messages, toolDefs, apiKey, model = 'gemini-2.5-pro') {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   // Convert messages to Gemini format
   const contents = [];
   for (const msg of messages) {
     if (msg.role === 'user') {
       contents.push({ role: 'user', parts: [{ text: msg.content }] });
-    } else if (msg.role === 'assistant') {
+    } else if (msg.role === 'assistant' || msg.role === 'model') {
       contents.push({ role: 'model', parts: [{ text: msg.content }] });
     } else if (msg.role === 'tool_call') {
       contents.push({ role: 'model', parts: [{ functionCall: { name: msg.name, args: msg.args || {} } }] });
@@ -511,7 +544,8 @@ async function callGemini(messages, toolDefs) {
     tools: [{ functionDeclarations: toolDefs }],
     generationConfig: {
       temperature: 0.7,
-      maxOutputTokens: 8192
+      maxOutputTokens: 16384,
+      topP: 0.95
     }
   };
 
@@ -520,19 +554,180 @@ async function callGemini(messages, toolDefs) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-      timeout: 30000
+      timeout: 60000
     });
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error('Gemini API error:', response.status, errText);
+      console.error(`Gemini ${model} error:`, response.status, errText.substring(0, 200));
       return null;
     }
 
     const data = await response.json();
-    return data;
+    return extractGeminiResponse(data);
   } catch (err) {
-    console.error('Gemini fetch error:', err.message);
+    console.error(`Gemini ${model} fetch error:`, err.message);
+    return null;
+  }
+}
+
+// ── OPENAI API ──
+async function callOpenAI(messages, toolDefs, apiKey) {
+  const url = 'https://api.openai.com/v1/chat/completions';
+
+  // Convert to OpenAI format
+  const openaiMessages = [
+    { role: 'system', content: SYSTEM_PROMPT }
+  ];
+
+  for (const msg of messages) {
+    if (msg.role === 'user') {
+      openaiMessages.push({ role: 'user', content: msg.content });
+    } else if (msg.role === 'assistant' || msg.role === 'model') {
+      openaiMessages.push({ role: 'assistant', content: msg.content });
+    } else if (msg.role === 'tool_call') {
+      openaiMessages.push({ 
+        role: 'assistant', 
+        content: null,
+        tool_calls: [{ id: `call_${msg.name}`, type: 'function', function: { name: msg.name, arguments: JSON.stringify(msg.args || {}) } }]
+      });
+    } else if (msg.role === 'tool_result') {
+      openaiMessages.push({
+        role: 'tool',
+        tool_call_id: `call_${msg.name}`,
+        content: JSON.stringify(msg.result)
+      });
+    }
+  }
+
+  // Convert tool definitions to OpenAI format
+  const openaiTools = toolDefs.map(td => ({
+    type: 'function',
+    function: {
+      name: td.name,
+      description: td.description,
+      parameters: td.parameters || { type: 'object', properties: {} }
+    }
+  }));
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: openaiMessages,
+        tools: openaiTools,
+        temperature: 0.7,
+        max_tokens: 4096
+      }),
+      timeout: 60000
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('OpenAI error:', response.status, errText.substring(0, 200));
+      return null;
+    }
+
+    const data = await response.json();
+    const choice = data.choices?.[0];
+    if (!choice) return null;
+
+    const toolCalls = [];
+    if (choice.message?.tool_calls) {
+      for (const tc of choice.message.tool_calls) {
+        try {
+          toolCalls.push({
+            name: tc.function.name,
+            args: JSON.parse(tc.function.arguments)
+          });
+        } catch (e) {}
+      }
+    }
+
+    return {
+      text: choice.message?.content || '',
+      toolCalls,
+      finishReason: choice.finish_reason
+    };
+  } catch (err) {
+    console.error('OpenAI fetch error:', err.message);
+    return null;
+  }
+}
+
+// ── GROQ API (Free Llama 3.3 70B) ──
+async function callGroq(messages, toolDefs, apiKey) {
+  const url = 'https://api.groq.com/openai/v1/chat/completions';
+
+  const groqMessages = [
+    { role: 'system', content: SYSTEM_PROMPT }
+  ];
+
+  for (const msg of messages) {
+    if (msg.role === 'user') {
+      groqMessages.push({ role: 'user', content: msg.content });
+    } else if (msg.role === 'assistant' || msg.role === 'model') {
+      groqMessages.push({ role: 'assistant', content: msg.content });
+    }
+  }
+
+  // Groq tool calling format (OpenAI compatible)
+  const groqTools = toolDefs.map(td => ({
+    type: 'function',
+    function: {
+      name: td.name,
+      description: td.description,
+      parameters: td.parameters || { type: 'object', properties: {} }
+    }
+  }));
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: groqMessages,
+        tools: groqTools,
+        temperature: 0.7,
+        max_tokens: 4096
+      }),
+      timeout: 30000
+    });
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    const choice = data.choices?.[0];
+    if (!choice) return null;
+
+    const toolCalls = [];
+    if (choice.message?.tool_calls) {
+      for (const tc of choice.message.tool_calls) {
+        try {
+          toolCalls.push({
+            name: tc.function.name,
+            args: JSON.parse(tc.function.arguments)
+          });
+        } catch (e) {}
+      }
+    }
+
+    return {
+      text: choice.message?.content || '',
+      toolCalls,
+      finishReason: choice.finish_reason
+    };
+  } catch (err) {
+    console.error('Groq fetch error:', err.message);
     return null;
   }
 }
@@ -647,24 +842,25 @@ router.post('/chat', auth, adminOnly, async (req, res) => {
     const orgId = req.user.organization_id;
     const userMessage = messages[messages.length - 1]?.content || '';
     
-    // Try Gemini API first
-    const hasGeminiKey = !!process.env.GEMINI_API_KEY;
+    // Try AI providers (Gemini Pro → OpenAI → Groq → Gemini Flash)
+    const hasAnyAI = !!(process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY || process.env.GROQ_API_KEY);
     
-    if (hasGeminiKey) {
-      // ── GEMINI FLOW ──
+    if (hasAnyAI) {
+      // ── AI FLOW ──
       const allMessages = [
         ...messages.map(m => ({ role: m.role === 'user' ? 'user' : 'model', content: m.content })),
       ];
 
-      let maxIterations = 5; // Prevent infinite tool-call loops
+      let maxIterations = 5;
       let currentMessages = [...allMessages];
       let finalResponse = '';
+      let usedProvider = 'unknown';
 
       while (maxIterations-- > 0) {
-        const geminiResponse = await callGemini(currentMessages, TOOL_DEFINITIONS);
+        const aiResponse = await callAI(currentMessages, TOOL_DEFINITIONS);
         
-        if (!geminiResponse) {
-          // Gemini failed, fall back to rule-based
+        if (!aiResponse) {
+          // All AI providers failed, fall back to rule-based
           const ruleResult = ruleBasedResponse(userMessage, orgId);
           if (ruleResult.toolCalls?.length > 0) {
             const toolResults = [];
@@ -682,10 +878,8 @@ router.post('/chat', auth, adminOnly, async (req, res) => {
           return res.json({ success: true, message: ruleResult.text, provider: 'fallback' });
         }
 
-        const extracted = extractGeminiResponse(geminiResponse);
-        if (!extracted) {
-          return res.json({ success: true, message: 'I couldn\'t process that. Please try again.', provider: 'gemini' });
-        }
+        usedProvider = aiResponse.provider || usedProvider;
+        const extracted = aiResponse;
 
         if (extracted.toolCalls.length > 0) {
           // Execute tools and continue conversation
@@ -726,7 +920,7 @@ router.post('/chat', auth, adminOnly, async (req, res) => {
           success: true,
           message: finalResponse,
           toolCalls: toolCallsInConversation,
-          provider: 'gemini'
+          provider: usedProvider
         });
       }
 
@@ -734,7 +928,7 @@ router.post('/chat', auth, adminOnly, async (req, res) => {
       return res.json({
         success: true,
         message: finalResponse || 'I processed your request but hit the iteration limit. Try a more specific question.',
-        provider: 'gemini'
+        provider: usedProvider
       });
 
     } else {
@@ -839,13 +1033,27 @@ function formatToolResult(name, result) {
 // ═══════════════════════════════════════════════
 
 router.get('/status', auth, async (req, res) => {
-  const hasKey = !!process.env.GEMINI_API_KEY;
+  const geminiKey = !!process.env.GEMINI_API_KEY;
+  const openaiKey = !!process.env.OPENAI_API_KEY;
+  const groqKey = !!process.env.GROQ_API_KEY;
+  const hasAnyAI = geminiKey || openaiKey || groqKey;
+  
+  const providers = [];
+  if (geminiKey) providers.push('Gemini 2.5 Pro', 'Gemini 2.0 Flash');
+  if (openaiKey) providers.push('OpenAI GPT-4o');
+  if (groqKey) providers.push('Groq Llama 3.3 70B');
+  
   res.json({
     success: true,
-    aiEnabled: hasKey,
-    provider: hasKey ? 'gemini' : 'rule-based',
+    aiEnabled: hasAnyAI,
+    providers: providers.length > 0 ? providers : ['Rule-based'],
+    primaryProvider: geminiKey ? 'Gemini 2.5 Pro' : openaiKey ? 'OpenAI GPT-4o' : groqKey ? 'Groq Llama' : 'Rule-based',
     toolsAvailable: TOOL_DEFINITIONS.length,
-    tip: hasKey ? 'Full AI mode active' : 'Add GEMINI_API_KEY env var for full AI. Get free key at https://aistudio.google.com/apikey'
+    setupInstructions: hasAnyAI ? undefined : {
+      gemini: '1. Go to https://aistudio.google.com/apikey  2. Create free key  3. Add GEMINI_API_KEY to Render env vars',
+      groq: '1. Go to https://console.groq.com/keys  2. Create free key  3. Add GROQ_API_KEY to Render env vars',
+      openai: '1. Go to https://platform.openai.com/api-keys  2. Create key (paid)  3. Add OPENAI_API_KEY to Render env vars'
+    }
   });
 });
 
