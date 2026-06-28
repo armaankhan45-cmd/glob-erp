@@ -370,4 +370,191 @@ router.post('/:id/convert', auth, async (req, res) => {
   }
 });
 
+// Auth middleware that also accepts ?token= in query string (for PDF new-tab access)
+function pdfAuth(req, res, next) {
+  const jwt = require('jsonwebtoken');
+  const config = require('../config/env');
+  let token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) token = req.query.token;
+  if (!token) return res.status(401).json({ success: false, msg: 'Login required' });
+  try {
+    req.user = jwt.verify(token, config.JWT_SECRET);
+    next();
+  } catch { return res.status(401).json({ success: false, msg: 'Invalid token' }); }
+}
+
+// Quotation PDF / HTML — printable view for sharing
+router.get('/:id/pdf', pdfAuth, async (req, res) => {
+  try {
+    const db = getDb();
+    const quotation = await db('quotations')
+      .where({ id: req.params.id, organization_id: req.user.organization_id })
+      .first();
+    if (!quotation) return res.status(404).json({ success: false, msg: 'Not found' });
+
+    const items = await db('quotation_items').where({ quotation_id: quotation.id });
+    const org = await db('organizations').where({ id: req.user.organization_id }).first();
+    const parts = (quotation.notes || '').split('|||');
+    const customerName = parts[0] || '';
+    const additionalInfo = parts[1] || '';
+
+    const html = generateQuotationHTML(quotation, items, org, customerName, additionalInfo);
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  } catch (err) {
+    console.error('Quotation PDF error:', err);
+    res.status(500).json({ success: false, msg: 'Failed: ' + err.message });
+  }
+});
+
+// Email sharing endpoint — sends quotation PDF as attachment
+router.post('/:id/share-email', pdfAuth, async (req, res) => {
+  try {
+    const { to } = req.body;
+    if (!to) return res.status(400).json({ success: false, msg: 'Email address required' });
+    
+    const db = getDb();
+    const quotation = await db('quotations')
+      .where({ id: req.params.id, organization_id: req.user.organization_id })
+      .first();
+    if (!quotation) return res.status(404).json({ success: false, msg: 'Not found' });
+
+    const items = await db('quotation_items').where({ quotation_id: quotation.id });
+    const org = await db('organizations').where({ id: req.user.organization_id }).first();
+    const parts = (quotation.notes || '').split('|||');
+    const customerName = parts[0] || '';
+    const additionalInfo = parts[1] || '';
+    const rawNum = (quotation.quotation_number || '').split('/')[0];
+    const qNum = rawNum.replace(/^[A-Za-z\-]+/, '').replace(/^0+/, '') || rawNum;
+
+    // Try sending via nodemailer if configured
+    try {
+      const nodemailer = require('nodemailer');
+      const smtpHost = process.env.SMTP_HOST;
+      if (!smtpHost) throw new Error('SMTP not configured');
+      
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: parseInt(process.env.SMTP_PORT) || 587,
+        secure: false,
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS
+        }
+      });
+
+      const html = generateQuotationHTML(quotation, items, org, customerName, additionalInfo);
+      const total = new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(quotation.total_amount);
+
+      await transporter.sendMail({
+        from: `"${org.name || 'Glob ERP'}" <${process.env.SMTP_USER}>`,
+        to,
+        subject: `Quotation ${qNum} - ${org.name || 'Our Company'}`,
+        html: `<p>Dear ${customerName},</p><p>Please find our quotation attached:</p><p>Quotation No: ${qNum}<br>Total Amount: ₹${total}</p><p>Thank you for your interest.</p><p>Best regards,<br>${org.name || 'Our Company'}</p>`,
+        attachments: [{
+          filename: `Quotation_${qNum.replace(/\//g, '-')}.html`,
+          content: html,
+          contentType: 'text/html'
+        }]
+      });
+
+      return res.json({ success: true, msg: 'Quotation sent via email!' });
+    } catch (smtpErr) {
+      // SMTP not configured — return the PDF URL so frontend can fallback to mailto
+      return res.json({ success: false, msg: 'SMTP not configured. Use mailto fallback.', pdfUrl: `${process.env.CORS_ORIGIN || ''}/api/quotations/${req.params.id}/pdf` });
+    }
+  } catch (err) {
+    console.error('Share email error:', err);
+    res.status(500).json({ success: false, msg: 'Failed: ' + err.message });
+  }
+});
+
+function generateQuotationHTML(quotation, items, org, customerName, additionalInfo) {
+  function numberToWords(num) {
+    const a = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten',
+      'Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+    const b = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+    function inW(n) {
+      if (n < 20) return a[n];
+      if (n < 100) return b[Math.floor(n/10)] + (n%10 ? ' '+a[n%10] : '');
+      if (n < 1000) return a[Math.floor(n/100)] + ' Hundred' + (n%100 ? ' '+inW(n%100) : '');
+      if (n < 100000) return inW(Math.floor(n/1000)) + ' Thousand' + (n%1000 ? ' '+inW(n%1000) : '');
+      if (n < 10000000) return inW(Math.floor(n/100000)) + ' Lakh' + (n%100000 ? ' '+inW(n%100000) : '');
+      return inW(Math.floor(n/10000000)) + ' Crore' + (n%10000000 ? ' '+inW(n%10000000) : '');
+    }
+    const rupees = Math.round(Math.floor(num));
+    const paise = Math.round((num - Math.floor(num)) * 100);
+    let result = inW(rupees) + ' Rupees';
+    if (paise > 0) result += ' and ' + inW(paise) + ' Paise';
+    return result + ' Only';
+  }
+  function numberToWordsCaps(num) {
+    return numberToWords(num).toUpperCase().replace('RUPEES ', '').replace(' RUPEES', '');
+  }
+  function formatIndian(num) {
+    return new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num || 0);
+  }
+
+  const rawNum = (quotation.quotation_number || '').split('/')[0];
+  const qNum = rawNum.replace(/^[A-Za-z\-]+/, '').replace(/^0+/, '') || rawNum;
+  const hasCGST = parseFloat(quotation.cgst_amount) > 0;
+  const hasIGST = parseFloat(quotation.igst_amount) > 0;
+  const gstRate = hasIGST ? parseFloat(items[0]?.igst_rate || 18) : (hasCGST ? parseFloat(items[0]?.cgst_rate || 9) * 2 : 18);
+  const totalGST = parseFloat(quotation.igst_amount) + parseFloat(quotation.cgst_amount) + parseFloat(quotation.sgst_amount);
+  const letterheadMm = org.print_letterhead_mm || 65;
+
+  const itemsHTML = items.map((item, i) => `
+    <tr>
+      <td style="border:1.5px solid #000;padding:4px 5px;text-align:center;vertical-align:top;width:6%">${i+1}</td>
+      <td style="border:1.5px solid #000;padding:4px 5px;width:50%;font-size:8.5pt;line-height:1.3;white-space:pre-line">${item.description || ''}</td>
+      <td style="border:1.5px solid #000;padding:4px 5px;text-align:center;vertical-align:top;width:10%">${item.quantity}${item.unit && item.unit !== 'Unit' ? ' ' + item.unit : ''}</td>
+      <td style="border:1.5px solid #000;padding:4px 5px;text-align:right;vertical-align:top;width:17%">&#8377;${formatIndian(item.rate)}</td>
+      <td style="border:1.5px solid #000;padding:4px 5px;text-align:right;font-weight:bold;vertical-align:top;width:17%">&#8377;${formatIndian(item.amount)}</td>
+    </tr>`).join('');
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    @page { size: A4; margin: 0; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Georgia, serif; font-size: 10pt; }
+    .page { width: 210mm; height: 297mm; display: flex; flex-direction: column; overflow: hidden; }
+    .letterhead { height: ${letterheadMm}mm; flex-shrink: 0; }
+    table { width: 100%; border-collapse: collapse; }
+    th { border: 1.5px solid #000; padding: 5px; background: #e8e8e8; text-align: center; font-weight: bold; }
+    .sign-space { height: 30mm; flex-shrink: 0; }
+  </style></head><body>
+    <div class="page">
+      <div class="letterhead"></div>
+      <div style="margin:0 10mm;text-align:center;padding:6px 0 4px;font-size:16pt;font-weight:bold">
+        Quotation <u>No</u> :- ${qNum}
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;border:2px solid #000;margin:0 10mm;overflow:hidden">
+        <div style="padding:6px 8px 4px;text-align:left;border-bottom:1px solid #000">
+          <div style="font-size:14pt;font-weight:bold;text-transform:uppercase;line-height:1.2">${(customerName || '').toUpperCase()}</div>
+          ${additionalInfo ? `<div style="font-size:9pt;margin-top:2px;color:#444">${additionalInfo}</div>` : ''}
+        </div>
+        <div style="flex:1;padding:4px 5px 0;overflow:hidden">
+          <table style="font-size:9pt;height:100%">
+            <thead><tr><th style="width:6%">SR No.</th><th style="width:50%">Particulars</th><th style="width:10%">Quantity</th><th style="width:17%">Rate (INR)</th><th style="width:17%">Amount (INR)</th></tr></thead>
+            <tbody>${itemsHTML}</tbody>
+          </table>
+        </div>
+        <div style="padding:0 5px 6px;flex-shrink:0">
+          <table style="font-size:9pt">
+            ${gstRate > 0 ? `<tr><td style="border:1.5px solid #000;padding:4px 6px;text-align:right;width:76%">GST: ${gstRate}%</td><td style="border:1.5px solid #000;padding:4px 6px;text-align:right;font-weight:bold">&#8377;${formatIndian(totalGST)}</td></tr>` : ''}
+            <tr style="background:#f0f0f0">
+              <td style="border:1.5px solid #000;padding:5px 6px;text-align:right;font-size:11pt"><strong>Total</strong></td>
+              <td style="border:1.5px solid #000;padding:5px 6px;font-size:9pt;font-weight:bold;text-align:center;background:#fafafa">${numberToWordsCaps(quotation.total_amount)}</td>
+            </tr>
+            <tr>
+              <td style="border:1.5px solid #000;padding:5px 6px;text-align:right;font-size:11pt;background:#f0f0f0"><strong>&#8377;${formatIndian(quotation.total_amount)}</strong></td>
+              <td style="border:1.5px solid #000;padding:5px 6px;text-align:center;font-size:8pt;color:#555">Total Amount</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+      <div class="sign-space"></div>
+    </div>
+  </body></html>`;
+}
+
 module.exports = router;
