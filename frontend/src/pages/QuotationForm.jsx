@@ -33,10 +33,12 @@ export default function QuotationForm() {
     additional_info: '',
     actual_notes: '',
     igst_rate: 18,
+    quotation_number: '', // manual quotation number
   })
   const [items, setItems] = useState([{ description: '', quantity: 1, unit: 'Unit', rate: 0, igst_rate: 18, amount: 0 }])
   const [calculated, setCalculated] = useState({ subtotal: 0, igst_amount: 0, total_amount: 0 })
   const [saving, setSaving] = useState(false)
+  const [nextQuotationNo, setNextQuotationNo] = useState('')
 
   // GST auto-fetch
   const [gstinInput, setGstinInput] = useState('')
@@ -45,8 +47,28 @@ export default function QuotationForm() {
 
   useEffect(() => {
     if (isEdit) loadQuotation()
-    else loadTemplate()
+    else { loadTemplate(); fetchNextQuotationNo(); }
   }, [])
+
+  const fetchNextQuotationNo = async () => {
+    try {
+      const res = await api.get('/quotations')
+      const quotations = res.data.quotations || []
+      // Find the highest quotation number from existing quotations
+      let maxNum = 0
+      quotations.forEach(q => {
+        const rawNum = (q.quotation_number || '').split('/')[0]
+        const num = parseInt(rawNum.replace(/^[A-Za-z\-]+/, '').replace(/^0+/, '')) || 0
+        if (num > maxNum) maxNum = num
+      })
+      const suggested = maxNum > 0 ? maxNum + 1 : 1
+      setNextQuotationNo(String(suggested))
+      setForm(prev => ({ ...prev, quotation_number: String(suggested) }))
+    } catch (err) {
+      setNextQuotationNo('1')
+      setForm(prev => ({ ...prev, quotation_number: '1' }))
+    }
+  }
 
   const loadTemplate = async () => {
     try {
@@ -66,12 +88,15 @@ export default function QuotationForm() {
     try {
       const res = await api.get(`/quotations/${id}`)
       const q = res.data.quotation
+      const rawNum = (q.quotation_number || '').split('/')[0]
+      const qNum = rawNum.replace(/^[A-Za-z\-]+/, '').replace(/^0+/, '') || rawNum
       setForm(prev => ({
         ...prev,
         customer_name: q.customer_name || '',
         additional_info: q.additional_info || '',
         actual_notes: q.actual_notes || '',
         igst_rate: parseFloat(res.data.items?.[0]?.igst_rate || 18),
+        quotation_number: qNum,
       }))
       setItems(res.data.items?.length > 0 ? res.data.items : [{ description: '', quantity: 1, unit: 'Unit', rate: 0, igst_rate: 18, amount: 0 }])
       setCalculated({ subtotal: parseFloat(q.subtotal) || 0, igst_amount: parseFloat(q.igst_amount) || 0, total_amount: parseFloat(q.total_amount) || 0 })
@@ -113,6 +138,7 @@ export default function QuotationForm() {
         customer_id: null,
         quotation_date: new Date().toISOString().split('T')[0],
         validity_date: null,
+        quotation_number: form.quotation_number, // manual number
         subtotal: calculated.subtotal,
         cgst_amount: 0,
         sgst_amount: 0,
@@ -179,6 +205,25 @@ export default function QuotationForm() {
       </div>
 
       <div className="card space-y-4">
+        {/* Quotation Number — manual entry */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Quotation Number *</label>
+          <div className="flex items-center gap-3">
+            <input 
+              type="number" 
+              value={form.quotation_number} 
+              onChange={e => setForm({...form, quotation_number: e.target.value})} 
+              className="input-field w-40" 
+              placeholder="e.g. 871"
+              min="1"
+            />
+            <span className="text-sm text-gray-500">
+              {nextQuotationNo ? `(Auto-suggested: ${nextQuotationNo})` : '(Next number will auto-fill)'}
+            </span>
+          </div>
+          <p className="text-xs text-gray-400 mt-1">Type your quotation number. Next time it will auto-suggest the next number.</p>
+        </div>
+
         {/* Customer Name - typeable */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name *</label>
