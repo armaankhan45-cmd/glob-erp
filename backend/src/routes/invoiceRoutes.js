@@ -191,17 +191,19 @@ router.delete('/:id', auth, async (req, res) => {
   }
 });
 
-// Generate PDF
+// Generate PDF / HTML
 router.get('/:id/pdf', auth, async (req, res) => {
   try {
     const db = getDb();
     const invoice = await db('invoices')
       .where({ 'invoices.id': req.params.id, 'invoices.organization_id': req.user.organization_id })
       .leftJoin('customers', 'invoices.customer_id', 'customers.id')
-      .select('invoices.*', 'customers.name as customer_name', 'customers.gstin as customer_gstin',
+      .select('invoices.*', 
+        db.raw("COALESCE(customers.name, '(No Customer)') as customer_name"),
+        'customers.gstin as customer_gstin',
         'customers.address as customer_address', 'customers.city as customer_city',
         'customers.state as customer_state', 'customers.state_code as customer_state_code',
-        'customers.pincode as customer_pincode')
+        'customers.pincode as customer_pincode', 'customers.phone as customer_phone')
       .first();
     
     if (!invoice) return res.status(404).json({ success: false, msg: 'Invoice not found' });
@@ -211,6 +213,7 @@ router.get('/:id/pdf', auth, async (req, res) => {
 
     const html = generateInvoiceHTML(invoice, items, org);
 
+    // Try puppeteer PDF first, fallback to HTML
     try {
       const puppeteer = require('puppeteer');
       const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
@@ -222,12 +225,14 @@ router.get('/:id/pdf', auth, async (req, res) => {
       res.setHeader('Content-Disposition', `inline; filename="${invoice.invoice_number}.pdf"`);
       res.send(pdf);
     } catch (puppeteerErr) {
+      // Puppeteer not available — return HTML for browser print-to-PDF
       res.setHeader('Content-Type', 'text/html');
+      res.setHeader('Content-Disposition', `inline; filename="${invoice.invoice_number}.html"`);
       res.send(html);
     }
   } catch (err) {
     console.error('PDF error:', err);
-    res.status(500).json({ success: false, msg: 'PDF generation failed' });
+    res.status(500).json({ success: false, msg: 'PDF generation failed: ' + err.message });
   }
 });
 
