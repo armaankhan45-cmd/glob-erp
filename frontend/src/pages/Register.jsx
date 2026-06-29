@@ -1,48 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { Circle, Eye, EyeOff, Chrome, Github, UserPlus } from 'lucide-react'
-import { motion } from 'framer-motion'
-
-function InputGroup({ label, placeholder, type = 'text', value, onChange, rightIcon }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-white mb-1.5">{label}</label>
-      <div className="relative">
-        <input
-          type={type}
-          value={value}
-          onChange={onChange}
-          placeholder={placeholder}
-          className="w-full bg-brand-gray border-none rounded-xl h-11 px-4 text-white placeholder:text-white/20 focus:ring-2 focus:ring-white/20 focus:outline-none transition-all duration-150"
-          required={!placeholder?.includes('optional')}
-        />
-        {rightIcon && (
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 cursor-pointer hover:text-white/60 transition-colors">
-            {rightIcon}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function SocialButton({ icon, label }) {
-  return (
-    <button type="button" className="flex items-center justify-center gap-3 bg-black border border-white/10 rounded-xl h-12 px-4 text-sm font-medium text-white hover:bg-white/5 active:scale-[0.98] transition-all duration-150 w-full">
-      {icon}<span>{label}</span>
-    </button>
-  )
-}
-
-function StepItem({ number, text, active = false }) {
-  return (
-    <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${active ? 'bg-white text-black border border-white' : 'bg-brand-gray text-white border-none'}`}>
-      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold ${active ? 'bg-black text-white' : 'bg-white/10 text-white/40'}`}>{number}</div>
-      <span className="text-sm font-medium">{text}</span>
-    </div>
-  )
-}
+import { Eye, EyeOff, UserPlus } from 'lucide-react'
 
 export default function Register() {
   const [form, setForm] = useState({ orgName: '', name: '', email: '', phone: '', password: '', gstin: '', state: 'Maharashtra', state_code: '27', city: '' })
@@ -69,102 +28,136 @@ export default function Register() {
 
   const update = (key, val) => setForm({ ...form, [key]: val })
 
+  const inputStyle = { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff' }
+
   return (
-    <main className="flex min-h-screen w-full bg-black selection:bg-white/30 p-2 transition-all duration-500 lg:h-screen lg:overflow-hidden lg:p-4">
+    <main className="flex min-h-screen w-full p-2 lg:h-screen lg:overflow-hidden lg:p-4"
+      style={{ background: '#06080f' }}>
       
-      {/* Left Column — Hero + Video */}
-      <div className="hidden lg:flex w-[52%] relative flex-col items-center justify-end pb-32 px-12 rounded-3xl overflow-hidden shadow-2xl h-full">
-        <video autoPlay muted loop playsInline className="absolute inset-0 w-full h-full object-cover">
-          <source src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260506_081238_406ed0e3-5d83-436e-a512-0bbff7ec5b95.mp4" type="video/mp4" />
-        </video>
+      {/* Left Column — Visual */}
+      <div className="hidden lg:flex w-[52%] relative flex-col items-center justify-end pb-32 px-12 rounded-3xl overflow-hidden"
+        style={{ background: '#06080f' }}>
+        {/* Floating Orbs */}
+        <div className="orb" style={{ width: 400, height: 400, background: 'radial-gradient(circle, rgba(168,85,247,0.3), transparent 70%)', top: '5%', left: '5%', animation: 'orbMove2 22s ease-in-out infinite' }}></div>
+        <div className="orb" style={{ width: 350, height: 350, background: 'radial-gradient(circle, rgba(239,77,35,0.25), transparent 70%)', bottom: '10%', right: '5%', animation: 'orbMove1 18s ease-in-out infinite' }}></div>
+        {/* Grid */}
+        <div className="absolute inset-0" style={{
+          backgroundImage: 'linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px)',
+          backgroundSize: '60px 60px',
+          maskImage: 'radial-gradient(ellipse at center, black 30%, transparent 70%)'
+        }}></div>
         <div className="z-10 w-full max-w-xs space-y-8">
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ staggerChildren: 0.15, delayChildren: 0.2 }}>
-            <motion.div className="flex items-center gap-2.5 mb-8" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-              <Circle size={20} className="fill-white text-white" />
-              <span className="text-xl font-semibold tracking-tight">Aurora</span>
-            </motion.div>
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-              <h2 className="text-4xl font-medium tracking-tight whitespace-nowrap">Join Aurora</h2>
-            </motion.div>
-            <motion.p className="text-white/60 text-sm leading-relaxed px-4 mt-2" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-              Follow these 3 quick phases to activate your space.
-            </motion.p>
-            <motion.div className="space-y-2 mt-6" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-              <StepItem number={1} text="Register your identity" active={true} />
-              <StepItem number={2} text="Configure your studio" />
-              <StepItem number={3} text="Finalize your profile" />
-            </motion.div>
-          </motion.div>
+          <div className="flex items-center gap-2.5 mb-8">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #ef4d23, #ff6b35)' }}>
+              <span className="text-white font-extrabold text-sm">G</span>
+            </div>
+            <span className="text-xl font-bold tracking-tight text-white">Glob ERP</span>
+          </div>
+          <h2 className="text-4xl font-bold tracking-tight text-white">Create <span style={{ color: '#a855f7' }}>Account</span></h2>
+          <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.4)', paddingLeft: '1rem' }}>
+            Set up your organization and start managing your fabrication business.
+          </p>
+          <div className="space-y-2 mt-6">
+            <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{ background: 'rgba(168,85,247,0.8)', color: '#fff' }}>
+              <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: 'rgba(0,0,0,0.2)' }}>1</div>
+              <span className="text-sm font-medium">Register your business</span>
+            </div>
+            <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)' }}>
+              <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: 'rgba(255,255,255,0.1)' }}>2</div>
+              <span className="text-sm font-medium">Configure GST & settings</span>
+            </div>
+            <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)' }}>
+              <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: 'rgba(255,255,255,0.1)' }}>3</div>
+              <span className="text-sm font-medium">Start using your ERP</span>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Right Column — Registration Form */}
+      {/* Right Column — Form */}
       <div className="flex-1 flex flex-col items-center justify-center py-8 lg:py-6 px-4 sm:px-12 lg:px-16 xl:px-24 overflow-y-auto lg:overflow-hidden">
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8, ease: 'easeOut' }} className="w-full max-w-xl space-y-6">
+        <div className="w-full max-w-xl space-y-6" style={{ animation: 'slideUp 0.8s ease-out' }}>
           <div>
-            <h1 className="text-3xl font-medium tracking-tight text-white">Create New Profile</h1>
-            <p className="text-white/40 text-sm mt-1">Input your details to begin the journey.</p>
+            <h1 className="text-3xl font-bold tracking-tight text-white">Create Account</h1>
+            <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.35)' }}>Input your details to begin the journey.</p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <SocialButton icon={<Chrome size={18} />} label="Google" />
-            <SocialButton icon={<Github size={18} />} label="Github" />
+            <button type="button" className="flex items-center justify-center gap-3 h-12 px-4 text-sm font-medium rounded-xl transition-all"
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.6)' }}>
+              G Google
+            </button>
+            <button type="button" className="flex items-center justify-center gap-3 h-12 px-4 text-sm font-medium rounded-xl transition-all"
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.6)' }}>
+              🐱 GitHub
+            </button>
           </div>
 
           <div className="relative flex items-center">
-            <div className="flex-1 border-t border-white/10"></div>
-            <span className="bg-black px-4 text-xs font-medium text-white/40 uppercase tracking-widest">Or</span>
-            <div className="flex-1 border-t border-white/10"></div>
+            <div className="flex-1" style={{ height: '1px', background: 'rgba(255,255,255,0.06)' }}></div>
+            <span className="px-4 text-xs font-medium uppercase tracking-widest" style={{ background: '#06080f', color: 'rgba(255,255,255,0.2)' }}>or</span>
+            <div className="flex-1" style={{ height: '1px', background: 'rgba(255,255,255,0.06)' }}></div>
           </div>
 
-          {error && <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-xl text-sm">{error}</div>}
+          {error && (
+            <div className="p-3 rounded-xl text-sm" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }}>
+              {error}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
               <label className="block text-sm font-medium text-white mb-1.5">Organization Name *</label>
-              <input value={form.orgName} onChange={e => update('orgName', e.target.value)} required placeholder="Glob Fabrication and Enterprises" className="w-full bg-brand-gray border-none rounded-xl h-11 px-4 text-white placeholder:text-white/20 focus:ring-2 focus:ring-white/20 focus:outline-none transition-all duration-150" />
+              <input value={form.orgName} onChange={e => update('orgName', e.target.value)} required placeholder="Glob Fabrication and Enterprises" className="input-field" />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <InputGroup label="Your Name" placeholder="Full name" value={form.name} onChange={e => update('name', e.target.value)} />
+              <div>
+                <label className="block text-sm font-medium text-white mb-1.5">Your Name</label>
+                <input value={form.name} onChange={e => update('name', e.target.value)} placeholder="Full name" className="input-field" />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-white mb-1.5">Phone</label>
-                <input value={form.phone} onChange={e => update('phone', e.target.value)} placeholder="Optional" className="w-full bg-brand-gray border-none rounded-xl h-11 px-4 text-white placeholder:text-white/20 focus:ring-2 focus:ring-white/20 focus:outline-none transition-all duration-150" />
+                <input value={form.phone} onChange={e => update('phone', e.target.value)} placeholder="Optional" className="input-field" />
               </div>
             </div>
-            <InputGroup label="Email" placeholder="you@company.com" type="email" value={form.email} onChange={e => update('email', e.target.value)} />
+            <div>
+              <label className="block text-sm font-medium text-white mb-1.5">Email</label>
+              <input type="email" value={form.email} onChange={e => update('email', e.target.value)} placeholder="you@company.com" className="input-field" />
+            </div>
             <div>
               <label className="block text-sm font-medium text-white mb-1.5">GSTIN</label>
-              <input value={form.gstin} onChange={e => update('gstin', e.target.value)} placeholder="27AWAPK1209R1ZC" className="w-full bg-brand-gray border-none rounded-xl h-11 px-4 text-white placeholder:text-white/20 focus:ring-2 focus:ring-white/20 focus:outline-none transition-all duration-150" />
+              <input value={form.gstin} onChange={e => update('gstin', e.target.value)} placeholder="27AWAPK1209R1ZC" className="input-field" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-medium text-white mb-1.5">State</label>
-                <input value={form.state} onChange={e => update('state', e.target.value)} placeholder="Maharashtra" className="w-full bg-brand-gray border-none rounded-xl h-11 px-4 text-white placeholder:text-white/20 focus:ring-2 focus:ring-white/20 focus:outline-none transition-all duration-150" />
+                <input value={form.state} onChange={e => update('state', e.target.value)} placeholder="Maharashtra" className="input-field" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-white mb-1.5">City</label>
-                <input value={form.city} onChange={e => update('city', e.target.value)} placeholder="Mumbai" className="w-full bg-brand-gray border-none rounded-xl h-11 px-4 text-white placeholder:text-white/20 focus:ring-2 focus:ring-white/20 focus:outline-none transition-all duration-150" />
+                <input value={form.city} onChange={e => update('city', e.target.value)} placeholder="Mumbai" className="input-field" />
               </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-white mb-1.5">Password *</label>
               <div className="relative">
-                <input type={showPassword ? 'text' : 'password'} value={form.password} onChange={e => update('password', e.target.value)} required placeholder="Min 6 characters" className="w-full bg-brand-gray border-none rounded-xl h-11 px-4 pr-11 text-white placeholder:text-white/20 focus:ring-2 focus:ring-white/20 focus:outline-none transition-all duration-150" />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/60 transition-colors">
+                <input type={showPassword ? 'text' : 'password'} value={form.password} onChange={e => update('password', e.target.value)} required placeholder="Min 6 characters" className="input-field" style={{ paddingRight: '2.75rem' }} />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: 'rgba(255,255,255,0.3)' }}>
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
             </div>
-            <button type="submit" disabled={loading} className="w-full h-14 bg-white text-black font-semibold rounded-xl hover:bg-white/90 active:scale-[0.98] mt-2 transition-all duration-150 disabled:opacity-50 flex items-center justify-center gap-2">
+            <button type="submit" disabled={loading} className="w-full h-14 font-semibold rounded-xl mt-2 transition-all duration-150 disabled:opacity-50 flex items-center justify-center gap-2 text-white"
+              style={{ background: 'linear-gradient(135deg, #ef4d23, #ff6b35)', boxShadow: '0 0 20px rgba(239,77,35,0.25)' }}>
               <UserPlus size={18} /> {loading ? 'Creating...' : 'Create Account'}
             </button>
           </form>
 
-          <p className="text-center text-sm text-white/40">
+          <p className="text-center text-sm" style={{ color: 'rgba(255,255,255,0.3)' }}>
             Already have an account?{' '}
-            <Link to="/login" className="text-brand-orange hover:text-brand-orange/80 font-medium transition-colors">Sign In</Link>
+            <Link to="/login" className="font-medium" style={{ color: '#ef4d23' }}>Sign In</Link>
           </p>
-        </motion.div>
+        </div>
       </div>
     </main>
   )
