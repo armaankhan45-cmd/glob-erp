@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { useTheme } from '../main'
 import api from '../api/client'
 import { Plus, Users, CreditCard, FileText, Calculator, TrendingUp, IndianRupee, AlertCircle, UserPlus } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell } from 'recharts'
@@ -12,8 +11,6 @@ const CHART_COLORS = ['#ef4d23', '#4f8fff', '#a855f7', '#22d3ee', '#8b5cf6', '#0
 
 export default function Dashboard() {
   const { user } = useAuth()
-  const { themeKey, themes } = useTheme()
-  const accent = themes[themeKey]?.color || '#06b6d4'
   const [stats, setStats] = useState({})
   const [recentInvoices, setRecentInvoices] = useState([])
   const [monthlySales, setMonthlySales] = useState([])
@@ -35,16 +32,16 @@ export default function Dashboard() {
   const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
 
   const quickActions = [
-    { label: 'New Invoice', path: '/app/invoices/new', icon: FileText, gradient: `linear-gradient(135deg, ${accent}, ${accent}99)` },
-    { label: 'Add Customer', path: '/app/customers', icon: UserPlus, gradient: 'linear-gradient(135deg, #22c55e, #16a34a)' },
-    { label: 'Record Payment', path: '/app/invoices', icon: CreditCard, gradient: 'linear-gradient(135deg, #a855f7, #7c3aed)' },
-    { label: 'New Quote', path: '/app/quotations/new', icon: Plus, gradient: `linear-gradient(135deg, ${accent}, ${accent}99)` },
-    { label: 'GST Reports', path: '/app/gst', icon: Calculator, gradient: 'linear-gradient(135deg, #22d3ee, #06b6d4)' },
+    { label: 'New Invoice', path: '/app/invoices/new', icon: FileText, cls: 'btn-primary' },
+    { label: 'Add Customer', path: '/app/customers', icon: UserPlus, cls: '' , gradient: 'linear-gradient(135deg, #22c55e, #16a34a)' },
+    { label: 'Record Payment', path: '/app/invoices', icon: CreditCard, cls: '', gradient: 'linear-gradient(135deg, #a855f7, #7c3aed)' },
+    { label: 'New Quote', path: '/app/quotations/new', icon: Plus, cls: 'btn-primary' },
+    { label: 'GST Reports', path: '/app/gst', icon: Calculator, cls: '', gradient: 'linear-gradient(135deg, #22d3ee, #06b6d4)' },
   ]
 
   const metricCards = [
     { label: 'Total Revenue', value: formatCurrency(stats.totalRevenue), icon: IndianRupee, color: '#22c55e', bg: 'rgba(34,197,94,0.12)' },
-    { label: 'Pending Invoices', value: stats.pendingInvoices || 0, icon: AlertCircle, color: accent, bg: `${accent}1F` },
+    { label: 'Pending Invoices', value: stats.pendingInvoices || 0, icon: AlertCircle, color: '#06b6d4', bg: 'rgba(6,182,212,0.12)' },
     { label: 'GST Payable', value: formatCurrency(stats.netPayable?.cgst + stats.netPayable?.sgst + stats.netPayable?.igst || 0), icon: TrendingUp, color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
     { label: 'Customer Count', value: stats.customerCount || 0, icon: Users, color: '#4f8fff', bg: 'rgba(79,143,255,0.12)' },
   ]
@@ -57,30 +54,26 @@ export default function Dashboard() {
     { name: 'IGST', value: Math.max(0, stats.netPayable?.igst || 0) },
   ].filter(d => d.value > 0)
 
-  if (loading) return <div className="flex justify-center py-20"><div className="animate-spin h-8 w-8 border-4 rounded-full" style={{ borderColor: accent, borderTopColor: 'transparent' }}></div></div>
+  if (loading) return <div className="flex justify-center py-20"><div className="animate-spin h-8 w-8 border-4 rounded-full" style={{ borderColor: '#06b6d4', borderTopColor: 'transparent' }}></div></div>
 
   const fmtTooltip = (val) => formatCurrency(val)
 
   return (
     <div className="space-y-6">
-      {/* Welcome Banner */}
-      <div className="rounded-2xl p-6 text-white relative overflow-hidden"
-        style={{ background: `linear-gradient(135deg, ${accent}, ${accent}cc, #a855f7)` }}>
-        <div className="absolute inset-0 opacity-20" style={{
-          backgroundImage: 'radial-gradient(circle at 80% 50%, rgba(255,255,255,0.2), transparent 50%)'
-        }}></div>
+      <div className="rounded-2xl p-6 text-white relative overflow-hidden btn-primary" style={{ borderRadius: '1rem' }}>
+        <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 80% 50%, rgba(255,255,255,0.2), transparent 50%)' }}></div>
         <div className="relative z-10">
           <h1 className="text-2xl font-bold mb-1">Welcome, {user?.name || 'User'}!</h1>
           <p className="text-sm" style={{ color: 'rgba(255,255,255,0.8)' }}>{user?.organization?.name} • GSTIN: {user?.organization?.gstin || 'N/A'} • {today}</p>
         </div>
       </div>
 
-      {/* Quick Actions */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
         {quickActions.map((a, i) => (
           <Link key={i} to={a.path} className="card text-center group" style={{ animation: `slideUp 0.5s ease-out ${i * 0.05}s both` }}>
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white mx-auto mb-2 group-hover:scale-110 transition-transform"
-              style={{ background: a.gradient }}>
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white mx-auto mb-2 group-hover:scale-110 transition-transform ${a.cls}`}
+                style={{ background: a.gradient || undefined }}
+              >
               <a.icon size={22} />
             </div>
             <p className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.6)' }}>{a.label}</p>
@@ -88,14 +81,12 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Metric Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {metricCards.map((m, i) => (
           <div key={i} className="card" style={{ animation: `slideUp 0.5s ease-out ${i * 0.1}s both` }}>
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>{m.label}</span>
-              <div className="w-10 h-10 rounded-lg flex items-center justify-center"
-                style={{ background: m.bg, color: m.color }}>
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: m.bg, color: m.color }}>
                 <m.icon size={20} />
               </div>
             </div>
@@ -105,7 +96,6 @@ export default function Dashboard() {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* Sales Chart */}
         <div className="lg:col-span-2 card">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold text-white">Sales Performance</h3>
@@ -113,8 +103,8 @@ export default function Dashboard() {
               {[['bar','Bar'],['line','Line'],['area','Area']].map(([val, label]) => (
                 <button key={val} onClick={() => setChartType(val)}
                   className="px-2 py-1 text-xs rounded font-medium transition-all"
-                  style={chartType === val 
-                    ? { background: accent, color: '#fff' }
+                  style={chartType === val
+                    ? { background: '#06b6d4', color: '#fff' }
                     : { background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.06)' }
                   }>
                   {label}
@@ -130,7 +120,7 @@ export default function Dashboard() {
                   <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} />
                   <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} />
                   <Tooltip formatter={fmtTooltip} contentStyle={{ background: '#0c1020', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }} />
-                  <Bar dataKey="revenue" fill={accent} radius={[4,4,0,0]} name="Revenue" />
+                  <Bar dataKey="revenue" fill="#06b6d4" radius={[4,4,0,0]} name="Revenue" />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -165,7 +155,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* GST Summary */}
         <div className="space-y-4">
           <div className="card">
             <h3 className="font-bold text-white mb-4">GST Summary</h3>
@@ -174,9 +163,9 @@ export default function Dashboard() {
                 <p className="text-sm font-medium" style={{ color: '#4f8fff' }}>Output GST</p>
                 <p className="text-xl font-bold" style={{ color: '#93bbff' }}>{formatCurrency(stats.outputGST?.total || 0)}</p>
               </div>
-              <div className="rounded-xl p-4" style={{ background: `${accent}14`, border: `1px solid ${accent}1F` }}>
-                <p className="text-sm font-medium" style={{ color: accent }}>Input GST</p>
-                <p className="text-xl font-bold" style={{ color: accent }}>{formatCurrency(stats.inputGST?.total || 0)}</p>
+              <div className="rounded-xl p-4" style={{ background: 'rgba(6,182,212,0.08)', border: '1px solid rgba(6,182,212,0.12)' }}>
+                <p className="text-sm font-medium" style={{ color: '#06b6d4' }}>Input GST</p>
+                <p className="text-xl font-bold" style={{ color: '#22d3ee' }}>{formatCurrency(stats.inputGST?.total || 0)}</p>
               </div>
               <div className="rounded-xl p-4" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.12)' }}>
                 <p className="text-sm font-medium" style={{ color: '#ef4444' }}>Net Payable</p>
@@ -207,39 +196,27 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Recent Invoices */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-bold text-white">Recent Invoices</h3>
-          <Link to="/app/invoices" className="text-sm font-medium" style={{ color: accent }}>View All</Link>
+          <Link to="/app/invoices" className="text-sm font-medium accent-text">View All</Link>
         </div>
         {recentInvoices.length === 0 ? (
           <p className="text-center py-8" style={{ color: 'rgba(255,255,255,0.25)' }}>No invoices yet. Create your first invoice!</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="nebula-table">
-              <thead><tr>
-                <th>Invoice #</th>
-                <th>Customer</th>
-                <th>Date</th>
-                <th className="text-right">Amount</th>
-                <th className="text-right">Status</th>
-              </tr></thead>
+              <thead><tr><th>Invoice #</th><th>Customer</th><th>Date</th><th className="text-right">Amount</th><th className="text-right">Status</th></tr></thead>
               <tbody>
                 {recentInvoices.map(inv => (
                   <tr key={inv.id}>
-                    <td><Link to={`/app/invoices/${inv.id}`} style={{ color: accent }}>{inv.invoice_number}</Link></td>
+                    <td><Link to={`/app/invoices/${inv.id}`} className="accent-text">{inv.invoice_number}</Link></td>
                     <td>{inv.customer_name || 'N/A'}</td>
                     <td style={{ color: 'rgba(255,255,255,0.35)' }}>{inv.invoice_date}</td>
                     <td className="text-right font-medium text-white">{formatCurrency(inv.total_amount)}</td>
                     <td className="text-right">
                       <span className="px-2 py-0.5 rounded-full text-xs font-medium"
-                        style={inv.payment_status === 'Paid' 
-                          ? { background: 'rgba(34,197,94,0.1)', color: '#22c55e' }
-                          : inv.payment_status === 'Partial'
-                          ? { background: 'rgba(234,179,8,0.1)', color: '#eab308' }
-                          : { background: 'rgba(239,68,68,0.1)', color: '#ef4444' }
-                        }>
+                        style={inv.payment_status === 'Paid' ? { background: 'rgba(34,197,94,0.1)', color: '#22c55e' } : inv.payment_status === 'Partial' ? { background: 'rgba(234,179,8,0.1)', color: '#eab308' } : { background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>
                         {inv.payment_status}
                       </span>
                     </td>
@@ -250,7 +227,6 @@ export default function Dashboard() {
           </div>
         )}
       </div>
-
       <GSTCalcModal />
     </div>
   )
