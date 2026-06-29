@@ -44,6 +44,13 @@ function MiniMarkdown({ text }) {
   )
 }
 
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1,3), 16)
+  const g = parseInt(hex.slice(3,5), 16)
+  const b = parseInt(hex.slice(5,7), 16)
+  return `${r},${g},${b}`
+}
+
 export default function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [aiOpen, setAiOpen] = useState(false)
@@ -153,7 +160,7 @@ export default function MainLayout() {
                       </div>
                     )}
                     <div className={`max-w-[85%] rounded-xl px-3 py-2 ${m.role === 'user' ? 'rounded-br-md' : 'rounded-bl-md'}`}
-                      style={m.role === 'user' 
+                      style={m.role === 'user'
                         ? { background: `linear-gradient(135deg, ${accent}, ${accent}99)` }
                         : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#e8eaf0' }
                       }>
@@ -216,11 +223,4 @@ export default function MainLayout() {
       )}
     </div>
   )
-}
-
-function hexToRgb(hex) {
-  const r = parseInt(hex.slice(1,3), 16)
-  const g = parseInt(hex.slice(3,5), 16)
-  const b = parseInt(hex.slice(5,7), 16)
-  return `${r},${g},${b}`
 }
