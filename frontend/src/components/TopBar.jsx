@@ -1,8 +1,12 @@
 import { useAuth } from '../context/AuthContext'
+import { useTheme } from '../context/ThemeContext'
 import { Bell, ChevronDown } from 'lucide-react'
 
 export default function TopBar() {
   const { user } = useAuth()
+  const { themeKey, themes } = useTheme()
+  const accent = themes[themeKey]?.color || '#06b6d4'
+
   return (
     <header className="h-14 flex items-center justify-between px-5"
       style={{ background: 'rgba(12,16,32,0.8)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
@@ -12,17 +16,14 @@ export default function TopBar() {
         </h2>
       </div>
       <div className="flex items-center gap-3">
-        <button className="w-9 h-9 rounded-xl flex items-center justify-center relative transition-all duration-200"
-          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}
-          onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(239,77,35,0.3)'}
-          onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'}
-        >
+        <button className="w-9 h-9 rounded-xl flex items-center justify-center relative transition-all"
+          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
           <Bell size={15} style={{ color: 'rgba(255,255,255,0.4)' }} />
-          <div className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full" style={{ background: '#ef4d23', animation: 'pulseGlow 2s ease-in-out infinite' }}></div>
+          <div className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full" style={{ background: accent, animation: 'pulseGlow 2s ease-in-out infinite' }}></div>
         </button>
         <div className="flex items-center gap-2.5 pl-3" style={{ borderLeft: '1px solid rgba(255,255,255,0.06)' }}>
           <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-white"
-            style={{ background: 'linear-gradient(135deg, #ef4d23, #ff6b35)' }}>
+            style={{ background: `linear-gradient(135deg, ${accent}, ${accent}cc)` }}>
             {user?.name?.charAt(0)?.toUpperCase() || 'U'}
           </div>
           <div className="hidden sm:block">
