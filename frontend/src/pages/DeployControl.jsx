@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../api/client'
-import { useTheme } from '../context/ThemeContext'
+import { useTheme } from '../main'
 
 export default function DeployControl() {
   const { themeKey, themes } = useTheme()
