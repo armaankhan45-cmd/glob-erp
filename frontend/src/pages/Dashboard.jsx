@@ -113,7 +113,7 @@ export default function Dashboard() {
               {[['bar','Bar'],['line','Line'],['area','Area']].map(([val, label]) => (
                 <button key={val} onClick={() => setChartType(val)}
                   className="px-2 py-1 text-xs rounded font-medium transition-all"
-                  style={chartType === val 
+                  style={chartType === val
                     ? { background: accent, color: '#fff' }
                     : { background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.06)' }
                   }>
@@ -234,7 +234,7 @@ export default function Dashboard() {
                     <td className="text-right font-medium text-white">{formatCurrency(inv.total_amount)}</td>
                     <td className="text-right">
                       <span className="px-2 py-0.5 rounded-full text-xs font-medium"
-                        style={inv.payment_status === 'Paid' 
+                        style={inv.payment_status === 'Paid'
                           ? { background: 'rgba(34,197,94,0.1)', color: '#22c55e' }
                           : inv.payment_status === 'Partial'
                           ? { background: 'rgba(234,179,8,0.1)', color: '#eab308' }
