@@ -24,6 +24,7 @@ import FontSettings from './pages/FontSettings'
 import ExportData from './pages/ExportData'
 import Diagnostics from './pages/Diagnostics'
 import AIAssistant from './pages/AIAssistant'
+import DeployControl from './pages/DeployControl'
 import MainLayout from './layouts/MainLayout'
 import LandingPage from './pages/LandingPage'
 
@@ -65,6 +66,7 @@ export default function App() {
         <Route path="export" element={<ExportData />} />
         <Route path="diagnostics" element={<Diagnostics />} />
         <Route path="ai-assistant" element={<AIAssistant />} />
+        <Route path="deploy" element={<DeployControl />} />
       </Route>
     </Routes>
   )
