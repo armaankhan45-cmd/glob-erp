@@ -8,20 +8,18 @@
   :root {
     --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
     --font-mono: "Space Grotesk", monospace;
-    /* Default accent - Cyan */
     --accent: #06b6d4;
     --accent-rgb: 6, 182, 212;
     --accent-dark: #0891b2;
     --accent-light: #22d3ee;
     --accent-glow: rgba(6, 182, 212, 0.3);
-    /* Nebula dark */
     --bg-deep: #06080f;
     --bg-page: #080b14;
     --bg-panel: #0c1020;
-    --bg-card: rgba(14,18,36,0.7);
-    --glass-border: rgba(255,255,255,0.08);
-    --text: #e8eaf0;
-    --text-dim: rgba(255,255,255,0.4);
+    --bg-card: rgba(14,18,36,0.85);
+    --glass-border: rgba(255,255,255,0.10);
+    --text: #f0f2f5;
+    --text-dim: rgba(255,255,255,0.55);
     --text-bright: #fff;
   }
 
@@ -30,6 +28,9 @@
     font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
     background: var(--bg-page);
     color: var(--text);
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   /* Theme color classes */
@@ -42,6 +43,11 @@
   .theme-orange { --accent: #ef4d23; --accent-rgb: 239,77,35; --accent-dark: #d93d14; --accent-light: #ff6b35; --accent-glow: rgba(239,77,35,0.3); }
   .theme-pink { --accent: #ec4899; --accent-rgb: 236,72,153; --accent-dark: #db2777; --accent-light: #f472b6; --accent-glow: rgba(236,72,153,0.3); }
   .theme-lime { --accent: #84cc16; --accent-rgb: 132,204,22; --accent-dark: #65a30d; --accent-light: #a3e635; --accent-glow: rgba(132,204,22,0.3); }
+
+  /* Smooth theme transition */
+  *, *::before, *::after {
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, color 0.15s ease;
+  }
 }
 
 @page { size: A4; margin: 0; }
@@ -53,7 +59,7 @@
   .print-area { position: absolute; left: 0; top: 0; }
 }
 
-/* ── Nebula Components (uses CSS variables for accent) ── */
+/* ── Nebula Components ── */
 @layer components {
   .card {
     @apply rounded-2xl p-5 transition-all duration-300;
@@ -61,7 +67,10 @@
     border: 1px solid var(--glass-border);
     backdrop-filter: blur(10px);
   }
-  .card:hover { border-color: rgba(var(--accent-rgb), 0.15); }
+  .card:hover {
+    border-color: rgba(var(--accent-rgb), 0.25);
+    box-shadow: 0 0 20px rgba(var(--accent-rgb), 0.06);
+  }
 
   .btn-primary {
     @apply font-semibold rounded-xl px-5 py-2.5 active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:pointer-events-none text-white;
@@ -69,17 +78,17 @@
     box-shadow: 0 0 15px rgba(var(--accent-rgb), 0.2);
   }
   .btn-primary:hover {
-    box-shadow: 0 0 25px rgba(var(--accent-rgb), 0.35);
+    box-shadow: 0 0 30px rgba(var(--accent-rgb), 0.35);
     transform: translateY(-1px);
   }
 
   .btn-secondary {
     @apply font-medium rounded-xl px-4 py-2.5 active:scale-[0.98] transition-all duration-150;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid var(--glass-border);
-    color: var(--text);
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.10);
+    color: #e0e2e8;
   }
-  .btn-secondary:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); }
+  .btn-secondary:hover { background: rgba(255,255,255,0.10); border-color: rgba(var(--accent-rgb), 0.3); color: #fff; }
 
   .btn-danger {
     @apply font-medium rounded-xl px-4 py-2.5 transition-all duration-150;
@@ -90,32 +99,31 @@
   .btn-danger:hover { background: rgba(239,68,68,0.25); }
 
   .input-field {
-    @apply w-full rounded-xl h-11 px-4 transition-all duration-150;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid var(--glass-border);
+    @apply w-full rounded-xl h-11 px-4 transition-all duration-150 font-medium;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.10);
     color: #fff;
+    font-size: 0.9rem;
   }
-  .input-field::placeholder { color: rgba(255,255,255,0.2); }
+  .input-field::placeholder { color: rgba(255,255,255,0.35); }
   .input-field:focus {
     outline: none;
-    border-color: rgba(var(--accent-rgb), 0.4);
-    box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.1);
+    border-color: rgba(var(--accent-rgb), 0.5);
+    box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.12);
   }
 
   .input-field-light {
     @apply w-full bg-white border border-neutral-200 rounded-xl h-11 px-4 text-neutral-800 placeholder:text-neutral-400 focus:ring-2 focus:outline-none transition-all duration-150;
-    focus-ring-color: rgba(var(--accent-rgb), 0.2);
-    focus-border-color: rgba(var(--accent-rgb), 0.3);
   }
 
   .sidebar-link {
     @apply flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-150;
-    color: rgba(255,255,255,0.4);
+    color: rgba(255,255,255,0.55);
   }
-  .sidebar-link:hover { color: rgba(255,255,255,0.7); background: rgba(255,255,255,0.04); }
+  .sidebar-link:hover { color: rgba(255,255,255,0.85); background: rgba(255,255,255,0.06); }
   .sidebar-link.active {
     color: var(--accent);
-    background: rgba(var(--accent-rgb), 0.1);
+    background: rgba(var(--accent-rgb), 0.12);
     font-weight: 600;
     box-shadow: inset 3px 0 0 var(--accent);
   }
@@ -127,42 +135,48 @@
     border-radius: 1rem;
   }
 
-  /* Tables */
+  /* Tables - BRIGHT readable text */
   .nebula-table { @apply w-full text-sm; }
-  .nebula-table thead tr { border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .nebula-table thead tr { border-bottom: 1px solid rgba(255,255,255,0.08); }
   .nebula-table th {
-    @apply pb-2 font-medium text-left;
-    color: var(--text-dim);
+    @apply pb-2 font-semibold text-left;
+    color: rgba(255,255,255,0.65);
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
   .nebula-table td {
     @apply py-2.5;
-    border-bottom: 1px solid rgba(255,255,255,0.03);
-    color: var(--text);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    color: #dde0e6;
   }
-  .nebula-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .nebula-table tr:hover td { background: rgba(var(--accent-rgb), 0.03); }
 
   /* Accent helpers */
-  .accent-text { color: var(--accent); }
-  .accent-bg { background: rgba(var(--accent-rgb), 0.1); }
-  .accent-border { border-color: rgba(var(--accent-rgb), 0.2); }
+  .accent-text { color: var(--accent) !important; }
+  .accent-bg { background: rgba(var(--accent-rgb), 0.12); }
+  .accent-border { border-color: rgba(var(--accent-rgb), 0.25); }
   .accent-glow { box-shadow: 0 0 20px rgba(var(--accent-rgb), 0.25); }
+
+  /* Readable label text */
+  .label-text { color: rgba(255,255,255,0.65); font-weight: 500; }
+  .value-text { color: #fff; font-weight: 600; }
+  .hint-text { color: rgba(255,255,255,0.40); }
 }
 
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
 
-::selection { background: rgba(var(--accent-rgb), 0.25); }
+::selection { background: rgba(var(--accent-rgb), 0.3); }
 
 /* ── Keyframes ── */
 @keyframes slideUp { from { opacity:0; transform:translateY(20px) } to { opacity:1; transform:translateY(0) } }
 @keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
 @keyframes float { 0%,100% { transform:translateY(0) } 50% { transform:translateY(-8px) } }
-@keyframes pulseGlow { 0%,100% { box-shadow:0 0 5px rgba(var(--accent-rgb),0.3) } 50% { box-shadow:0 0 25px rgba(var(--accent-rgb),0.4),0 0 60px rgba(var(--accent-rgb),0.15) } }
+@keyframes pulseGlow { 0%,100% { box-shadow:0 0 5px rgba(var(--accent-rgb),0.3) } 50% { box-shadow:0 0 25px rgba(var(--accent-rgb),0.5),0 0 60px rgba(var(--accent-rgb),0.2) } }
 @keyframes orbMove1 { 0%{transform:translate(0,0) scale(1)} 25%{transform:translate(100px,-50px) scale(1.1)} 50%{transform:translate(200px,20px) scale(0.9)} 75%{transform:translate(50px,80px) scale(1.05)} 100%{transform:translate(0,0) scale(1)} }
 @keyframes orbMove2 { 0%{transform:translate(0,0) scale(1)} 25%{transform:translate(-80px,60px) scale(0.95)} 50%{transform:translate(-160px,-30px) scale(1.1)} 75%{transform:translate(-40px,-80px) scale(0.9)} 100%{transform:translate(0,0) scale(1)} }
+@keyframes accentPulse { 0%,100% { opacity: 1 } 50% { opacity: 0.7 } }
