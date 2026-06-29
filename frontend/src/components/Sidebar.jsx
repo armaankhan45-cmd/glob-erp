@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { LayoutDashboard, FileText, FileSpreadsheet, Users, ShoppingCart, Calculator, BarChart3, Settings, Download, RefreshCw, LogOut, Factory, Activity, Bot, Rocket } from 'lucide-react'
+import { LayoutDashboard, FileText, FileSpreadsheet, Users, ShoppingCart, Calculator, BarChart3, Settings, Download, RefreshCw, LogOut, Factory, Activity, Bot, Upload } from 'lucide-react'
 
 const navItems = [
   { label: 'Dashboard', path: '/app/dashboard', icon: LayoutDashboard, section: 'MAIN' },
@@ -13,7 +13,7 @@ const navItems = [
   { label: 'Reports', path: '/app/reports', icon: BarChart3, section: 'FINANCE' },
   { label: 'Export Excel', path: '/app/export', icon: Download, section: 'SYSTEM' },
   { label: 'Settings', path: '/app/settings', icon: Settings, section: 'SYSTEM' },
-  { label: 'Deploy Control', path: '/app/deploy', icon: Rocket, section: 'SYSTEM' },
+  { label: 'Deploy Control', path: '/app/deploy', icon: Upload, section: 'SYSTEM' },
   { label: 'Diagnostics', path: '/app/diagnostics', icon: Activity, section: 'SYSTEM' },
 ]
 
