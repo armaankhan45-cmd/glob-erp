@@ -37,10 +37,10 @@ function processInline(text) {
       return <div key={i} className="ml-3 flex"><span className="mr-2 text-gray-500">{num}.</span><span>{processBold(line.replace(/^\d+\.\s/, ''))}</span></div>
     }
     if (line.trim() === '') return <div key={i} className="h-2" />
-    if (line.match(/^---+$/)) return <hr key={i} className="border-gray-200 my-2" />
+    if (line.match(/^---+$/)) return <hr key={i} className="my-2" style={{ borderColor: 'rgba(255,255,255,0.06)' }} />
     // Image line: ![alt](url)
     const imgMatch = line.match(/!\[([^\]]*)\]\(([^)]+)\)/)
-    if (imgMatch) return <div key={i} className="my-2"><img src={imgMatch[2]} alt={imgMatch[1]} className="rounded-lg max-w-full border" style={{maxHeight:'300px'}} /></div>
+    if (imgMatch) return <div key={i} className="my-2"><img src={imgMatch[2]} alt={imgMatch[1]} className="rounded-lg max-w-full" style={{maxHeight:'300px', border: '1px solid rgba(255,255,255,0.08)'}} /></div>
     return <div key={i}>{processBold(line)}</div>
   })
 }
@@ -51,7 +51,7 @@ function processBold(text) {
     if (part.startsWith('**') && part.endsWith('**')) return <strong key={i}>{part.slice(2, -2)}</strong>
     const codeParts = part.split(/(`[^`]+`)/g)
     return codeParts.map((cp, j) => {
-      if (cp.startsWith('`') && cp.endsWith('`')) return <code key={`${i}-${j}`} className="bg-gray-100 text-red-600 px-1 py-0.5 rounded text-xs font-mono">{cp.slice(1, -1)}</code>
+      if (cp.startsWith('`') && cp.endsWith('`')) return <code key={`${i}-${j}`} className="px-1 py-0.5 rounded text-xs font-mono" style={{ background: 'rgba(239,77,35,0.12)', color: '#ef4d23' }}>{cp.slice(1, -1)}</code>
       return <span key={`${i}-${j}`}>{cp}</span>
     })
   })
@@ -61,14 +61,14 @@ function CodeBlock({ language, code }) {
   const [copied, setCopied] = useState(false)
   const handleCopy = () => { navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 2000) }
   return (
-    <div className="my-2 rounded-lg overflow-hidden border border-gray-700 bg-gray-900">
-      <div className="flex items-center justify-between px-3 py-1.5 bg-gray-800 text-gray-400 text-xs">
+    <div className="my-2 rounded-lg overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.4)' }}>
+      <div className="flex items-center justify-between px-3 py-1.5 text-xs" style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.35)' }}>
         <span className="font-mono">{language || 'code'}</span>
         <button onClick={handleCopy} className="flex items-center gap-1 hover:text-white transition-colors">
           {copied ? <><Check size={12} /> Copied!</> : <><Copy size={12} /> Copy</>}
         </button>
       </div>
-      <pre className="p-3 overflow-x-auto text-xs text-gray-100 font-mono leading-relaxed" style={{ maxWidth: '100%' }}><code>{code}</code></pre>
+      <pre className="p-3 overflow-x-auto text-xs font-mono leading-relaxed" style={{ maxWidth: '100%', color: '#e8eaf0' }}><code>{code}</code></pre>
     </div>
   )
 }
@@ -78,14 +78,19 @@ function ToolCallDisplay({ name, args, result, expanded: defaultExpanded = false
   const success = result && !result.error
   const icon = success ? '✅' : '❌'
   return (
-    <div className="my-1.5 border rounded-lg overflow-hidden text-xs">
-      <button onClick={() => setExpanded(!expanded)} className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors ${success ? 'bg-green-50 hover:bg-green-100 text-green-800' : 'bg-red-50 hover:bg-red-100 text-red-800'}`}>
+    <div className="my-1.5 rounded-lg overflow-hidden text-xs" style={{ border: '1px solid rgba(79,143,255,0.12)' }}>
+      <button onClick={() => setExpanded(!expanded)} className="w-full flex items-center gap-2 px-3 py-2 text-left transition-colors"
+        style={success 
+          ? { background: 'rgba(34,197,94,0.06)', color: '#4ade80' }
+          : { background: 'rgba(239,68,68,0.06)', color: '#f87171' }
+        }>
         <span>{icon}</span><Cpu size={12} /><span className="font-mono font-medium">{name}</span>
-        {args && Object.keys(args).length > 0 && <span className="text-gray-500 truncate">{Object.entries(args).map(([k,v]) => `${k}=${typeof v === 'string' ? v : JSON.stringify(v)}`).join(', ')}</span>}
+        {args && Object.keys(args).length > 0 && <span style={{ color: 'rgba(255,255,255,0.25)' }} className="truncate">{Object.entries(args).map(([k,v]) => `${k}=${typeof v === 'string' ? v : JSON.stringify(v)}`).join(', ')}</span>}
         <span className="ml-auto">{expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>
       </button>
       {expanded && result && (
-        <div className="bg-gray-900 text-gray-100 p-3 font-mono text-[10px] max-h-48 overflow-auto">
+        <div className="p-3 font-mono text-[10px] max-h-48 overflow-auto"
+          style={{ background: 'rgba(0,0,0,0.3)', color: '#e8eaf0' }}>
           <pre>{JSON.stringify(result, null, 2).substring(0, 2000)}</pre>
         </div>
       )}
@@ -98,8 +103,8 @@ const SUGGESTIONS = [
   { icon: '⚠️', text: 'Show recent errors' },
   { icon: '🔧', text: 'Fix all errors automatically' },
   { icon: '📊', text: 'How many invoices do I have?' },
+  { icon: '🚀', text: 'Check deploy status' },
   { icon: '🖼️', text: 'Generate an image of a steel tank' },
-  { icon: '💡', text: 'What can you do?' },
 ]
 
 const PROVIDER_LABELS = {
@@ -129,7 +134,7 @@ export default function AIAssistant() {
     api.get('/ai/status').then(res => setAiStatus(res.data)).catch(() => {})
     setMessages([{
       role: 'assistant',
-      content: `# 👋 Welcome to Glob ERP AI Assistant!\n\nI'm your **personal ERP expert** — powered by **FREE AI**!\n\nI can do everything a developer can do:\n\n🔍 **Debug & Diagnose** — Check system health, find errors\n🔧 **Fix Problems** — Auto-repair broken tables, missing columns\n📝 **Write Code** — Read, modify, and create source code\n📊 **Query Data** — Run SQL queries, list records, check invoices\n🖼️ **Generate Images** — Create images from text descriptions\n\n### Quick Start:\n- "My quotations are failing, fix it"\n- "Show me the invoice routes code"\n- "Generate an image of a steel tank"\n- "How many unpaid invoices do I have?"\n\n🆓 **100% FREE** — No API key, no signup, no credit card! 🎉\n\n💡 **Tip:** Use the provider dropdown ↑ to switch between AI models!`,
+      content: `# 👋 Welcome to Glob ERP AI Assistant!\n\nI'm your **personal ERP expert** — powered by **FREE AI**!\n\nI can do everything a developer can do:\n\n🔍 **Debug & Diagnose** — Check system health, find errors\n🔧 **Fix Problems** — Auto-repair broken tables, missing columns\n📝 **Write Code** — Read, modify, and create source code\n📊 **Query Data** — Run SQL queries, list records, check invoices\n🖼️ **Generate Images** — Create images from text descriptions\n🚀 **Deploy Control** — Deploy to Render, check GitHub/Vercel status\n🔄 **Server Management** — Restart server, check environment, view logs\n\n### Quick Start:\n- "Deploy the latest code to Render"\n- "Show me the invoice routes code"\n- "Generate an image of a steel tank"\n- "How many unpaid invoices do I have?"\n- "Check server health and environment"\n\n🆓 **100% FREE** — No API key, no signup, no credit card! 🎉\n\n💡 **Tip:** Use the provider dropdown ↑ to switch between AI models!`,
       toolCalls: []
     }])
   }, [])
@@ -205,18 +210,23 @@ export default function AIAssistant() {
   const availableProviders = ['auto', ...(aiStatus?.providers || ['Pollinations AI (Free)'])]
 
   return (
-    <div className="max-w-5xl mx-auto h-[calc(100vh-8rem)] flex flex-col">
+    <div className="max-w-5xl mx-auto h-[calc(100vh-8rem)] flex flex-col" style={{ position: 'relative' }}>
+      {/* Background orbs */}
+      <div style={{ position: 'absolute', width: 400, height: 400, borderRadius: '50%', filter: 'blur(120px)', opacity: 0.15, pointerEvents: 'none', top: -100, right: -100, background: 'radial-gradient(circle, #a855f7, transparent)', animation: 'orbMove1 18s ease-in-out infinite' }}></div>
+      <div style={{ position: 'absolute', width: 350, height: 350, borderRadius: '50%', filter: 'blur(120px)', opacity: 0.1, pointerEvents: 'none', bottom: -100, left: -100, background: 'radial-gradient(circle, #4f8fff, transparent)', animation: 'orbMove2 22s ease-in-out infinite' }}></div>
+
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 relative z-10">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 bg-gradient-to-br from-purple-500 via-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/20">
+          <div className="w-11 h-11 rounded-2xl flex items-center justify-center shadow-lg"
+            style={{ background: 'linear-gradient(135deg, #ef4d23, #a855f7, #4f8fff)', animation: 'pulseGlow 4s infinite' }}>
             <Bot size={22} className="text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">AI Assistant</h1>
+            <h1 className="text-xl font-bold" style={{ fontFamily: '"Space Grotesk", sans-serif', background: 'linear-gradient(135deg, #ef4d23, #4f8fff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>AI Assistant</h1>
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
-              <span className="text-xs text-gray-500">
+              <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#22c55e' }}></span>
+              <span className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>
                 🆓 {aiStatus?.aiEnabled 
                   ? (aiStatus.providers?.length > 1 
                     ? `${aiStatus.primaryProvider} +${aiStatus.providers.length - 1} more` 
@@ -232,49 +242,66 @@ export default function AIAssistant() {
           <div className="relative">
             <button 
               onClick={() => setShowProviders(!showProviders)}
-              className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-medium hover:border-purple-300 transition-colors"
+              className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium transition-colors"
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)' }}
             >
-              <Cpu size={14} className="text-purple-600" />
+              <Cpu size={14} style={{ color: '#ef4d23' }} />
               <span className="max-w-[120px] truncate">{PROVIDER_LABELS[selectedProvider] || selectedProvider}</span>
               <ChevronDown size={12} />
             </button>
             {showProviders && (
-              <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-xl border z-50 min-w-[220px] py-1">
+              <div className="absolute right-0 top-full mt-1 rounded-xl shadow-xl z-50 min-w-[220px] py-1 overflow-hidden"
+                style={{ background: 'rgba(12,16,32,0.97)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)' }}>
                 {availableProviders.map(p => (
                   <button
                     key={p}
                     onClick={() => { setSelectedProvider(p); setShowProviders(false) }}
-                    className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:bg-purple-50 transition-colors ${selectedProvider === p ? 'bg-purple-50 text-purple-700 font-medium' : 'text-gray-700'}`}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left transition-colors"
+                    style={selectedProvider === p 
+                      ? { background: 'rgba(239,77,35,0.08)', color: '#ef4d23', fontWeight: 600 }
+                      : { color: 'rgba(255,255,255,0.6)' }
+                    }
                   >
                     {PROVIDER_LABELS[p] || p}
-                    {selectedProvider === p && <Check size={14} className="ml-auto text-purple-600" />}
+                    {selectedProvider === p && <Check size={14} className="ml-auto" style={{ color: '#ef4d23' }} />}
                   </button>
                 ))}
               </div>
             )}
           </div>
-          <button onClick={clearChat} className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-red-500 transition-colors" title="Clear chat">
+          <button onClick={clearChat} className="p-2 rounded-lg transition-colors" style={{ color: 'rgba(255,255,255,0.3)' }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.background = 'rgba(239,68,68,0.1)' }}
+            onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.3)'; e.currentTarget.style.background = 'transparent' }}
+            title="Clear chat">
             <Trash2 size={18} />
           </button>
         </div>
       </div>
 
       {/* Chat Area */}
-      <div className="flex-1 overflow-y-auto bg-white rounded-2xl border shadow-sm mb-4" style={{ minHeight: 0 }}>
+      <div className="flex-1 overflow-y-auto rounded-2xl mb-4 relative z-10" style={{ minHeight: 0, background: 'rgba(14,18,36,0.5)', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(10px)' }}>
         <div className="p-5 space-y-5">
           {messages.map((msg, i) => (
             <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               {msg.role === 'assistant' && (
-                <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 mr-3 mt-1">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mr-3 mt-1"
+                  style={{ background: 'linear-gradient(135deg, #ef4d23, #a855f7)' }}>
                   <Bot size={16} className="text-white" />
                 </div>
               )}
               <div className={`max-w-[85%]`}>
                 <div className={`rounded-2xl px-4 py-3 text-sm ${
-                  msg.role === 'user' ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-br-md' 
-                  : msg.isError ? 'bg-red-50 text-red-800 border border-red-200 rounded-bl-md' 
-                  : 'bg-gray-50 text-gray-800 border border-gray-100 rounded-bl-md'
-                }`}>
+                  msg.role === 'user' ? 'rounded-br-md' 
+                  : msg.isError ? 'rounded-bl-md' 
+                  : 'rounded-bl-md'
+                }`}
+                  style={msg.role === 'user' 
+                    ? { background: 'linear-gradient(135deg, #ef4d23, #ff6b35)', color: '#fff' }
+                    : msg.isError 
+                    ? { background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)', color: '#f87171' }
+                    : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#e8eaf0' }
+                  }
+                >
                   {msg.role === 'user' ? <div className="whitespace-pre-wrap">{msg.content}</div> : <MarkdownText text={msg.content} />}
                 </div>
                 {msg.toolCalls?.length > 0 && (
@@ -284,32 +311,35 @@ export default function AIAssistant() {
                 )}
                 {msg.role === 'assistant' && msg.provider && (
                   <div className="mt-1.5 flex items-center gap-1.5">
-                    <span className="text-[10px] text-gray-400 font-medium">
+                    <span className="text-[10px] font-medium" style={{ color: 'rgba(255,255,255,0.25)' }}>
                       {msg.provider === 'rule-based' ? '⚡ Rule-based' : msg.provider === 'fallback' ? '⚡ Fallback' : msg.provider.includes('Image') ? '🖼️ Image Gen' : `🆓 ${msg.provider}`}
                     </span>
                   </div>
                 )}
               </div>
               {msg.role === 'user' && (
-                <div className="w-8 h-8 bg-gray-300 rounded-xl flex items-center justify-center flex-shrink-0 ml-3 mt-1">
-                  <span className="text-xs font-bold text-gray-600">You</span>
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ml-3 mt-1"
+                  style={{ background: 'rgba(255,255,255,0.08)' }}>
+                  <span className="text-xs font-bold" style={{ color: 'rgba(255,255,255,0.5)' }}>You</span>
                 </div>
               )}
             </div>
           ))}
           {loading && (
             <div className="flex justify-start">
-              <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 mr-3 mt-1">
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mr-3 mt-1"
+                style={{ background: 'linear-gradient(135deg, #ef4d23, #a855f7)' }}>
                 <Bot size={16} className="text-white" />
               </div>
-              <div className="bg-gray-50 border border-gray-100 rounded-2xl rounded-bl-md px-4 py-3">
+              <div className="rounded-2xl rounded-bl-md px-4 py-3"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
                 <div className="flex items-center gap-3">
                   <div className="flex gap-1">
-                    <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                    <div className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                    <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: '#ef4d23', animationDelay: '0ms' }}></div>
+                    <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: '#a855f7', animationDelay: '150ms' }}></div>
+                    <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: '#4f8fff', animationDelay: '300ms' }}></div>
                   </div>
-                  <span className="text-xs text-gray-500">Thinking...</span>
+                  <span className="text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>Thinking...</span>
                 </div>
               </div>
             </div>
@@ -320,10 +350,14 @@ export default function AIAssistant() {
 
       {/* Suggestions */}
       {messages.length <= 2 && (
-        <div className="flex flex-wrap gap-2 mb-3 px-1">
+        <div className="flex flex-wrap gap-2 mb-3 px-1 relative z-10">
           {SUGGESTIONS.map((s, i) => (
             <button key={i} onClick={() => sendMessage(s.text)}
-              className="text-xs px-3 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl hover:border-purple-300 hover:bg-purple-50 hover:text-purple-700 transition-all shadow-sm flex items-center gap-1.5">
+              className="text-xs px-3 py-2 rounded-xl transition-all flex items-center gap-1.5"
+              style={{ background: 'rgba(239,77,35,0.06)', border: '1px solid rgba(239,77,35,0.12)', color: '#ef4d23' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,77,35,0.12)'; e.currentTarget.style.borderColor = 'rgba(239,77,35,0.25)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,77,35,0.06)'; e.currentTarget.style.borderColor = 'rgba(239,77,35,0.12)' }}
+            >
               <span>{s.icon}</span><span>{s.text}</span>
             </button>
           ))}
@@ -331,31 +365,31 @@ export default function AIAssistant() {
       )}
 
       {/* Input Area */}
-      <div className="flex gap-2 items-end">
+      <div className="flex gap-2 items-end relative z-10">
         <div className="flex-1 relative">
           <textarea ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown}
-            placeholder="Ask me anything — debug, write code, generate images, query data..."
+            placeholder="Ask me anything — debug, deploy, write code, generate images..."
             disabled={loading} rows={1}
-            className="w-full pl-4 pr-4 py-3 border-2 border-gray-200 rounded-2xl focus:ring-2 focus:ring-purple-400 focus:border-purple-400 text-sm resize-none disabled:opacity-50 transition-all"
-            style={{ minHeight: '48px', maxHeight: '120px' }}
+            className="w-full pl-4 pr-4 py-3 rounded-2xl text-sm resize-none disabled:opacity-50 transition-all"
+            style={{ minHeight: '48px', maxHeight: '120px', background: 'rgba(255,255,255,0.04)', border: '2px solid rgba(255,255,255,0.06)', color: '#fff' }}
             onInput={(e) => { e.target.style.height = '48px'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px' }}
           />
         </div>
         <button onClick={() => sendMessage(input)} disabled={loading || !input.trim()}
-          className="p-3 bg-gradient-to-r from-purple-500 to-blue-600 text-white rounded-2xl hover:shadow-lg hover:shadow-purple-500/25 disabled:opacity-40 disabled:hover:shadow-none transition-all flex items-center justify-center"
-          style={{ minWidth: '48px', height: '48px' }}>
+          className="p-3 text-white rounded-2xl disabled:opacity-40 transition-all flex items-center justify-center"
+          style={{ minWidth: '48px', height: '48px', background: 'linear-gradient(135deg, #ef4d23, #a855f7)' }}
+        >
           <Send size={20} />
         </button>
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-center gap-4 mt-2 text-[10px] text-gray-400">
-        <span>Glob ERP AI v4.0</span>
+      <div className="flex items-center justify-center gap-4 mt-2 text-[10px] relative z-10" style={{ color: 'rgba(255,255,255,0.2)' }}>
+        <span>Glob ERP AI v5.0 • Nebula</span>
         <span>•</span>
-        <span>🆓 100% Free AI + Image Gen</span>
+        <span>🆓 100% Free AI + Image Gen + Deploy</span>
         <span>•</span>
         <span>{aiStatus?.toolsAvailable || 15} tools</span>
       </div>
     </div>
-  )
 }
