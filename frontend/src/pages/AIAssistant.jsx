@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../api/client'
-import { Bot, Send, X, Trash2, Lightbulb, ChevronDown, ChevronRight, Copy, Check, Cpu, Zap, Image, CpuIcon } from 'lucide-react'
+import { Bot, Send, X, Trash2, Lightbulb, ChevronDown, ChevronRight, Copy, Check, Cpu, Zap, Image } from 'lucide-react'
 
 // ═══════════════════════════════════════════════
 // MARKDOWN RENDERER
