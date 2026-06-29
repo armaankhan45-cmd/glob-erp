@@ -1,16 +1,19 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useTheme } from '../context/ThemeContext'
 import api from '../api/client'
 import { Plus, Users, CreditCard, FileText, Calculator, TrendingUp, IndianRupee, AlertCircle, UserPlus } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell } from 'recharts'
 import GSTCalcModal from '../components/GSTCalcModal'
 import { formatCurrency } from '../utils'
 
-const COLORS = ['#ef4d23', '#4f8fff', '#a855f7', '#22d3ee', '#8b5cf6', '#06b6d4', '#eab308', '#ec4899']
+const COLORS = ['accent', '#4f8fff', '#a855f7', '#22d3ee', '#8b5cf6', '#06b6d4', '#eab308', '#ec4899']
 
 export default function Dashboard() {
   const { user } = useAuth()
+  const { themeKey, themes } = useTheme()
+  const accent = themes[themeKey]?.color || '#06b6d4'
   const [stats, setStats] = useState({})
   const [recentInvoices, setRecentInvoices] = useState([])
   const [monthlySales, setMonthlySales] = useState([])
@@ -35,13 +38,13 @@ export default function Dashboard() {
     { label: 'New Invoice', path: '/app/invoices/new', icon: FileText, color: 'background: linear-gradient(135deg, #4f8fff, #3b82f6)' },
     { label: 'Add Customer', path: '/app/customers', icon: UserPlus, color: 'background: linear-gradient(135deg, #22c55e, #16a34a)' },
     { label: 'Record Payment', path: '/app/invoices', icon: CreditCard, color: 'background: linear-gradient(135deg, #a855f7, #7c3aed)' },
-    { label: 'New Quote', path: '/app/quotations/new', icon: Plus, color: 'background: linear-gradient(135deg, #ef4d23, #ff6b35)' },
+    { label: 'New Quote', path: '/app/quotations/new', icon: Plus, color: 'background: linear-gradient(135deg, accent, accent + '99')' },
     { label: 'GST Reports', path: '/app/gst', icon: Calculator, color: 'background: linear-gradient(135deg, #22d3ee, #06b6d4)' },
   ]
 
   const metricCards = [
     { label: 'Total Revenue', value: formatCurrency(stats.totalRevenue), icon: IndianRupee, gradient: 'linear-gradient(135deg, rgba(34,197,94,0.15), rgba(34,197,94,0.05))', iconBg: 'rgba(34,197,94,0.15)', iconColor: '#22c55e' },
-    { label: 'Pending Invoices', value: stats.pendingInvoices || 0, icon: AlertCircle, gradient: 'linear-gradient(135deg, rgba(239,77,35,0.15), rgba(239,77,35,0.05))', iconBg: 'rgba(239,77,35,0.15)', iconColor: '#ef4d23' },
+    { label: 'Pending Invoices', value: stats.pendingInvoices || 0, icon: AlertCircle, gradient: 'linear-gradient(135deg, accent + ','0.15), accent + ','0.05))', iconBg: 'accent + ','0.15)', iconColor: 'accent' },
     { label: 'GST Payable', value: formatCurrency(stats.netPayable?.cgst + stats.netPayable?.sgst + stats.netPayable?.igst || 0), icon: TrendingUp, gradient: 'linear-gradient(135deg, rgba(239,68,68,0.15), rgba(239,68,68,0.05))', iconBg: 'rgba(239,68,68,0.15)', iconColor: '#ef4444' },
     { label: 'Customer Count', value: stats.customerCount || 0, icon: Users, gradient: 'linear-gradient(135deg, rgba(79,143,255,0.15), rgba(79,143,255,0.05))', iconBg: 'rgba(79,143,255,0.15)', iconColor: '#4f8fff' },
   ]
@@ -54,7 +57,7 @@ export default function Dashboard() {
     { name: 'IGST', value: Math.max(0, stats.netPayable?.igst || 0) },
   ].filter(d => d.value > 0)
 
-  if (loading) return <div className="flex justify-center py-20"><div className="animate-spin h-8 w-8 border-4 rounded-full" style={{ borderColor: '#ef4d23', borderTopColor: 'transparent' }}></div></div>
+  if (loading) return <div className="flex justify-center py-20"><div className="animate-spin h-8 w-8 border-4 rounded-full" style={{ borderColor: 'accent', borderTopColor: 'transparent' }}></div></div>
 
   const fmtTooltip = (val) => formatCurrency(val)
   const chartBg = 'rgba(14,18,36,0.7)'
@@ -113,7 +116,7 @@ export default function Dashboard() {
                 <button key={val} onClick={() => setChartType(val)}
                   className="px-2 py-1 text-xs rounded font-medium transition-all"
                   style={chartType === val 
-                    ? { background: '#ef4d23', color: '#fff' }
+                    ? { background: 'accent', color: '#fff' }
                     : { background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.06)' }
                   }>
                   {label}
@@ -173,8 +176,8 @@ export default function Dashboard() {
                 <p className="text-sm font-medium" style={{ color: '#4f8fff' }}>Output GST</p>
                 <p className="text-xl font-bold" style={{ color: '#93bbff' }}>{formatCurrency(stats.outputGST?.total || 0)}</p>
               </div>
-              <div className="rounded-xl p-4" style={{ background: 'rgba(239,77,35,0.08)', border: '1px solid rgba(239,77,35,0.12)' }}>
-                <p className="text-sm font-medium" style={{ color: '#ef4d23' }}>Input GST</p>
+              <div className="rounded-xl p-4" style={{ background: 'accent + ','0.08)', border: '1px solid accent + ','0.12)' }}>
+                <p className="text-sm font-medium" style={{ color: 'accent' }}>Input GST</p>
                 <p className="text-xl font-bold" style={{ color: '#ff8c5a' }}>{formatCurrency(stats.inputGST?.total || 0)}</p>
               </div>
               <div className="rounded-xl p-4" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.12)' }}>
@@ -210,7 +213,7 @@ export default function Dashboard() {
       <div className="card">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-bold text-white">Recent Invoices</h3>
-          <Link to="/app/invoices" className="text-sm font-medium" style={{ color: '#ef4d23' }}>View All</Link>
+          <Link to="/app/invoices" className="text-sm font-medium" style={{ color: 'accent' }}>View All</Link>
         </div>
         {recentInvoices.length === 0 ? (
           <p className="text-center py-8" style={{ color: 'rgba(255,255,255,0.25)' }}>No invoices yet. Create your first invoice!</p>
@@ -227,7 +230,7 @@ export default function Dashboard() {
               <tbody>
                 {recentInvoices.map(inv => (
                   <tr key={inv.id}>
-                    <td><Link to={`/app/invoices/${inv.id}`} style={{ color: '#ef4d23' }}>{inv.invoice_number}</Link></td>
+                    <td><Link to={`/app/invoices/${inv.id}`} style={{ color: 'accent' }}>{inv.invoice_number}</Link></td>
                     <td>{inv.customer_name || 'N/A'}</td>
                     <td style={{ color: 'rgba(255,255,255,0.35)' }}>{inv.invoice_date}</td>
                     <td className="text-right font-medium text-white">{formatCurrency(inv.total_amount)}</td>
