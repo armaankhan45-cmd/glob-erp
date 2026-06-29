@@ -2,6 +2,7 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
 import Sidebar from '../components/Sidebar'
 import TopBar from '../components/TopBar'
+import { useTheme } from '../context/ThemeContext'
 import { Menu, Bot, X, Send } from 'lucide-react'
 import api from '../api/client'
 
@@ -33,7 +34,7 @@ function MiniMarkdown({ text }) {
               if (bp.startsWith('**') && bp.endsWith('**')) return <strong key={k}>{bp.slice(2, -2)}</strong>
               const codeParts = bp.split(/(`[^`]+`)/g)
               return codeParts.map((cp, l) => {
-                if (cp.startsWith('`') && cp.endsWith('`')) return <code key={`${k}-${l}`} className="px-0.5 rounded text-[10px] font-mono" style={{ background: 'rgba(239,77,35,0.15)', color: '#ef4d23' }}>{cp.slice(1, -1)}</code>
+                if (cp.startsWith('`') && cp.endsWith('`')) return <code key={`${k}-${l}`} className="px-0.5 rounded text-[10px] font-mono" style={{ background: 'accent + ','0.15)', color: 'accent' }}>{cp.slice(1, -1)}</code>
                 return <span key={`${k}-${l}`}>{cp}</span>
               })
             })}
@@ -53,6 +54,8 @@ export default function MainLayout() {
   ])
   const [aiLoading, setAiLoading] = useState(false)
   const [aiStatus, setAiStatus] = useState(null)
+  const { themeKey, themes } = useTheme()
+  const accent = themes[themeKey]?.color || '#06b6d4'
   const navigate = useNavigate()
   const location = useLocation()
   const miniChatRef = useRef(null)
@@ -123,7 +126,7 @@ export default function MainLayout() {
             >
               {/* Header */}
               <div className="px-4 py-3 flex items-center justify-between flex-shrink-0"
-                style={{ background: 'rgba(239,77,35,0.06)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                style={{ background: 'accent + ','0.06)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center"
                     style={{ background: 'linear-gradient(135deg, #ef4d23, #a855f7, #4f8fff)' }}>
@@ -195,7 +198,7 @@ export default function MainLayout() {
                       style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
                       <div className="flex items-center gap-2">
                         <div className="flex gap-1">
-                          <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: '#ef4d23', animationDelay: '0ms' }}></div>
+                          <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: accent, animationDelay: '0ms' }}></div>
                           <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: '#a855f7', animationDelay: '150ms' }}></div>
                           <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: '#4f8fff', animationDelay: '300ms' }}></div>
                         </div>
@@ -212,9 +215,9 @@ export default function MainLayout() {
                   {['🔍 Diagnose', '⚠️ Errors', '🚀 Deploy', '🔧 Fix'].map(s => (
                     <button key={s} onClick={() => aiSend(s.replace(/^[^\s]+\s/, ''))}
                       className="text-[10px] px-2 py-1 rounded-lg transition-colors"
-                      style={{ background: 'rgba(239,77,35,0.08)', color: '#ef4d23', border: '1px solid rgba(239,77,35,0.15)' }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,77,35,0.15)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'rgba(239,77,35,0.08)'}
+                      style={{ background: 'accent + ','0.08)', color: 'accent', border: '1px solid accent + ','0.15)' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'accent + ','0.15)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'accent + ','0.08)'}
                     >
                       {s}
                     </button>
@@ -249,7 +252,7 @@ export default function MainLayout() {
             id="ai-float-btn"
             onClick={() => setAiOpen(!aiOpen)}
             className="fixed bottom-6 right-6 w-14 h-14 text-white rounded-full shadow-lg hover:scale-105 transition-all z-50 flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #ef4d23, #a855f7, #4f8fff)', animation: 'pulseGlow 3s ease-in-out infinite', boxShadow: '0 0 20px rgba(239,77,35,0.3)' }}
+            style={{ background: 'linear-gradient(135deg, #ef4d23, #a855f7, #4f8fff)', animation: 'pulseGlow 3s ease-in-out infinite', boxShadow: '0 0 20px accent + ','0.3)' }}
             title="AI Assistant"
           >
             {aiOpen ? <X size={24} /> : <Bot size={24} />}
