@@ -6,7 +6,6 @@ import { useTheme } from '../context/ThemeContext'
 import { Menu, Bot, X, Send } from 'lucide-react'
 import api from '../api/client'
 
-// Mini markdown for floating chat
 function MiniMarkdown({ text }) {
   if (!text) return null
   const parts = text.split(/(```[\s\S]*?```)/g)
@@ -34,7 +33,7 @@ function MiniMarkdown({ text }) {
               if (bp.startsWith('**') && bp.endsWith('**')) return <strong key={k}>{bp.slice(2, -2)}</strong>
               const codeParts = bp.split(/(`[^`]+`)/g)
               return codeParts.map((cp, l) => {
-                if (cp.startsWith('`') && cp.endsWith('`')) return <code key={`${k}-${l}`} className="px-0.5 rounded text-[10px] font-mono" style={{ background: 'accent + ','0.15)', color: 'accent' }}>{cp.slice(1, -1)}</code>
+                if (cp.startsWith('`') && cp.endsWith('`')) return <code key={`${k}-${l}`} className="px-0.5 rounded text-[10px] font-mono" style={{ background: 'rgba(255,255,255,0.1)', color: '#fff' }}>{cp.slice(1, -1)}</code>
                 return <span key={`${k}-${l}`}>{cp}</span>
               })
             })}
@@ -50,7 +49,7 @@ export default function MainLayout() {
   const [aiOpen, setAiOpen] = useState(false)
   const [aiInput, setAiInput] = useState('')
   const [aiMessages, setAiMessages] = useState([
-    { role: 'assistant', content: 'Hi! 👋 I\'m your **Nebula AI** assistant — I can **debug**, **fix errors**, **write code**, **deploy**, **manage GitHub/Render/Vercel**, and more! What do you need?' }
+    { role: 'assistant', content: 'Hi! 👋 I\'m your **Nebula AI** assistant — I can **debug**, **deploy**, **write code**, and more! What do you need?' }
   ])
   const [aiLoading, setAiLoading] = useState(false)
   const [aiStatus, setAiStatus] = useState(null)
@@ -84,13 +83,11 @@ export default function MainLayout() {
     setAiInput('')
     setAiMessages(prev => [...prev, { role: 'user', content: msg }])
     setAiLoading(true)
-
     try {
       const allMessages = aiMessages
         .concat({ role: 'user', content: msg })
         .filter(m => m.role === 'user' || m.role === 'assistant')
         .map(m => ({ role: m.role, content: m.content }))
-
       const res = await api.post('/ai/chat', { messages: allMessages })
       setAiMessages(prev => [...prev, { role: 'assistant', content: res.data.message || 'No response', provider: res.data.provider }])
     } catch (err) {
@@ -115,21 +112,17 @@ export default function MainLayout() {
         </main>
       </div>
 
-      {/* Floating AI — not shown on AI Assistant full page */}
       {!location.pathname.includes('ai-assistant') && (
         <>
           {aiOpen && (
-            <div 
-              ref={miniChatRef}
+            <div ref={miniChatRef}
               className="fixed bottom-24 right-6 w-[380px] rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden"
-              style={{ maxHeight: '520px', animation: 'slideUp 0.2s ease-out', background: 'rgba(12,16,32,0.97)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)' }}
-            >
-              {/* Header */}
+              style={{ maxHeight: '520px', animation: 'slideUp 0.2s ease-out', background: 'rgba(12,16,32,0.97)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)' }}>
               <div className="px-4 py-3 flex items-center justify-between flex-shrink-0"
-                style={{ background: 'accent + ','0.06)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                style={{ background: `rgba(${hexToRgb(accent)}, 0.06)`, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-                    style={{ background: 'linear-gradient(135deg, #ef4d23, #a855f7, #4f8fff)' }}>
+                    style={{ background: `linear-gradient(135deg, ${accent}, #a855f7, #4f8fff)` }}>
                     <Bot size={16} className="text-white" />
                   </div>
                   <div>
@@ -140,58 +133,38 @@ export default function MainLayout() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button 
-                    onClick={() => { setAiOpen(false); navigate('/app/ai-assistant') }} 
-                    className="p-1.5 rounded-lg transition-colors"
-                    style={{ color: 'rgba(255,255,255,0.4)' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                    title="Open full page"
-                  >
+                  <button onClick={() => { setAiOpen(false); navigate('/app/ai-assistant') }}
+                    className="p-1.5 rounded-lg transition-colors" style={{ color: 'rgba(255,255,255,0.4)' }}
+                    title="Open full page">
                     <Bot size={14} />
                   </button>
-                  <button onClick={() => setAiOpen(false)} className="p-1.5 rounded-lg transition-colors"
-                    style={{ color: 'rgba(255,255,255,0.4)' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  >
+                  <button onClick={() => setAiOpen(false)} className="p-1.5 rounded-lg transition-colors" style={{ color: 'rgba(255,255,255,0.4)' }}>
                     <X size={14} />
                   </button>
                 </div>
               </div>
-              
-              {/* Messages */}
               <div className="flex-1 overflow-y-auto p-3 space-y-3" style={{ maxHeight: '340px', minHeight: '200px' }}>
                 {aiMessages.map((m, i) => (
                   <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                     {m.role === 'assistant' && (
                       <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mr-2 mt-0.5"
-                        style={{ background: 'linear-gradient(135deg, #ef4d23, #a855f7)' }}>
+                        style={{ background: `linear-gradient(135deg, ${accent}, #a855f7)` }}>
                         <Bot size={12} className="text-white" />
                       </div>
                     )}
-                    <div className={`max-w-[85%] rounded-xl px-3 py-2 ${
-                      m.role === 'user' 
-                        ? 'text-white rounded-br-md' 
-                        : 'rounded-bl-md'
-                    }`}
+                    <div className={`max-w-[85%] rounded-xl px-3 py-2 ${m.role === 'user' ? 'rounded-br-md' : 'rounded-bl-md'}`}
                       style={m.role === 'user' 
-                        ? { background: 'linear-gradient(135deg, #ef4d23, #ff6b35)' }
+                        ? { background: `linear-gradient(135deg, ${accent}, ${accent}99)` }
                         : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#e8eaf0' }
-                      }
-                    >
-                      {m.role === 'user' ? (
-                        <div className="text-xs whitespace-pre-wrap">{m.content}</div>
-                      ) : (
-                        <MiniMarkdown text={m.content} />
-                      )}
+                      }>
+                      {m.role === 'user' ? <div className="text-xs whitespace-pre-wrap text-white">{m.content}</div> : <MiniMarkdown text={m.content} />}
                     </div>
                   </div>
                 ))}
                 {aiLoading && (
                   <div className="flex justify-start">
                     <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mr-2"
-                      style={{ background: 'linear-gradient(135deg, #ef4d23, #a855f7)' }}>
+                      style={{ background: `linear-gradient(135deg, ${accent}, #a855f7)` }}>
                       <Bot size={12} className="text-white" />
                     </div>
                     <div className="rounded-xl px-3 py-2"
@@ -208,57 +181,46 @@ export default function MainLayout() {
                   </div>
                 )}
               </div>
-              
-              {/* Quick suggestions */}
               {aiMessages.length <= 1 && (
                 <div className="px-3 pb-2 flex flex-wrap gap-1">
                   {['🔍 Diagnose', '⚠️ Errors', '🚀 Deploy', '🔧 Fix'].map(s => (
                     <button key={s} onClick={() => aiSend(s.replace(/^[^\s]+\s/, ''))}
                       className="text-[10px] px-2 py-1 rounded-lg transition-colors"
-                      style={{ background: 'accent + ','0.08)', color: 'accent', border: '1px solid accent + ','0.15)' }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'accent + ','0.15)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'accent + ','0.08)'}
-                    >
+                      style={{ background: `rgba(${hexToRgb(accent)}, 0.08)`, color: accent, border: `1px solid rgba(${hexToRgb(accent)}, 0.15)` }}>
                       {s}
                     </button>
                   ))}
                 </div>
               )}
-              
-              {/* Input */}
               <div className="flex gap-2 p-3 flex-shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                <input
-                  type="text"
-                  value={aiInput}
-                  onChange={e => setAiInput(e.target.value)}
+                <input type="text" value={aiInput} onChange={e => setAiInput(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); aiSend(aiInput) } }}
-                  placeholder="Ask me anything..."
-                  disabled={aiLoading}
+                  placeholder="Ask me anything..." disabled={aiLoading}
                   className="flex-1 text-xs px-3 py-2 rounded-xl disabled:opacity-50"
-                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff' }}
-                />
+                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff' }} />
                 <button onClick={() => aiSend(aiInput)} disabled={aiLoading || !aiInput.trim()}
                   className="p-2 rounded-xl text-white disabled:opacity-50 transition-all"
-                  style={{ background: 'linear-gradient(135deg, #ef4d23, #a855f7)' }}
-                >
+                  style={{ background: `linear-gradient(135deg, ${accent}, #a855f7)` }}>
                   <Send size={14} />
                 </button>
               </div>
             </div>
           )}
-
-          {/* Floating Button */}
-          <button
-            id="ai-float-btn"
-            onClick={() => setAiOpen(!aiOpen)}
+          <button id="ai-float-btn" onClick={() => setAiOpen(!aiOpen)}
             className="fixed bottom-6 right-6 w-14 h-14 text-white rounded-full shadow-lg hover:scale-105 transition-all z-50 flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #ef4d23, #a855f7, #4f8fff)', animation: 'pulseGlow 3s ease-in-out infinite', boxShadow: '0 0 20px accent + ','0.3)' }}
-            title="AI Assistant"
-          >
+            style={{ background: `linear-gradient(135deg, ${accent}, #a855f7, #4f8fff)`, animation: 'pulseGlow 3s ease-in-out infinite', boxShadow: `0 0 20px ${accent}4D` }}
+            title="AI Assistant">
             {aiOpen ? <X size={24} /> : <Bot size={24} />}
           </button>
         </>
       )}
     </div>
   )
+}
+
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1,3), 16)
+  const g = parseInt(hex.slice(3,5), 16)
+  const b = parseInt(hex.slice(5,7), 16)
+  return `${r},${g},${b}`
 }
