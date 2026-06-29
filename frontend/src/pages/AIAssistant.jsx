@@ -392,4 +392,5 @@ export default function AIAssistant() {
         <span>{aiStatus?.toolsAvailable || 15} tools</span>
       </div>
     </div>
+  )
 }
