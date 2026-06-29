@@ -91,35 +91,35 @@ export default function Settings() {
   const UploadRow = ({ label, field, accept='.png,.jpg,.jpeg,.webp', previewUrl, circular }) => (
     <div className="flex items-center gap-4 flex-wrap">
       {previewUrl && (
-        <div style={{ width: '64px', height: circular ? '64px' : '48px', borderRadius: circular ? '50%' : '4px', overflow: 'hidden', border: '1px solid #ddd', flexShrink: 0 }}>
+        <div style={{ width: '64px', height: circular ? '64px' : '48px', borderRadius: circular ? '50%' : '4px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.15)', flexShrink: 0 }}>
           <img src={previewUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
         </div>
       )}
       <input type="file" accept={accept} onChange={e => uploadImage(field, e.target.files[0])} className="text-sm" />
-      {uploading[field] && <span className="text-xs text-blue-500">Uploading...</span>}
-      <span className="text-xs text-gray-400">Max 2MB</span>
+      {uploading[field] && <span className="text-xs accent-text">Uploading...</span>}
+      <span className="text-xs text-white/30">Max 2MB</span>
     </div>
   )
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <h1 className="text-2xl font-bold">Settings</h1>
-      {msg && <div className={`p-3 rounded-lg text-sm ${msg.includes('✗') ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>{msg}</div>}
+      {msg && <div className={`p-3 rounded-lg text-sm font-medium ${msg.includes('✗') ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-green-500/10 text-green-400 border border-green-500/20'}`}>{msg}</div>}
 
       {/* Company Details */}
       <div className="card space-y-4">
         <h3 className="font-bold text-lg">Company Details</h3>
         <div className="grid md:grid-cols-2 gap-4">
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Company Name</label><input value={org.name || ''} onChange={e => update('name', e.target.value)} className="input-field" /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">GSTIN</label><input value={org.gstin || ''} onChange={e => update('gstin', e.target.value)} className="input-field" /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Address</label><input value={org.address || ''} onChange={e => update('address', e.target.value)} className="input-field" /></div>
+          <div><label className="block text-sm font-medium text-white/70 mb-1">Company Name</label><input value={org.name || ''} onChange={e => update('name', e.target.value)} className="input-field" /></div>
+          <div><label className="block text-sm font-medium text-white/70 mb-1">GSTIN</label><input value={org.gstin || ''} onChange={e => update('gstin', e.target.value)} className="input-field" /></div>
+          <div><label className="block text-sm font-medium text-white/70 mb-1">Address</label><input value={org.address || ''} onChange={e => update('address', e.target.value)} className="input-field" /></div>
           <div className="grid grid-cols-3 gap-2">
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">City</label><input value={org.city || ''} onChange={e => update('city', e.target.value)} className="input-field" /></div>
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">State</label><input value={org.state || ''} onChange={e => update('state', e.target.value)} className="input-field" /></div>
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">Pincode</label><input value={org.pincode || ''} onChange={e => update('pincode', e.target.value)} className="input-field" /></div>
+            <div><label className="block text-sm font-medium text-white/70 mb-1">City</label><input value={org.city || ''} onChange={e => update('city', e.target.value)} className="input-field" /></div>
+            <div><label className="block text-sm font-medium text-white/70 mb-1">State</label><input value={org.state || ''} onChange={e => update('state', e.target.value)} className="input-field" /></div>
+            <div><label className="block text-sm font-medium text-white/70 mb-1">Pincode</label><input value={org.pincode || ''} onChange={e => update('pincode', e.target.value)} className="input-field" /></div>
           </div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Phone</label><input value={org.phone || ''} onChange={e => update('phone', e.target.value)} className="input-field" /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Email</label><input value={org.email || ''} onChange={e => update('email', e.target.value)} className="input-field" /></div>
+          <div><label className="block text-sm font-medium text-white/70 mb-1">Phone</label><input value={org.phone || ''} onChange={e => update('phone', e.target.value)} className="input-field" /></div>
+          <div><label className="block text-sm font-medium text-white/70 mb-1">Email</label><input value={org.email || ''} onChange={e => update('email', e.target.value)} className="input-field" /></div>
         </div>
       </div>
 
@@ -127,11 +127,11 @@ export default function Settings() {
       <div className="card space-y-4">
         <h3 className="font-bold text-lg">Bank Details</h3>
         <div className="grid md:grid-cols-2 gap-4">
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Bank Name</label><input value={org.bank_name || ''} onChange={e => update('bank_name', e.target.value)} className="input-field" /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Account No</label><input value={org.account_no || ''} onChange={e => update('account_no', e.target.value)} className="input-field" /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">IFSC</label><input value={org.ifsc || ''} onChange={e => update('ifsc', e.target.value)} className="input-field" /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Branch</label><input value={org.branch || ''} onChange={e => update('branch', e.target.value)} className="input-field" /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">UPI ID</label><input value={org.upi_id || ''} onChange={e => update('upi_id', e.target.value)} className="input-field" /></div>
+          <div><label className="block text-sm font-medium text-white/70 mb-1">Bank Name</label><input value={org.bank_name || ''} onChange={e => update('bank_name', e.target.value)} className="input-field" /></div>
+          <div><label className="block text-sm font-medium text-white/70 mb-1">Account No</label><input value={org.account_no || ''} onChange={e => update('account_no', e.target.value)} className="input-field" /></div>
+          <div><label className="block text-sm font-medium text-white/70 mb-1">IFSC</label><input value={org.ifsc || ''} onChange={e => update('ifsc', e.target.value)} className="input-field" /></div>
+          <div><label className="block text-sm font-medium text-white/70 mb-1">Branch</label><input value={org.branch || ''} onChange={e => update('branch', e.target.value)} className="input-field" /></div>
+          <div><label className="block text-sm font-medium text-white/70 mb-1">UPI ID</label><input value={org.upi_id || ''} onChange={e => update('upi_id', e.target.value)} className="input-field" /></div>
         </div>
       </div>
 
@@ -139,15 +139,15 @@ export default function Settings() {
       <div className="card space-y-5">
         <h3 className="font-bold text-lg">Images & Signatures</h3>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Business Logo (shows on invoice & sidebar)</label>
+          <label className="block text-sm font-medium text-white/70 mb-2">Business Logo (shows on invoice & sidebar)</label>
           <UploadRow label="Logo" field="logo" previewUrl={org.logo_url} circular />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Company Stamp / Seal (auto-stamps on invoices)</label>
+          <label className="block text-sm font-medium text-white/70 mb-2">Company Stamp / Seal (auto-stamps on invoices)</label>
           <UploadRow label="Stamp" field="stamp" previewUrl={org.stamp_url} />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Authorized Signature (auto-signs on invoices)</label>
+          <label className="block text-sm font-medium text-white/70 mb-2">Authorized Signature (auto-signs on invoices)</label>
           <UploadRow label="Signature" field="signature" previewUrl={org.signature_url} />
         </div>
       </div>
@@ -157,21 +157,21 @@ export default function Settings() {
         <h3 className="font-bold text-lg">Invoice Text Settings</h3>
         <div className="grid md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Invoice Font Family</label>
+            <label className="block text-sm font-medium text-white/70 mb-1">Invoice Font Family</label>
             <select value={settings.print_font_family || 'Arial'} onChange={e => updateSetting('print_font_family', e.target.value)} className="input-field">
               {FONTS.map(f => <option key={f} value={f}>{f}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Invoice Font Size: {settings.print_font_size || '10'}pt</label>
+            <label className="block text-sm font-medium text-white/70 mb-1">Invoice Font Size: {settings.print_font_size || '10'}pt</label>
             <input type="range" min="8" max="14" step="0.5" value={settings.print_font_size || 10} onChange={e => updateSetting('print_font_size', e.target.value)} className="w-full" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Item Description Size: {settings.invoice_desc_size || '10'}pt</label>
+            <label className="block text-sm font-medium text-white/70 mb-1">Item Description Size: {settings.invoice_desc_size || '10'}pt</label>
             <input type="range" min="8" max="14" step="0.5" value={settings.invoice_desc_size || 10} onChange={e => updateSetting('invoice_desc_size', e.target.value)} className="w-full" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Item Text Style</label>
+            <label className="block text-sm font-medium text-white/70 mb-1">Item Text Style</label>
             <select value={settings.invoice_item_bold || 'false'} onChange={e => updateSetting('invoice_item_bold', e.target.value)} className="input-field">
               <option value="false">Normal</option>
               <option value="true">Bold</option>
@@ -185,17 +185,17 @@ export default function Settings() {
         <h3 className="font-bold text-lg">Quotation Font Settings</h3>
         <div className="grid md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Quotation Font Family</label>
+            <label className="block text-sm font-medium text-white/70 mb-1">Quotation Font Family</label>
             <select value={settings.quotation_font_family || 'Georgia'} onChange={e => updateSetting('quotation_font_family', e.target.value)} className="input-field">
               {FONTS.map(f => <option key={f} value={f}>{f}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Quotation Font Size: {settings.quotation_font_size || '9'}pt</label>
+            <label className="block text-sm font-medium text-white/70 mb-1">Quotation Font Size: {settings.quotation_font_size || '9'}pt</label>
             <input type="range" min="7" max="14" step="0.5" value={settings.quotation_font_size || 9} onChange={e => updateSetting('quotation_font_size', e.target.value)} className="w-full" />
           </div>
         </div>
-        <div className="border rounded-lg p-4 bg-white" style={{ fontFamily: settings.quotation_font_family || 'Georgia', fontSize: `${settings.quotation_font_size || 9}pt` }}>
+        <div className="border rounded-lg p-4 print-preview" style={{ fontFamily: settings.quotation_font_family || 'Georgia', fontSize: `${settings.quotation_font_size || 9}pt`, background: '#fff' }}>
           <p style={{ lineHeight: 1.35 }}>DESIGN & FABRICATION OF SS304 TANK<br />• SHELL: 3.5 MM THICK<br />• DISH END: 3.5 MM THICK</p>
         </div>
       </div>
@@ -212,8 +212,8 @@ export default function Settings() {
       <div className="card space-y-4">
         <h3 className="font-bold text-lg">Document Numbering</h3>
         <div className="grid md:grid-cols-2 gap-4">
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Invoice Prefix</label><input value={org.invoice_prefix || ''} onChange={e => update('invoice_prefix', e.target.value)} className="input-field" /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Quotation Prefix</label><input value={org.quotation_prefix || ''} onChange={e => update('quotation_prefix', e.target.value)} className="input-field" /></div>
+          <div><label className="block text-sm font-medium text-white/70 mb-1">Invoice Prefix</label><input value={org.invoice_prefix || ''} onChange={e => update('invoice_prefix', e.target.value)} className="input-field" /></div>
+          <div><label className="block text-sm font-medium text-white/70 mb-1">Quotation Prefix</label><input value={org.quotation_prefix || ''} onChange={e => update('quotation_prefix', e.target.value)} className="input-field" /></div>
         </div>
       </div>
 
@@ -221,7 +221,7 @@ export default function Settings() {
       <div className="card space-y-4">
         <h3 className="font-bold text-lg">Print Layout</h3>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Letterhead Top Space: {org.print_letterhead_mm || 65}mm</label>
+          <label className="block text-sm font-medium text-white/70 mb-1">Letterhead Top Space: {org.print_letterhead_mm || 65}mm</label>
           <input type="range" min="40" max="80" value={org.print_letterhead_mm || 65} onChange={e => update('print_letterhead_mm', e.target.value)} className="w-full" />
         </div>
       </div>
@@ -230,10 +230,10 @@ export default function Settings() {
       <div className="card space-y-4">
         <h3 className="font-bold text-lg">Change Password</h3>
         <div className="grid md:grid-cols-2 gap-4">
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+          <div><label className="block text-sm font-medium text-white/70 mb-1">Current Password</label>
             <div className="relative"><input type={showPassword ? 'text' : 'password'} value={passwordForm.currentPassword} onChange={e => setPasswordForm({...passwordForm, currentPassword: e.target.value})} className="input-field pr-10" />
-              <button onClick={() => setShowPassword(!showPassword)} className="absolute right-2 top-2 text-gray-400">{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></div></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">New Password</label><input type="password" value={passwordForm.newPassword} onChange={e => setPasswordForm({...passwordForm, newPassword: e.target.value})} className="input-field" /></div>
+              <button onClick={() => setShowPassword(!showPassword)} className="absolute right-2 top-2 text-white/30">{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></div></div>
+          <div><label className="block text-sm font-medium text-white/70 mb-1">New Password</label><input type="password" value={passwordForm.newPassword} onChange={e => setPasswordForm({...passwordForm, newPassword: e.target.value})} className="input-field" /></div>
         </div>
         <button onClick={handleChangePassword} className="btn-primary text-sm">Change Password</button>
       </div>
@@ -243,8 +243,8 @@ export default function Settings() {
         <div className="card space-y-4">
           <h3 className="font-bold text-lg">User Management</h3>
           <table className="w-full text-sm">
-            <thead><tr className="border-b text-gray-500 text-left"><th className="pb-2">Name</th><th className="pb-2">Email</th><th className="pb-2">Role</th></tr></thead>
-            <tbody>{users.map(u => (<tr key={u.id} className="border-b border-gray-50"><td className="py-2">{u.name}</td><td className="py-2">{u.email}</td><td className="py-2"><span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100">{u.role}</span></td></tr>))}</tbody>
+            <thead><tr className="border-b text-white/40 text-left"><th className="pb-2">Name</th><th className="pb-2">Email</th><th className="pb-2">Role</th></tr></thead>
+            <tbody>{users.map(u => (<tr key={u.id} className="border-b border-white/5"><td className="py-2">{u.name}</td><td className="py-2">{u.email}</td><td className="py-2"><span className="px-2 py-0.5 rounded-full text-xs font-medium bg-white/5">{u.role}</span></td></tr>))}</tbody>
           </table>
           <div className="grid md:grid-cols-4 gap-3">
             <input value={newUser.name} onChange={e => setNewUser({...newUser, name: e.target.value})} className="input-field" placeholder="Name" />
