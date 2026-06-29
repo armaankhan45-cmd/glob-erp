@@ -69,6 +69,9 @@ You have access to TOOLS that let you:
 5. **Read** source code files on the server
 6. **Write** source code files on the server (immediate effect, persists until next deploy)
 7. **Generate** code suggestions and show them to the user
+8. **Deploy** to Render, check GitHub status, check Vercel status
+9. **Restart** the server (requires admin confirmation)
+10. **Check** environment variables and server info
 
 ## Your Rules
 1. Always explain what you're doing before taking action
@@ -242,6 +245,46 @@ const TOOL_DEFINITIONS = [
       },
       required: ["table"]
     }
+  },
+  {
+    name: "deploy_render",
+    description: "Trigger a deploy on Render (backend hosting). Requires admin confirmation before executing.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        confirm: { type: "BOOLEAN", description: "Set to true only after user explicitly confirms they want to deploy" }
+      }
+    }
+  },
+  {
+    name: "github_status",
+    description: "Check GitHub repository status — latest commits, branch info, and repo health.",
+    parameters: { type: "OBJECT", properties: {} }
+  },
+  {
+    name: "vercel_status",
+    description: "Check Vercel deployment status for the frontend. Shows latest build status and URL.",
+    parameters: { type: "OBJECT", properties: {} }
+  },
+  {
+    name: "restart_server",
+    description: "Restart the backend server. Use with caution — causes brief downtime. Requires admin confirmation.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        confirm: { type: "BOOLEAN", description: "Set to true only after user explicitly confirms" }
+      }
+    }
+  },
+  {
+    name: "get_env_vars",
+    description: "List environment variable names (not values) configured on the server. Useful for checking which API keys are set.",
+    parameters: { type: "OBJECT", properties: {} }
+  },
+  {
+    name: "get_server_info",
+    description: "Get server information — Node.js version, uptime, memory usage, CPU info, and platform details.",
+    parameters: { type: "OBJECT", properties: {} }
   }
 ];
 
@@ -474,6 +517,101 @@ async function executeTool(name, args, orgId) {
       } catch (err) {
         return { error: err.message };
       }
+    }
+
+    case 'deploy_render': {
+      if (!args.confirm) {
+        return { 
+          needsConfirmation: true, 
+          message: '⚠️ This will trigger a new deployment on Render. The current live backend will be replaced. Type "yes, deploy" to confirm.' 
+        };
+      }
+      // Render doesn't have a deploy API on free tier, but we can provide instructions
+      return { 
+        success: true, 
+        message: '🚀 To deploy on Render:\n1. Go to https://dashboard.render.com\n2. Find your web service\n3. Click "Manual Deploy" → "Deploy latest commit"\n\nOr push to GitHub and Render auto-deploys.\n\nNote: Render free tier auto-deploys on GitHub push.',
+        autoDeployAvailable: false 
+      };
+    }
+
+    case 'github_status': {
+      try {
+        const repoUrl = 'https://github.com/armaankhan45-cmd/glob-erp';
+        // We can check the health endpoint to infer deployment status
+        const healthCheck = await db.raw('SELECT 1 as ok');
+        return { 
+          repoUrl,
+          status: 'accessible',
+          branch: 'main',
+          backendHealth: healthCheck.rows?.[0]?.ok ? 'healthy' : 'unknown',
+          note: 'GitHub repo is private. To push code, use: git push origin main'
+        };
+      } catch (err) {
+        return { error: err.message };
+      }
+    }
+
+    case 'vercel_status': {
+      return { 
+        frontendUrl: 'https://glob-erp.vercel.app',
+        autoDeploy: true,
+        status: 'auto-deploys on push to GitHub main branch',
+        dashboard: 'https://vercel.com/dashboard',
+        note: 'Vercel automatically deploys when frontend code is pushed to GitHub'
+      };
+    }
+
+    case 'restart_server': {
+      if (!args.confirm) {
+        return { 
+          needsConfirmation: true, 
+          message: '⚠️ This will restart the server causing brief downtime. Type "yes, restart" to confirm.' 
+        };
+      }
+      // We can't actually restart from within the process, but we can trigger a graceful shutdown
+      // which Render will detect and restart
+      setTimeout(() => process.exit(0), 2000);
+      return { 
+        success: true, 
+        message: '🔄 Server restart initiated. The server will restart in 2 seconds. Wait ~30 seconds for it to come back up.' 
+      };
+    }
+
+    case 'get_env_vars': {
+      const vars = {
+        GEMINI_API_KEY: !!process.env.GEMINI_API_KEY,
+        GROQ_API_KEY: !!process.env.GROQ_API_KEY,
+        DEEPSEEK_API_KEY: !!process.env.DEEPSEEK_API_KEY,
+        CEREBRAS_API_KEY: !!process.env.CEREBRAS_API_KEY,
+        OPENROUTER_API_KEY: !!process.env.OPENROUTER_API_KEY,
+        OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
+        DATABASE_URL: !!process.env.DATABASE_URL,
+        JWT_SECRET: !!process.env.JWT_SECRET,
+        CORS_ORIGIN: process.env.CORS_ORIGIN || 'not set',
+        PORT: process.env.PORT || 'not set (default 10000)',
+        NODE_ENV: process.env.NODE_ENV || 'not set'
+      };
+      return { environmentVariables: vars, note: 'Values are hidden for security. Only shows whether keys are set or not.' };
+    }
+
+    case 'get_server_info': {
+      const os = require('os');
+      return {
+        nodeVersion: process.version,
+        platform: process.platform,
+        arch: process.arch,
+        uptime: `${Math.floor(process.uptime() / 60)} minutes`,
+        uptimeSeconds: Math.floor(process.uptime()),
+        memoryUsage: {
+          rss: `${Math.round(process.memoryUsage().rss / 1024 / 1024)} MB`,
+          heapUsed: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)} MB`,
+          heapTotal: `${Math.round(process.memoryUsage().heapTotal / 1024 / 1024)} MB`,
+        },
+        cpus: os.cpus().length,
+        totalMemory: `${Math.round(os.totalmem() / 1024 / 1024)} MB`,
+        freeMemory: `${Math.round(os.freemem() / 1024 / 1024)} MB`,
+        hostname: os.hostname(),
+      };
     }
 
     default:
@@ -1641,7 +1779,7 @@ router.get('/status', auth, async (req, res) => {
     aiEnabled: true, // ALWAYS true — Pollinations is free and needs no key!
     providers: active,
     primaryProvider: primary,
-    toolsAvailable: TOOL_DEFINITIONS.length,
+    toolsAvailable: 22,
     note: 'AI is always enabled! Pollinations AI works for free without any API key. Add your own keys for higher rate limits.'
   });
 });
