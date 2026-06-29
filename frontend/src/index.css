@@ -164,6 +164,160 @@
   .hint-text { color: rgba(255,255,255,0.40); }
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   NEBULA DARK THEME OVERRIDES
+   These fix all light-themed Tailwind classes that become
+   invisible on the dark Nebula theme.
+   Print areas (.print-area) are preserved as-is.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── White bg in MODALS & DROPDOWNS → dark card ── */
+/* Targets bg-white only inside fixed/absolute containers (modals, dropdowns) */
+.fixed.bg-white, .absolute.bg-white,
+.fixed .bg-white, .absolute .bg-white {
+  background: rgba(14,18,36,0.97) !important;
+  color: #dde0e6;
+  border: 1px solid rgba(255,255,255,0.10);
+}
+.fixed.bg-white *, .absolute.bg-white *,
+.fixed .bg-white *, .absolute .bg-white * {
+  border-color: rgba(255,255,255,0.08);
+}
+
+/* ── Light gray backgrounds → dark translucent ── */
+.bg-gray-50:not(.print-area):not(.print-area *) {
+  background: rgba(255,255,255,0.04) !important;
+}
+.bg-gray-100 {
+  background: rgba(255,255,255,0.06) !important;
+}
+
+/* ── Light hover states → dark hover ── */
+.hover\:bg-gray-50:hover, .hover\:bg-gray-100:hover, .hover\:bg-white:hover {
+  background: rgba(255,255,255,0.06) !important;
+}
+.hover\:bg-green-50:hover { background: rgba(34,197,94,0.10) !important; }
+.hover\:bg-blue-50:hover { background: rgba(59,130,246,0.10) !important; }
+.hover\:bg-gray-200:hover { background: rgba(255,255,255,0.10) !important; }
+
+/* ── Light borders → dark theme borders ── */
+.border-gray-50 { border-color: rgba(255,255,255,0.05) !important; }
+.border-gray-100 { border-color: rgba(255,255,255,0.08) !important; }
+.border-gray-200 { border-color: rgba(255,255,255,0.12) !important; }
+.border-neutral-200 { border-color: rgba(255,255,255,0.12) !important; }
+
+/* ── Gray text → readable on dark backgrounds ── */
+.text-gray-400 { color: rgba(255,255,255,0.50) !important; }
+.text-gray-500 { color: rgba(255,255,255,0.50) !important; }
+.text-gray-600 { color: rgba(255,255,255,0.55) !important; }
+.text-gray-800 { color: #e0e2e8 !important; }
+
+/* ── Blue info cards, text & badges ── */
+.bg-blue-50 { background: rgba(59,130,246,0.08) !important; }
+.bg-blue-100 { background: rgba(59,130,246,0.15) !important; }
+.text-blue-500 { color: #60a5fa !important; }
+.text-blue-600 { color: #60a5fa !important; }
+.text-blue-700 { color: #60a5fa !important; }
+.text-blue-800 { color: #93bbfd !important; }
+.border-blue-200 { border-color: rgba(59,130,246,0.3) !important; }
+.border-blue-300 { border-color: rgba(59,130,246,0.4) !important; }
+
+/* ── Orange info cards, text & badges ── */
+.bg-orange-50 { background: rgba(249,115,22,0.08) !important; }
+.bg-orange-100 { background: rgba(249,115,22,0.15) !important; }
+.text-orange-500 { color: #fb923c !important; }
+.text-orange-600 { color: #fb923c !important; }
+.text-orange-700 { color: #fb923c !important; }
+.text-orange-800 { color: #fdba74 !important; }
+.border-orange-200 { border-color: rgba(249,115,22,0.3) !important; }
+
+/* ── Red info cards, text & badges ── */
+.bg-red-50 { background: rgba(239,68,68,0.08) !important; }
+.bg-red-100 { background: rgba(239,68,68,0.15) !important; }
+.text-red-400 { color: #f87171 !important; }
+.text-red-500 { color: #f87171 !important; }
+.text-red-600 { color: #f87171 !important; }
+.text-red-700 { color: #f87171 !important; }
+.text-red-800 { color: #fca5a5 !important; }
+.border-red-200 { border-color: rgba(239,68,68,0.3) !important; }
+.border-red-300 { border-color: rgba(239,68,68,0.4) !important; }
+
+/* ── Green info cards, text & badges ── */
+.bg-green-50 { background: rgba(34,197,94,0.08) !important; }
+.bg-green-100 { background: rgba(34,197,94,0.15) !important; }
+.text-green-500 { color: #4ade80 !important; }
+.text-green-600 { color: #4ade80 !important; }
+.text-green-700 { color: #4ade80 !important; }
+.text-green-800 { color: #86efac !important; }
+.border-green-200 { border-color: rgba(34,197,94,0.3) !important; }
+.border-green-300 { border-color: rgba(34,197,94,0.4) !important; }
+
+/* ── Purple info cards, text & badges ── */
+.bg-purple-50 { background: rgba(139,92,246,0.08) !important; }
+.bg-purple-100 { background: rgba(139,92,246,0.15) !important; }
+.text-purple-500 { color: #a78bfa !important; }
+.text-purple-600 { color: #a78bfa !important; }
+.text-purple-700 { color: #a78bfa !important; }
+.text-purple-800 { color: #c4b5fd !important; }
+
+/* ── Yellow/Gold info cards, text & badges ── */
+.bg-yellow-50 { background: rgba(245,158,11,0.08) !important; }
+.bg-yellow-100 { background: rgba(245,158,11,0.15) !important; }
+.text-yellow-500 { color: #fbbf24 !important; }
+.text-yellow-600 { color: #fbbf24 !important; }
+.text-yellow-700 { color: #fbbf24 !important; }
+.text-yellow-800 { color: #fde68a !important; }
+.border-yellow-200 { border-color: rgba(245,158,11,0.3) !important; }
+
+/* ── Print areas & previews: dark text on white background ── */
+.print-area, .print-preview {
+  color: #1a1a2e !important;
+}
+.print-area *, .print-preview * {
+  color: #1a1a2e !important;
+}
+
+/* ── Select dropdown options → dark ── */
+select option {
+  background: #0c1020;
+  color: #dde0e6;
+  padding: 8px 12px;
+}
+
+/* ── Input date/select dark fix ── */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.8);
+}
+
+/* ── Range slider dark theme ── */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  background: rgba(255,255,255,0.10);
+  border-radius: 3px;
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.3);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.3);
+}
+
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
