@@ -46,12 +46,12 @@ export default function Sidebar({ isOpen, onClose }) {
     <>
       {isOpen && <div className="fixed inset-0 bg-black/60 z-40 lg:hidden backdrop-blur-sm" onClick={onClose} />}
       <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-[280px] flex flex-col transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
-        style={{ background: 'rgba(6,8,15,0.97)', backdropFilter: 'blur(20px)', borderRight: '1px solid rgba(255,255,255,0.06)' }}>
-        
+        style={{ background: 'rgba(6,8,15,0.97)', backdropFilter: 'blur(20px)', borderRight: `1px solid rgba(${hexToRgb(accentColor)}, 0.15)` }}>
+
         {/* Logo */}
-        <div className="p-5 flex items-center gap-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="p-5 flex items-center gap-3" style={{ borderBottom: `1px solid rgba(${hexToRgb(accentColor)}, 0.12)`, background: `linear-gradient(90deg, rgba(${hexToRgb(accentColor)}, 0.08), transparent)` }}>
           <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0"
-            style={{ background: `linear-gradient(135deg, ${accentColor}, ${themes[themeKey]?.color || '#06b6d4'}cc)` }}>
+            style={{ background: `linear-gradient(135deg, ${accentColor}, ${accentColor}cc)`, boxShadow: `0 0 15px rgba(${hexToRgb(accentColor)}, 0.3)` }}>
             {user?.organization?.logo_url
               ? <img src={user.organization.logo_url} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '10px' }} />
               : <Factory size={20} className="text-white" />
@@ -61,7 +61,7 @@ export default function Sidebar({ isOpen, onClose }) {
             <h1 className="font-bold text-sm tracking-tight text-white">
               {user?.organization?.name ? user.organization.name.split(' ').slice(0, 2).join(' ') : 'Glob ERP'}
             </h1>
-            <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>Fabrication Manager</p>
+            <p className="text-[10px] font-medium" style={{ color: accentColor }}>Fabrication Manager</p>
           </div>
         </div>
 
@@ -69,7 +69,7 @@ export default function Sidebar({ isOpen, onClose }) {
         <nav className="flex-1 overflow-y-auto p-3 space-y-3">
           {Object.entries(sections).map(([section, items]) => (
             <div key={section}>
-              <p className="text-[9px] uppercase tracking-widest px-3 mb-1 font-bold" style={{ color: 'rgba(255,255,255,0.18)' }}>{section}</p>
+              <p className="text-[10px] uppercase tracking-widest px-3 mb-1 font-bold" style={{ color: accentColor, opacity: 0.7 }}>{section}</p>
               {items.map(item => (
                 <NavLink key={item.path} to={item.path} onClick={onClose}
                   className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
@@ -82,30 +82,30 @@ export default function Sidebar({ isOpen, onClose }) {
         </nav>
 
         {/* Bottom */}
-        <div className="p-3 space-y-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="p-3 space-y-2" style={{ borderTop: `1px solid rgba(${hexToRgb(accentColor)}, 0.12)` }}>
           {/* Color Switcher */}
           <div className="relative">
             <button onClick={() => setShowColors(!showColors)}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all"
-              style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)' }}>
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
+              style={{ background: `rgba(${hexToRgb(accentColor)}, 0.1)`, border: `1px solid rgba(${hexToRgb(accentColor)}, 0.25)`, color: '#fff' }}>
               <Palette size={16} style={{ color: accentColor }} />
               <span>Theme: {themes[themeKey]?.name}</span>
-              <div className="w-3 h-3 rounded-full ml-auto" style={{ background: accentColor }}></div>
+              <div className="w-4 h-4 rounded-full ml-auto" style={{ background: accentColor, boxShadow: `0 0 8px rgba(${hexToRgb(accentColor)}, 0.5)` }}></div>
             </button>
             {showColors && (
               <div className="absolute bottom-full left-0 right-0 mb-2 rounded-xl p-2 space-y-1 z-50"
-                style={{ background: 'rgba(12,16,32,0.97)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)' }}>
+                style={{ background: 'rgba(8,10,20,0.98)', border: `1px solid rgba(${hexToRgb(accentColor)}, 0.2)`, backdropFilter: 'blur(20px)', boxShadow: `0 0 30px rgba(${hexToRgb(accentColor)}, 0.1)` }}>
                 {Object.entries(themes).map(([key, t]) => (
                   <button key={key} onClick={() => { setThemeKey(key); setShowColors(false) }}
-                    className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all"
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all"
                     style={themeKey === key
-                      ? { background: `rgba(${hexToRgb(t.color)}, 0.12)`, color: t.color, border: `1px solid rgba(${hexToRgb(t.color)}, 0.2)` }
-                      : { color: 'rgba(255,255,255,0.5)', border: '1px solid transparent' }
+                      ? { background: `rgba(${hexToRgb(t.color)}, 0.15)`, color: t.color, border: `1px solid rgba(${hexToRgb(t.color)}, 0.3)`, fontWeight: 700 }
+                      : { color: '#c8cad0', border: '1px solid transparent' }
                     }>
-                    <span>{t.icon}</span>
+                    <span className="text-base">{t.icon}</span>
                     <span>{t.name}</span>
-                    {themeKey === key && <span className="ml-auto">✓</span>}
-                    <div className="w-3 h-3 rounded-full ml-auto" style={{ background: t.color }}></div>
+                    {themeKey === key && <span className="ml-auto font-bold">✓</span>}
+                    <div className="w-4 h-4 rounded-full ml-auto" style={{ background: t.color, boxShadow: themeKey === key ? `0 0 8px rgba(${hexToRgb(t.color)}, 0.5)` : 'none' }}></div>
                   </button>
                 ))}
               </div>
@@ -113,36 +113,36 @@ export default function Sidebar({ isOpen, onClose }) {
           </div>
 
           {/* User Card */}
-          <div className="p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="p-3 rounded-xl" style={{ background: `rgba(${hexToRgb(accentColor)}, 0.06)`, border: `1px solid rgba(${hexToRgb(accentColor)}, 0.15)` }}>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 font-extrabold text-sm text-white"
-                style={{ background: `linear-gradient(135deg, ${accentColor}, ${accentColor}cc)` }}>
+                style={{ background: `linear-gradient(135deg, ${accentColor}, ${accentColor}cc)`, boxShadow: `0 0 12px rgba(${hexToRgb(accentColor)}, 0.3)` }}>
                 {user?.name?.charAt(0)?.toUpperCase() || 'A'}
               </div>
               <div className="min-w-0 flex-1">
                 <h4 className="text-[11px] font-bold text-white leading-tight truncate">
                   {user?.organization?.name || 'GLOB FABRICATION AND ENTERPRISES'}
                 </h4>
-                <div className="text-[10px] font-semibold mt-0.5" style={{ color: accentColor }}>
-                  {user?.role === 'admin' ? 'Admin' : user?.role || 'User'}
+                <div className="text-[10px] font-bold mt-0.5" style={{ color: accentColor }}>
+                  {user?.role === 'admin' ? '⚡ Admin' : user?.role || 'User'}
                 </div>
-                <div className="text-[9px] truncate mt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                <div className="text-[9px] font-medium truncate mt-0.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
                   {user?.email || 'admin@globfabrication.com'}
                 </div>
               </div>
             </div>
           </div>
-          
+
           {/* Action Buttons */}
           <div className="flex gap-2">
             <button onClick={() => window.location.reload()}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-[11px] font-medium transition-all"
-              style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.35)' }}>
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-[11px] font-semibold"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)', color: '#c8cad0' }}>
               <RefreshCw size={12} /> Refresh
             </button>
             <button onClick={handleLogout}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-[11px] font-medium transition-all"
-              style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.1)', color: 'rgba(239,68,68,0.5)' }}>
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-[11px] font-semibold"
+              style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)', color: '#f87171' }}>
               <LogOut size={12} /> Logout
             </button>
           </div>
