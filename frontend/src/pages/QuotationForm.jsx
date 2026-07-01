@@ -4,7 +4,8 @@ import api from '../api/client'
 import { HSN_CODES } from '../data/hsnCodes'
 import { Save, Plus, X, ArrowLeft } from 'lucide-react'
 
-const DEFAULT_TEMPLATE = `DESIGN, MANUFACTURE & FABRICATION OF TOP-LOADING SS304CR TANK USING JINDAL-CERTIFIED MATERIAL WITH TC REPORT. TANKER CAPACITY: 37KL DIVIDED INTO 6 COMPARTMENTS
+const DEFAULT_TEMPLATE = `MODEL NO - TATA SIGNA 4425.T
+DESIGN, MANUFACTURE & FABRICATION OF TOP-LOADING SS304CR TANK USING JINDAL-CERTIFIED MATERIAL WITH TC REPORT. TANKER CAPACITY: 37KL DIVIDED INTO 6 COMPARTMENTS
 CONSTRUCTED WITH:
 • SHELL: 3.5 MM THICK
 • DISH END: 3.5 MM THICK
@@ -33,14 +34,13 @@ export default function QuotationForm() {
     additional_info: '',
     actual_notes: '',
     igst_rate: 18,
-    quotation_number: '', // manual quotation number
+    quotation_number: '',
   })
   const [items, setItems] = useState([{ description: '', quantity: 1, unit: 'Unit', rate: 0, igst_rate: 18, amount: 0 }])
   const [calculated, setCalculated] = useState({ subtotal: 0, igst_amount: 0, total_amount: 0 })
   const [saving, setSaving] = useState(false)
   const [nextQuotationNo, setNextQuotationNo] = useState('')
 
-  // GST auto-fetch
   const [gstinInput, setGstinInput] = useState('')
   const [gstinLoading, setGstinLoading] = useState(false)
   const [gstinError, setGstinError] = useState('')
@@ -54,7 +54,6 @@ export default function QuotationForm() {
     try {
       const res = await api.get('/quotations')
       const quotations = res.data.quotations || []
-      // Find the highest quotation number from existing quotations
       let maxNum = 0
       quotations.forEach(q => {
         const rawNum = (q.quotation_number || '').split('/')[0]
@@ -138,7 +137,7 @@ export default function QuotationForm() {
         customer_id: null,
         quotation_date: new Date().toISOString().split('T')[0],
         validity_date: null,
-        quotation_number: form.quotation_number, // manual number
+        quotation_number: form.quotation_number,
         subtotal: calculated.subtotal,
         cgst_amount: 0,
         sgst_amount: 0,
@@ -170,7 +169,6 @@ export default function QuotationForm() {
     }
   }
 
-  // Auto-fetch customer details via GSTIN
   const fetchGstinDetails = async () => {
     const gstin = gstinInput.trim().toUpperCase()
     if (!gstin || gstin.length < 15) {
@@ -183,9 +181,7 @@ export default function QuotationForm() {
       const res = await api.get(`/gst/lookup/${gstin}`)
       if (res.data.success && res.data.name) {
         setForm({ ...form, customer_name: res.data.name })
-        if (res.data.source === 'local') {
-          setGstinError('')
-        }
+        setGstinError('')
       } else if (res.data.success && res.data.source === 'parsed') {
         setGstinError(`GSTIN valid. State: ${res.data.state}. Type customer name manually.`)
       } else {
@@ -200,14 +196,14 @@ export default function QuotationForm() {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
-        <button onClick={() => navigate('/app/quotations')} className="p-2 hover:bg-gray-100 rounded-lg"><ArrowLeft size={20} /></button>
-        <h1 className="text-2xl font-bold">{isEdit ? 'Edit Quotation' : 'New Quotation'}</h1>
+        <button onClick={() => navigate('/app/quotations')} className="p-2 rounded-lg hover:bg-white/5 text-white/60 hover:text-white"><ArrowLeft size={20} /></button>
+        <h1 className="text-2xl font-bold text-white">{isEdit ? 'Edit Quotation' : 'New Quotation'}</h1>
       </div>
 
       <div className="card space-y-4">
-        {/* Quotation Number — manual entry */}
+        {/* Quotation Number */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Quotation Number *</label>
+          <label className="block text-sm font-semibold text-white/80 mb-1">Quotation Number *</label>
           <div className="flex items-center gap-3">
             <input 
               type="number" 
@@ -217,62 +213,65 @@ export default function QuotationForm() {
               placeholder="e.g. 871"
               min="1"
             />
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-white/55 font-medium">
               {nextQuotationNo ? `(Auto-suggested: ${nextQuotationNo})` : '(Next number will auto-fill)'}
             </span>
           </div>
-          <p className="text-xs text-gray-400 mt-1">Type your quotation number. Next time it will auto-suggest the next number.</p>
+          <p className="text-xs text-white/45 mt-1">Type your quotation number. Next time it will auto-suggest the next number.</p>
         </div>
 
-        {/* Customer Name - typeable */}
+        {/* Customer Name */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name *</label>
+          <label className="block text-sm font-semibold text-white/80 mb-1">Customer Name *</label>
           <input value={form.customer_name} onChange={e => setForm({...form, customer_name: e.target.value})} className="input-field" placeholder="Type customer name" />
         </div>
 
         {/* GSTIN Auto-fetch */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Customer GSTIN (optional — auto-fetch name)</label>
+          <label className="block text-sm font-semibold text-white/80 mb-1">Customer GSTIN (optional — auto-fetch name)</label>
           <div className="flex gap-2">
             <input value={gstinInput} onChange={e => setGstinInput(e.target.value.toUpperCase())} className="input-field flex-1" placeholder="e.g. 27AFLPB0085N2Z8" maxLength={15} />
             <button onClick={fetchGstinDetails} disabled={gstinLoading} className="btn-primary whitespace-nowrap">
               {gstinLoading ? 'Fetching...' : 'Auto Fetch'}
             </button>
           </div>
-          {gstinError && <p className="text-sm text-red-500 mt-1">{gstinError}</p>}
+          {gstinError && <p className="text-sm text-red-400 mt-1">{gstinError}</p>}
         </div>
 
         {/* Additional Info */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Additional Info (PAN, Vehicle No.)</label>
+          <label className="block text-sm font-semibold text-white/80 mb-1">Additional Info (PAN, Vehicle No.)</label>
           <input value={form.additional_info} onChange={e => setForm({...form, additional_info: e.target.value})} className="input-field" />
         </div>
 
         {/* GST Rate */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">GST Rate</label>
+          <label className="block text-sm font-semibold text-white/80 mb-2">GST Rate</label>
           <div className="flex gap-2">
             {[0, 5, 12, 18, 28].map(r => (
-              <button key={r} onClick={() => setGSTSlab(r)} className={`px-4 py-2 rounded-lg text-sm font-medium ${form.igst_rate === r ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{r}%</button>
+              <button key={r} onClick={() => setGSTSlab(r)} className={`px-4 py-2 rounded-lg text-sm font-bold ${form.igst_rate === r ? 'accent-text' : 'text-white/55 hover:text-white/70'}`}
+                style={{ background: form.igst_rate === r ? 'rgba(var(--accent-rgb),0.15)' : 'rgba(255,255,255,0.04)', border: form.igst_rate === r ? '1px solid rgba(var(--accent-rgb),0.3)' : '1px solid rgba(255,255,255,0.06)' }}>
+                {r}%
+              </button>
             ))}
           </div>
         </div>
       </div>
 
       <div className="card space-y-4">
-        <h3 className="font-bold">Items</h3>
+        <h3 className="font-bold text-white">Items</h3>
         {items.map((item, idx) => (
-          <div key={idx} className="border rounded-xl p-4 space-y-3">
+          <div key={idx} className="rounded-xl p-4 space-y-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
             <div className="flex items-center justify-between">
-              <span className="font-medium text-sm">Item {idx + 1}</span>
-              {items.length > 1 && <button onClick={() => removeItem(idx)} className="text-red-400 hover:text-red-600"><X size={16} /></button>}
+              <span className="font-semibold text-white text-sm">Item {idx + 1}</span>
+              {items.length > 1 && <button onClick={() => removeItem(idx)} className="text-red-400 hover:text-red-300"><X size={16} /></button>}
             </div>
             <textarea value={item.description} onChange={e => updateItem(idx, 'description', e.target.value)} className="input-field" rows={6} style={{ minHeight: '150px' }} placeholder="Item description..." />
             <div className="grid grid-cols-4 gap-3">
-              <div><label className="block text-xs text-gray-500 mb-1">Quantity</label><input type="number" value={item.quantity} onChange={e => updateItem(idx, 'quantity', e.target.value)} className="input-field" /></div>
-              <div><label className="block text-xs text-gray-500 mb-1">Unit</label><select value={item.unit} onChange={e => updateItem(idx, 'unit', e.target.value)} className="input-field">{['Unit','NOS','KG','SET','LOT'].map(u=><option key={u}>{u}</option>)}</select></div>
-              <div><label className="block text-xs text-gray-500 mb-1">Rate</label><input type="number" value={item.rate} onChange={e => updateItem(idx, 'rate', e.target.value)} className="input-field" /></div>
-              <div><label className="block text-xs text-gray-500 mb-1">Amount</label><input type="number" value={item.amount} readOnly className="input-field bg-gray-50" /></div>
+              <div><label className="block text-xs text-white/55 mb-1 font-semibold">Quantity</label><input type="number" value={item.quantity} onChange={e => updateItem(idx, 'quantity', e.target.value)} className="input-field" /></div>
+              <div><label className="block text-xs text-white/55 mb-1 font-semibold">Unit</label><select value={item.unit} onChange={e => updateItem(idx, 'unit', e.target.value)} className="input-field">{['Unit','NOS','KG','SET','LOT'].map(u=><option key={u}>{u}</option>)}</select></div>
+              <div><label className="block text-xs text-white/55 mb-1 font-semibold">Rate</label><input type="number" value={item.rate} onChange={e => updateItem(idx, 'rate', e.target.value)} className="input-field" /></div>
+              <div><label className="block text-xs text-white/55 mb-1 font-semibold">Amount</label><input type="number" value={item.amount} readOnly className="input-field" style={{ background: 'rgba(255,255,255,0.03)' }} /></div>
             </div>
           </div>
         ))}
@@ -281,10 +280,10 @@ export default function QuotationForm() {
 
       <div className="card">
         <div className="max-w-sm ml-auto space-y-2 text-sm">
-          <div className="flex justify-between"><span>Subtotal</span><span className="font-medium">₹{calculated.subtotal.toFixed(2)}</span></div>
-          <div className="flex justify-between"><span>IGST @ {form.igst_rate}%</span><span className="font-medium">₹{calculated.igst_amount.toFixed(2)}</span></div>
-          <hr />
-          <div className="flex justify-between text-base font-bold"><span>Total</span><span>₹{calculated.total_amount.toFixed(2)}</span></div>
+          <div className="flex justify-between text-white/70"><span>Subtotal</span><span className="font-semibold text-white">₹{calculated.subtotal.toFixed(2)}</span></div>
+          <div className="flex justify-between text-white/70"><span>IGST @ {form.igst_rate}%</span><span className="font-semibold accent-text">₹{calculated.igst_amount.toFixed(2)}</span></div>
+          <hr className="border-white/10" />
+          <div className="flex justify-between text-base font-bold text-white"><span>Total</span><span>₹{calculated.total_amount.toFixed(2)}</span></div>
         </div>
       </div>
 
