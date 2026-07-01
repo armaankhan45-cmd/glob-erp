@@ -221,8 +221,14 @@ export default function Settings() {
       <div className="card space-y-4">
         <h3 className="font-bold text-lg">Print Layout</h3>
         <div>
-          <label className="block text-sm font-medium text-white/70 mb-1">Letterhead Top Space: {org.print_letterhead_mm || 65}mm</label>
-          <input type="range" min="40" max="80" value={org.print_letterhead_mm || 65} onChange={e => update('print_letterhead_mm', e.target.value)} className="w-full" />
+          <label className="block text-sm font-medium text-white/70 mb-1">Letterhead Top Space: {org.print_letterhead_mm || 59}mm</label>
+          <input type="range" min="30" max="80" value={org.print_letterhead_mm || 59} onChange={e => update('print_letterhead_mm', e.target.value)} className="w-full" />
+          <p className="text-xs text-white/30 mt-1">Blank space at top for printed letterhead</p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-white/70 mb-1">Footer Bottom Space: {org.print_footer_mm || 30}mm</label>
+          <input type="range" min="10" max="60" value={org.print_footer_mm || 30} onChange={e => update('print_footer_mm', e.target.value)} className="w-full" />
+          <p className="text-xs text-white/30 mt-1">Blank space at bottom for sign/stamp</p>
         </div>
       </div>
 
