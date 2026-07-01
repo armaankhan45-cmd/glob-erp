@@ -104,9 +104,10 @@ export default function QuotationDetail() {
     setShareOpen(false); setSharing(false)
   }
 
-  if (!quotation) return <div className="flex justify-center py-20"><div className="animate-spin h-8 w-8 border-4 border-primary-500 border-t-transparent rounded-full"></div></div>
+  if (!quotation) return <div className="flex justify-center py-20"><div className="animate-spin h-8 w-8 border-4 rounded-full" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}></div></div>
 
-  const letterheadMm = org?.print_letterhead_mm || 65
+  const letterheadMm = org?.print_letterhead_mm || 59
+  const footerMm = org?.print_footer_mm || 30
   const rawNum = quotation.quotation_number?.split('/')[0] || ''
   const qNum = rawNum.replace(/^[A-Za-z\-]+/, '').replace(/^0+/, '') || rawNum
 
@@ -128,31 +129,32 @@ export default function QuotationDetail() {
     <div className="space-y-4">
       {/* Action buttons */}
       <div className="flex flex-wrap items-center gap-2 no-print">
-        <button onClick={() => navigate('/app/quotations')} className="p-2 hover:bg-gray-100 rounded-lg"><ArrowLeft size={20} /></button>
-        <h1 className="text-xl font-bold flex-1">Quotation {quotation.quotation_number}</h1>
+        <button onClick={() => navigate('/app/quotations')} className="p-2 rounded-lg hover:bg-white/5 text-white/60 hover:text-white"><ArrowLeft size={20} /></button>
+        <h1 className="text-xl font-bold flex-1 text-white">Quotation {quotation.quotation_number}</h1>
         
         <div className="flex items-center gap-1 text-sm">
-          <span className="text-gray-500 text-xs">Name:</span>
-          {[10,12,14,16,18,20].map(s => (
-            <button key={s} onClick={() => changeCustomerSize(String(s))}
-              className={`w-7 h-7 rounded text-xs font-medium ${customerSize === String(s) ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-              {s}
+          <span className="text-white/55 text-xs font-medium">Name:</span>
+          {[10,12,14,16,18,20].map(sz => (
+            <button key={sz} onClick={() => changeCustomerSize(String(sz))}
+              className={`w-7 h-7 rounded text-xs font-bold ${customerSize === String(sz) ? 'accent-text' : 'text-white/50 hover:text-white/70'}`}
+              style={{ background: customerSize === String(sz) ? 'rgba(var(--accent-rgb),0.15)' : 'rgba(255,255,255,0.04)' }}>
+              {sz}
             </button>
           ))}
         </div>
 
-        <button onClick={toggleBold} className={`px-3 py-2 rounded-lg font-medium text-sm ${boldOn ? 'bg-gray-800 text-white' : 'btn-secondary'}`}>Bold {boldOn ? 'ON' : 'OFF'}</button>
+        <button onClick={toggleBold} className={`px-3 py-2 rounded-lg font-medium text-sm ${boldOn ? 'bg-white/10 text-white border border-white/15' : 'btn-secondary'}`}>Bold {boldOn ? 'ON' : 'OFF'}</button>
         <button onClick={handlePrint} className="btn-secondary flex items-center gap-2"><Printer size={16} /> Print</button>
         <button onClick={() => { const token = localStorage.getItem('token'); window.open(`${api.defaults.baseURL}/quotations/${id}/pdf?token=${token}`, '_blank') }} className="btn-secondary flex items-center gap-2"><Download size={16} /> PDF</button>
         
         <div className="relative">
           <button onClick={() => setShareOpen(!shareOpen)} className="btn-secondary flex items-center gap-2"><Share2 size={16} /> Share</button>
           {shareOpen && (
-            <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-xl border z-50 min-w-[180px]">
-              <button onClick={handleWhatsApp} disabled={sharing} className="flex items-center gap-3 w-full px-4 py-3 hover:bg-green-50 text-green-700 text-sm font-medium">
+            <div className="absolute right-0 top-full mt-1 rounded-xl shadow-2xl z-50 min-w-[180px] overflow-hidden" style={{ background: 'rgba(14,18,36,0.97)', border: '1px solid rgba(255,255,255,0.10)' }}>
+              <button onClick={handleWhatsApp} disabled={sharing} className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 text-green-400 text-sm font-medium">
                 <MessageCircle size={18} /> {sharing ? 'Sharing...' : 'WhatsApp'}
               </button>
-              <button onClick={handleEmail} disabled={sharing} className="flex items-center gap-3 w-full px-4 py-3 hover:bg-blue-50 text-blue-700 text-sm font-medium border-t">
+              <button onClick={handleEmail} disabled={sharing} className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 text-blue-400 text-sm font-medium border-t border-white/5">
                 <Mail size={18} /> {sharing ? 'Sending...' : 'Email'}
               </button>
             </div>
@@ -160,7 +162,7 @@ export default function QuotationDetail() {
         </div>
 
         <button onClick={() => navigate(`/app/quotations/${id}/edit`)} className="btn-primary flex items-center gap-2"><Edit size={16} /> Edit</button>
-        <button onClick={handleConvert} className="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 flex items-center gap-2"><Repeat size={16} /> Convert to Invoice</button>
+        <button onClick={handleConvert} className="px-4 py-2 rounded-xl font-semibold text-white flex items-center gap-2" style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)' }}><Repeat size={16} /> Convert to Invoice</button>
         <button onClick={handleDelete} className="btn-danger flex items-center gap-2"><Trash2 size={16} /> Delete</button>
       </div>
 
@@ -214,7 +216,7 @@ export default function QuotationDetail() {
             </table>
           </div>
 
-          {/* Total box — Clean format: Words + Amount on same visual block */}
+          {/* Total box */}
           <div style={{ padding: '0 5px 6px', flexShrink: 0 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt' }}>
               <tbody>
@@ -248,9 +250,10 @@ export default function QuotationDetail() {
           </div>
         </div>
 
-        {/* Sign space — BLANK */}
-        <div style={{ height: '30mm', flexShrink: 0 }}></div>
+        {/* Sign/stamp space — controlled by Settings footer mm */}
+        <div style={{ height: `${footerMm}mm`, flexShrink: 0 }}></div>
       </div>
     </div>
   )
 }
+
