@@ -43,18 +43,14 @@ export default function MainLayout() {
   const [aiMessages, setAiMessages] = useState([{ role: 'assistant', content: 'Hi! 👋 I\'m your **Nebula AI** assistant. What do you need?' }])
   const [aiLoading, setAiLoading] = useState(false)
   const [aiStatus, setAiStatus] = useState(null)
-  const [pageKey, setPageKey] = useState(0)
   const navigate = useNavigate()
   const location = useLocation()
   const miniChatRef = useRef(null)
 
   useEffect(() => { api.get('/ai/status').then(res => setAiStatus(res.data)).catch(() => {}) }, [])
   
-  // Page transition on route change
-  useEffect(() => {
-    setAiOpen(false)
-    setPageKey(prev => prev + 1)
-  }, [location.pathname])
+  // Close AI chat on route change (no page remount!)
+  useEffect(() => { setAiOpen(false) }, [location.pathname])
 
   useEffect(() => {
     function handleClick(e) { if (aiOpen && miniChatRef.current && !miniChatRef.current.contains(e.target)) { const btn = document.getElementById('ai-float-btn'); if (btn && btn.contains(e.target)) return; setAiOpen(false) } }
@@ -75,16 +71,11 @@ export default function MainLayout() {
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#080b14' }}>
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className="flex-1 flex flex-col overflow-hidden relative" style={{ background: '#080b14' }}>
-        {/* Animated Background Mesh */}
-        <div className="bg-mesh">
-          <div className="bg-orb"></div>
-          <div className="bg-orb"></div>
-          <div className="bg-orb"></div>
-        </div>
+      <div className="flex-1 flex flex-col overflow-hidden" style={{ background: '#080b14' }}>
         <div className="lg:hidden"><button onClick={() => setSidebarOpen(true)} className="p-4" style={{ color: 'rgba(255,255,255,0.6)' }}><Menu size={24} /></button></div>
         <TopBar />
-        <main key={pageKey} className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth page-enter" style={{ background: 'transparent', position: 'relative', zIndex: 1 }}>
+        {/* NO key prop, NO animation that starts at opacity:0 — prevents white flash */}
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth" style={{ background: '#080b14' }}>
           <Outlet />
         </main>
       </div>
@@ -105,7 +96,7 @@ export default function MainLayout() {
               </div>
               <div className="flex-1 overflow-y-auto p-3 space-y-3" style={{ maxHeight: '340px', minHeight: '200px' }}>
                 {aiMessages.map((m, i) => (
-                  <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`} style={{ animation: `slideUp 0.2s ease-out ${i * 0.05}s both` }}>
+                  <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                     {m.role === 'assistant' && <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mr-2 mt-0.5" style={{ background: 'linear-gradient(135deg, #06b6d4, #a855f7)' }}><Bot size={12} className="text-white" /></div>}
                     <div className={`max-w-[85%] rounded-xl px-3 py-2 ${m.role === 'user' ? 'rounded-br-md' : 'rounded-bl-md'}`}
                       style={m.role === 'user' ? { background: 'linear-gradient(135deg, var(--accent), rgba(var(--accent-rgb),0.7))' } : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#e8eaf0' }}>
