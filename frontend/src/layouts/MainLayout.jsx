@@ -74,18 +74,17 @@ export default function MainLayout() {
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#080b14' }}>
-      {/* Animated Background Mesh */}
-      <div className="bg-mesh">
-        <div className="bg-orb"></div>
-        <div className="bg-orb"></div>
-        <div className="bg-orb"></div>
-      </div>
-
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className="flex-1 flex flex-col overflow-hidden relative z-10">
+      <div className="flex-1 flex flex-col overflow-hidden relative" style={{ background: '#080b14' }}>
+        {/* Animated Background Mesh */}
+        <div className="bg-mesh">
+          <div className="bg-orb"></div>
+          <div className="bg-orb"></div>
+          <div className="bg-orb"></div>
+        </div>
         <div className="lg:hidden"><button onClick={() => setSidebarOpen(true)} className="p-4" style={{ color: 'rgba(255,255,255,0.6)' }}><Menu size={24} /></button></div>
         <TopBar />
-        <main key={pageKey} className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth page-enter" style={{ background: 'transparent' }}>
+        <main key={pageKey} className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth page-enter" style={{ background: 'transparent', position: 'relative', zIndex: 1 }}>
           <Outlet />
         </main>
       </div>
