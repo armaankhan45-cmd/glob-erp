@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../api/client'
-import { Plus, Search, Eye, Edit, Trash2, Users as UsersIcon, X, MapPin, Phone, Mail, Building2, Hash } from 'lucide-react'
+import { Plus, Search, Eye, Edit, Trash2, Users as UsersIcon, X, MapPin, Phone, Mail, Building2, Hash, RefreshCw } from 'lucide-react'
 import { parseGSTIN, formatCurrency } from '../utils'
 
 export default function Customers() {
@@ -10,83 +10,75 @@ export default function Customers() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingCustomer, setEditingCustomer] = useState(null)
+  const [lastRefresh, setLastRefresh] = useState(null)
   const [form, setForm] = useState({ name: '', gstin: '', phone: '', email: '', address: '', city: '', state: '', state_code: '', pincode: '', contact_person: '', trade_name: '', business_type: '' })
   const navigate = useNavigate()
 
-  useEffect(() => { loadCustomers() }, [])
-
-  const loadCustomers = async () => {
+  const loadCustomers = useCallback(async (showLoading = false) => {
+    if (showLoading) setLoading(true)
     try {
       const res = await api.get('/customers', { params: search ? { search } : {} })
       setCustomers(res.data.customers || [])
+      setLastRefresh(Date.now())
     } catch {} finally { setLoading(false) }
-  }
+  }, [search])
 
-  useEffect(() => { if (search.length > 0 || search === '') loadCustomers() }, [search])
+  useEffect(() => { loadCustomers(true) }, [])
+  
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => loadCustomers(false), 30000)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') loadCustomers(false)
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => { clearInterval(interval); document.removeEventListener('visibilitychange', handleVisibility) }
+  }, [loadCustomers])
+
+  useEffect(() => { if (search.length > 0 || search === '') loadCustomers(true) }, [search, loadCustomers])
 
   const handleGSTINBlur = () => {
     if (form.gstin) {
       const parsed = parseGSTIN(form.gstin)
-      if (parsed) {
-        setForm({ ...form, state: parsed.state, state_code: parsed.state_code, business_type: parsed.entity_type })
-      }
+      if (parsed) setForm({ ...form, state: parsed.state, state_code: parsed.state_code, business_type: parsed.entity_type })
     }
   }
 
   const resetForm = () => {
     setForm({ name: '', gstin: '', phone: '', email: '', address: '', city: '', state: '', state_code: '', pincode: '', contact_person: '', trade_name: '', business_type: '' })
-    setEditingCustomer(null)
-    setShowForm(false)
+    setEditingCustomer(null); setShowForm(false)
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
-      if (editingCustomer) {
-        await api.put(`/customers/${editingCustomer.id}`, form)
-      } else {
-        const res = await api.post('/customers', form)
-        setCustomers([res.data.customer, ...customers])
-      }
-      resetForm()
-      loadCustomers()
-    } catch (err) {
-      alert(err.response?.data?.msg || 'Failed')
-    }
+      if (editingCustomer) { await api.put(`/customers/${editingCustomer.id}`, form) }
+      else { const res = await api.post('/customers', form); setCustomers([res.data.customer, ...customers]) }
+      resetForm(); loadCustomers()
+      api.invalidateCache('customers')
+    } catch (err) { alert(err.response?.data?.msg || 'Failed') }
   }
 
   const startEdit = (customer) => {
-    setForm({
-      name: customer.name || '',
-      gstin: customer.gstin || '',
-      phone: customer.phone || '',
-      email: customer.email || '',
-      address: customer.address || '',
-      city: customer.city || '',
-      state: customer.state || '',
-      state_code: customer.state_code || '',
-      pincode: customer.pincode || '',
-      contact_person: customer.contact_person || '',
-      trade_name: customer.trade_name || '',
-      business_type: customer.business_type || ''
-    })
-    setEditingCustomer(customer)
-    setShowForm(true)
+    setForm({ name: customer.name || '', gstin: customer.gstin || '', phone: customer.phone || '', email: customer.email || '', address: customer.address || '', city: customer.city || '', state: customer.state || '', state_code: customer.state_code || '', pincode: customer.pincode || '', contact_person: customer.contact_person || '', trade_name: customer.trade_name || '', business_type: customer.business_type || '' })
+    setEditingCustomer(customer); setShowForm(true)
   }
 
   const handleDelete = async (id) => {
     if (!confirm('Delete this customer?')) return
-    try {
-      await api.delete(`/customers/${id}`)
-      setCustomers(customers.filter(c => c.id !== id))
-    } catch (err) {
-      alert(err.response?.data?.msg || 'Cannot delete customer with invoices')
-    }
+    try { await api.delete(`/customers/${id}`); setCustomers(customers.filter(c => c.id !== id)); api.invalidateCache('customers') }
+    catch (err) { alert(err.response?.data?.msg || 'Cannot delete customer with invoices') }
   }
 
-  const totalOutstanding = customers.reduce((s, c) => s + (parseFloat(c.credit_limit) || 0), 0)
   const withGSTIN = customers.filter(c => c.gstin).length
   const interstate = customers.filter(c => c.state_code && c.state_code !== '27').length
+
+  const statCards = [
+    { label: 'Total Customers', value: customers.length, icon: UsersIcon, color: '#4f8fff', bg: 'rgba(79,143,255,0.12)' },
+    { label: 'With GSTIN', value: withGSTIN, icon: Hash, color: '#22c55e', bg: 'rgba(34,197,94,0.12)' },
+    { label: 'Inter-State', value: interstate, icon: MapPin, color: '#f97316', bg: 'rgba(249,115,22,0.12)' },
+    { label: 'Intra-State (MH)', value: customers.length - interstate, icon: Building2, color: '#06b6d4', bg: 'rgba(6,182,212,0.12)' },
+  ]
 
   return (
     <div className="space-y-6">
@@ -95,31 +87,24 @@ export default function Customers() {
           <h1 className="text-2xl font-bold text-white">Customers</h1>
           <p className="text-white/40 text-sm">Manage your customer database</p>
         </div>
-        <button onClick={() => { resetForm(); setShowForm(true) }} className="btn-primary flex items-center gap-2"><Plus size={18} /> Add Customer</button>
+        <div className="flex gap-2">
+          <button onClick={() => loadCustomers(true)} className="btn-secondary flex items-center gap-2 text-sm" title="Refresh now">
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          </button>
+          <button onClick={() => { resetForm(); setShowForm(true) }} className="btn-primary flex items-center gap-2"><Plus size={18} /> Add Customer</button>
+        </div>
       </div>
 
       {/* Stats Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="card text-center">
-          <div className="w-10 h-10 rounded-lg flex items-center justify-center mx-auto mb-2" style={{ background: 'rgba(79,143,255,0.12)' }}><UsersIcon size={20} className="text-blue-400" /></div>
-          <p className="text-2xl font-bold text-white">{customers.length}</p>
-          <p className="text-xs text-white/40">Total Customers</p>
-        </div>
-        <div className="card text-center">
-          <div className="w-10 h-10 rounded-lg flex items-center justify-center mx-auto mb-2" style={{ background: 'rgba(34,197,94,0.12)' }}><Hash size={20} className="text-green-400" /></div>
-          <p className="text-2xl font-bold text-white">{withGSTIN}</p>
-          <p className="text-xs text-white/40">With GSTIN</p>
-        </div>
-        <div className="card text-center">
-          <div className="w-10 h-10 rounded-lg flex items-center justify-center mx-auto mb-2" style={{ background: 'rgba(249,115,22,0.12)' }}><MapPin size={20} className="text-orange-400" /></div>
-          <p className="text-2xl font-bold text-white">{interstate}</p>
-          <p className="text-xs text-white/40">Inter-State</p>
-        </div>
-        <div className="card text-center">
-          <div className="w-10 h-10 rounded-lg flex items-center justify-center mx-auto mb-2" style={{ background: 'rgba(6,182,212,0.12)' }}><Building2 size={20} className="text-cyan-400" /></div>
-          <p className="text-2xl font-bold text-white">{customers.length - interstate}</p>
-          <p className="text-xs text-white/40">Intra-State (MH)</p>
-        </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 stagger">
+        {statCards.map((s, i) => (
+          <div key={i} className="stat-card text-center">
+            <div className="shimmer"></div>
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center mx-auto mb-2" style={{ background: s.bg }}><s.icon size={20} style={{ color: s.color }} /></div>
+            <p className="text-2xl font-bold text-white">{s.value}</p>
+            <p className="text-xs text-white/40">{s.label}</p>
+          </div>
+        ))}
       </div>
 
       {/* Search */}
@@ -127,6 +112,7 @@ export default function Customers() {
         <div className="relative mb-4">
           <Search size={18} className="absolute left-3 top-2.5 text-white/30" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name, GSTIN, phone..." className="input-field pl-10" />
+          {lastRefresh && <span className="absolute right-3 top-3 text-[10px] text-white/20">Updated {Math.round((Date.now() - lastRefresh) / 1000)}s ago</span>}
         </div>
 
         {loading ? (
@@ -138,7 +124,7 @@ export default function Customers() {
             <button onClick={() => setShowForm(true)} className="accent-text text-sm hover:underline mt-2 inline-block">Add your first customer</button>
           </div>
         ) : (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 stagger">
             {customers.map(c => {
               const isIntra = !c.state_code || c.state_code === '27'
               return (
@@ -153,38 +139,16 @@ export default function Customers() {
                       {isIntra ? 'MH' : (c.state_code || '—')}
                     </span>
                   </div>
-
                   <div className="space-y-1.5 text-sm">
-                    {c.gstin && (
-                      <div className="flex items-center gap-2">
-                        <Hash size={13} className="text-white/30 flex-shrink-0" />
-                        <span className="font-mono text-xs text-white/60">{c.gstin}</span>
-                      </div>
-                    )}
-                    {c.phone && (
-                      <div className="flex items-center gap-2">
-                        <Phone size={13} className="text-white/30 flex-shrink-0" />
-                        <span className="text-white/60">{c.phone}</span>
-                      </div>
-                    )}
-                    {c.email && (
-                      <div className="flex items-center gap-2">
-                        <Mail size={13} className="text-white/30 flex-shrink-0" />
-                        <span className="text-white/60 truncate">{c.email}</span>
-                      </div>
-                    )}
-                    {(c.city || c.state) && (
-                      <div className="flex items-center gap-2">
-                        <MapPin size={13} className="text-white/30 flex-shrink-0" />
-                        <span className="text-white/60 truncate">{[c.city, c.state].filter(Boolean).join(', ')}</span>
-                      </div>
-                    )}
+                    {c.gstin && <div className="flex items-center gap-2"><Hash size={13} className="text-white/30 flex-shrink-0" /><span className="font-mono text-xs text-white/60">{c.gstin}</span></div>}
+                    {c.phone && <div className="flex items-center gap-2"><Phone size={13} className="text-white/30 flex-shrink-0" /><span className="text-white/60">{c.phone}</span></div>}
+                    {c.email && <div className="flex items-center gap-2"><Mail size={13} className="text-white/30 flex-shrink-0" /><span className="text-white/60 truncate">{c.email}</span></div>}
+                    {(c.city || c.state) && <div className="flex items-center gap-2"><MapPin size={13} className="text-white/30 flex-shrink-0" /><span className="text-white/60 truncate">{[c.city, c.state].filter(Boolean).join(', ')}</span></div>}
                   </div>
-
                   <div className="flex items-center gap-1 mt-3 pt-3 border-t border-white/5" onClick={e => e.stopPropagation()}>
-                    <button onClick={() => navigate(`/app/customers/${c.id}`)} className="p-1.5 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/5" title="View"><Eye size={15} /></button>
-                    <button onClick={() => startEdit(c)} className="p-1.5 rounded-lg text-white/40 hover:text-blue-400 hover:bg-white/5" title="Edit"><Edit size={15} /></button>
-                    <button onClick={() => handleDelete(c.id)} className="p-1.5 rounded-lg text-white/40 hover:text-red-400 hover:bg-white/5" title="Delete"><Trash2 size={15} /></button>
+                    <button onClick={() => navigate(`/app/customers/${c.id}`)} className="p-1.5 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/5 transition-all duration-200 active:scale-90" title="View"><Eye size={15} /></button>
+                    <button onClick={() => startEdit(c)} className="p-1.5 rounded-lg text-white/40 hover:text-blue-400 hover:bg-white/5 transition-all duration-200 active:scale-90" title="Edit"><Edit size={15} /></button>
+                    <button onClick={() => handleDelete(c.id)} className="p-1.5 rounded-lg text-white/40 hover:text-red-400 hover:bg-white/5 transition-all duration-200 active:scale-90" title="Delete"><Trash2 size={15} /></button>
                     <span className="ml-auto text-[10px] text-white/20">{c.business_type || ''}</span>
                   </div>
                 </div>
@@ -196,29 +160,18 @@ export default function Customers() {
 
       {/* Add/Edit Customer Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => resetForm()}>
-          <div className="rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto" style={{ background: 'rgba(14,18,36,0.97)', border: '1px solid rgba(255,255,255,0.10)' }} onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => resetForm()} style={{ animation: 'fadeIn 0.2s ease-out' }}>
+          <div className="rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto" style={{ background: 'rgba(14,18,36,0.97)', border: '1px solid rgba(255,255,255,0.10)', animation: 'slideUp 0.3s cubic-bezier(0.16,1,0.3,1)' }} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
               <h3 className="font-bold text-lg text-white">{editingCustomer ? 'Edit Customer' : 'Add Customer'}</h3>
-              <button onClick={resetForm} className="text-white/30 hover:text-white/50"><X size={20} /></button>
+              <button onClick={resetForm} className="text-white/30 hover:text-white/50 transition-all duration-200 hover:scale-110 active:scale-90"><X size={20} /></button>
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-white/70 mb-1">Customer Name *</label>
-                <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="input-field" placeholder="Full legal name" required />
-              </div>
-
+              <div><label className="block text-sm font-medium text-white/70 mb-1">Customer Name *</label><input value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="input-field" placeholder="Full legal name" required /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-white/70 mb-1">GSTIN</label>
-                  <input value={form.gstin} onChange={e => setForm({...form, gstin: e.target.value.toUpperCase()})} onBlur={handleGSTINBlur} className="input-field" placeholder="22AAAAA0000A1Z5" maxLength={15} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-white/70 mb-1">Trade Name</label>
-                  <input value={form.trade_name} onChange={e => setForm({...form, trade_name: e.target.value})} className="input-field" placeholder="Doing business as" />
-                </div>
+                <div><label className="block text-sm font-medium text-white/70 mb-1">GSTIN</label><input value={form.gstin} onChange={e => setForm({...form, gstin: e.target.value.toUpperCase()})} onBlur={handleGSTINBlur} className="input-field" placeholder="22AAAAA0000A1Z5" maxLength={15} /></div>
+                <div><label className="block text-sm font-medium text-white/70 mb-1">Trade Name</label><input value={form.trade_name} onChange={e => setForm({...form, trade_name: e.target.value})} className="input-field" placeholder="Doing business as" /></div>
               </div>
-
               {form.gstin && parseGSTIN(form.gstin) && (
                 <div className="rounded-xl p-3" style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.15)' }}>
                   <div className="grid grid-cols-3 gap-2 text-sm">
@@ -228,58 +181,24 @@ export default function Customers() {
                   </div>
                 </div>
               )}
-
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-white/70 mb-1">Phone</label>
-                  <input value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="input-field" placeholder="+91 98765 43210" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-white/70 mb-1">Email</label>
-                  <input value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="input-field" placeholder="email@example.com" />
-                </div>
+                <div><label className="block text-sm font-medium text-white/70 mb-1">Phone</label><input value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="input-field" placeholder="+91 98765 43210" /></div>
+                <div><label className="block text-sm font-medium text-white/70 mb-1">Email</label><input value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="input-field" placeholder="email@example.com" /></div>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-white/70 mb-1">Address</label>
-                <input value={form.address} onChange={e => setForm({...form, address: e.target.value})} className="input-field" placeholder="Street address" />
-              </div>
-
+              <div><label className="block text-sm font-medium text-white/70 mb-1">Address</label><input value={form.address} onChange={e => setForm({...form, address: e.target.value})} className="input-field" placeholder="Street address" /></div>
               <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-white/70 mb-1">City</label>
-                  <input value={form.city} onChange={e => setForm({...form, city: e.target.value})} className="input-field" placeholder="City" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-white/70 mb-1">State</label>
-                  <input value={form.state} onChange={e => setForm({...form, state: e.target.value})} className="input-field" placeholder="State" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-white/70 mb-1">Pincode</label>
-                  <input value={form.pincode} onChange={e => setForm({...form, pincode: e.target.value})} className="input-field" placeholder="400001" />
-                </div>
+                <div><label className="block text-sm font-medium text-white/70 mb-1">City</label><input value={form.city} onChange={e => setForm({...form, city: e.target.value})} className="input-field" placeholder="City" /></div>
+                <div><label className="block text-sm font-medium text-white/70 mb-1">State</label><input value={form.state} onChange={e => setForm({...form, state: e.target.value})} className="input-field" placeholder="State" /></div>
+                <div><label className="block text-sm font-medium text-white/70 mb-1">Pincode</label><input value={form.pincode} onChange={e => setForm({...form, pincode: e.target.value})} className="input-field" placeholder="400001" /></div>
               </div>
-
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-white/70 mb-1">Contact Person</label>
-                  <input value={form.contact_person} onChange={e => setForm({...form, contact_person: e.target.value})} className="input-field" placeholder="Name" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-white/70 mb-1">Business Type</label>
+                <div><label className="block text-sm font-medium text-white/70 mb-1">Contact Person</label><input value={form.contact_person} onChange={e => setForm({...form, contact_person: e.target.value})} className="input-field" placeholder="Name" /></div>
+                <div><label className="block text-sm font-medium text-white/70 mb-1">Business Type</label>
                   <select value={form.business_type} onChange={e => setForm({...form, business_type: e.target.value})} className="input-field">
-                    <option value="">Select</option>
-                    <option value="Sole Proprietorship">Sole Proprietorship</option>
-                    <option value="Private Limited">Private Limited</option>
-                    <option value="Public Limited">Public Limited</option>
-                    <option value="LLP">LLP</option>
-                    <option value="HUF">HUF</option>
-                    <option value="Government">Government</option>
-                    <option value="Trust">Trust</option>
+                    <option value="">Select</option><option value="Sole Proprietorship">Sole Proprietorship</option><option value="Private Limited">Private Limited</option><option value="Public Limited">Public Limited</option><option value="LLP">LLP</option><option value="HUF">HUF</option><option value="Government">Government</option><option value="Trust">Trust</option>
                   </select>
                 </div>
               </div>
-
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={resetForm} className="btn-secondary">Cancel</button>
                 <button type="submit" className="btn-primary">{editingCustomer ? 'Update Customer' : 'Add Customer'}</button>
