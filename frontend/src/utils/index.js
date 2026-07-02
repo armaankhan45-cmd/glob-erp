@@ -1,3 +1,114 @@
+
+import { useState, useEffect, useRef, useCallback } from 'react'
+
+// ═══════════════════════════════════════════
+// AUTO-REFRESH HOOK — keeps data fresh at high refresh rate
+// Polls API every `interval` ms (default 30s)
+// Only when tab is visible (saves resources)
+// ═══════════════════════════════════════════
+export function useAutoRefresh(fetchFn, interval = 30000) {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [lastRefresh, setLastRefresh] = useState(null)
+  const fetchRef = useRef(fetchFn)
+  const intervalRef = useRef(null)
+  const mountedRef = useRef(true)
+
+  useEffect(() => { fetchRef.current = fetchFn }, [fetchFn])
+
+  const execute = useCallback(async () => {
+    try {
+      const result = await fetchRef.current()
+      if (mountedRef.current) {
+        setData(result)
+        setLastRefresh(Date.now())
+        setLoading(false)
+      }
+    } catch (err) {
+      if (mountedRef.current) setLoading(false)
+    }
+  }, [])
+
+  // Initial fetch
+  useEffect(() => {
+    mountedRef.current = true
+    execute()
+    return () => { mountedRef.current = false }
+  }, [execute])
+
+  // Auto-refresh interval - only when tab is visible
+  useEffect(() => {
+    const startInterval = () => {
+      if (intervalRef.current) clearInterval(intervalRef.current)
+      intervalRef.current = setInterval(() => {
+        if (document.visibilityState === 'visible') {
+          execute()
+        }
+      }, interval)
+    }
+
+    const stopInterval = () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+    }
+
+    startInterval()
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        execute() // Immediate refresh when tab becomes visible
+        startInterval()
+      } else {
+        stopInterval()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      stopInterval()
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [interval, execute])
+
+  const refresh = useCallback(() => {
+    setLoading(true)
+    return execute()
+  }, [execute])
+
+  return { data, loading, lastRefresh, refresh }
+}
+
+// ═══════════════════════════════════════════
+// ANIMATED COUNTER HOOK — smooth number counting
+// ═══════════════════════════════════════════
+export function useAnimatedCounter(target, duration = 1200) {
+  const [value, setValue] = useState(0)
+  const rafRef = useRef(null)
+
+  useEffect(() => {
+    const start = performance.now()
+    const startVal = value
+
+    const update = (now) => {
+      const elapsed = now - start
+      const progress = Math.min(elapsed / duration, 1)
+      const eased = 1 - Math.pow(1 - progress, 3) // easeOutCubic
+      const current = Math.floor(startVal + (target - startVal) * eased)
+      setValue(current)
+      if (progress < 1) {
+        rafRef.current = requestAnimationFrame(update)
+      }
+    }
+
+    rafRef.current = requestAnimationFrame(update)
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }
+  }, [target, duration])
+
+  return value
+}
+
 export function numberToWords(num) {
   const a = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten',
     'Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
@@ -19,12 +130,10 @@ export function numberToWords(num) {
   return result + ' Only';
 }
 
-// ALL CAPS version for print format (e.g., "TWENTY ONE LAKH TWENTY FOUR THOUSAND ONLY")
 export function numberToWordsCaps(num) {
   return numberToWords(num).toUpperCase().replace('RUPEES ', '').replace(' RUPEES', '');
 }
 
-// Indian number format with 2 decimals (e.g., "18,00,000.00")
 export function formatIndian(num) {
   if (num === null || num === undefined || isNaN(num)) return '0.00';
   const n = parseFloat(num);
