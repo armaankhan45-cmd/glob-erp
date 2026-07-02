@@ -4,8 +4,52 @@ const API_URL = import.meta.env.VITE_API_URL || '/api'
 
 const api = axios.create({
   baseURL: API_URL,
-  headers: { 'Content-Type': 'application/json' }
+  headers: { 'Content-Type': 'application/json' },
+  // High refresh rate: shorter timeout for snappy feel
+  timeout: 10000,
 })
+
+// ═══════════════════════════════════════════
+// SMART CACHE — instant UI, background refresh
+// Shows cached data immediately, fetches fresh in background
+// ═══════════════════════════════════════════
+const cache = new Map()
+const CACHE_TTL = 10000 // 10 seconds — high refresh rate
+
+api.getCached = async (url, forceFresh = false) => {
+  const now = Date.now()
+  const entry = cache.get(url)
+
+  // Return cached data instantly if fresh enough
+  if (!forceFresh && entry && (now - entry.time) < CACHE_TTL) {
+    // Background refresh if cache is > 5s old
+    if ((now - entry.time) > 5000) {
+      api.get(url).then(res => {
+        cache.set(url, { data: res.data, time: Date.now() })
+      }).catch(() => {})
+    }
+    return { data: entry.data, fromCache: true }
+  }
+
+  // Fetch fresh data
+  try {
+    const res = await api.get(url)
+    cache.set(url, { data: res.data, time: Date.now() })
+    return { data: res.data, fromCache: false }
+  } catch (err) {
+    // If fetch fails but we have stale cache, use it
+    if (entry) return { data: entry.data, fromCache: true, stale: true }
+    throw err
+  }
+}
+
+// Clear cache for specific URL pattern
+api.invalidateCache = (pattern) => {
+  if (!pattern) { cache.clear(); return }
+  for (const key of cache.keys()) {
+    if (key.includes(pattern)) cache.delete(key)
+  }
+}
 
 // Request interceptor - add JWT
 api.interceptors.request.use(config => {
