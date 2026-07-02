@@ -48,9 +48,7 @@ export default function Quotations() {
         items: []
       })
       loadQuotations()
-    } catch (err) {
-      alert('Duplicate failed')
-    }
+    } catch (err) { alert('Duplicate failed') }
   }
 
   const filtered = search
@@ -65,7 +63,7 @@ export default function Quotations() {
           <p className="text-white/55 text-sm">Manage your quotations</p>
         </div>
         <div className="flex gap-3">
-          <button onClick={toggleBold} className={`px-4 py-2 rounded-lg font-medium text-sm ${boldOn ? 'bg-white/10 text-white border border-white/15' : 'btn-secondary'}`}>
+          <button onClick={toggleBold} className={`px-4 py-2 rounded-xl font-medium text-sm transition-all duration-200 active:scale-[0.97] ${boldOn ? 'btn-primary' : 'btn-secondary'}`}>
             Bold {boldOn ? 'ON' : 'OFF'}
           </button>
           <Link to="/app/quotations/new" className="btn-primary flex items-center gap-2"><Plus size={18} /> New Quotation</Link>
@@ -74,7 +72,7 @@ export default function Quotations() {
 
       <div className="card">
         <div className="relative mb-4">
-          <Search size={18} className="absolute left-3 top-2.5 text-white/40" />
+          <Search size={18} className="absolute left-3 top-2.5 text-white/30" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search quotations..." className="input-field pl-10" />
         </div>
 
@@ -82,40 +80,38 @@ export default function Quotations() {
           <div className="flex justify-center py-12"><div className="animate-spin h-8 w-8 border-4 rounded-full" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}></div></div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-12">
-            <FileSpreadsheet size={48} className="mx-auto text-white/25 mb-3" />
-            <p className="text-white/40">No quotations found</p>
+            <FileSpreadsheet size={48} className="mx-auto text-white/20 mb-3" />
+            <p className="text-white/30">No quotations found</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead><tr className="border-b border-white/8 text-left text-white/55">
-                <th className="pb-2 font-semibold text-xs uppercase tracking-wide">Quotation #</th>
-                <th className="pb-2 font-semibold text-xs uppercase tracking-wide">Customer</th>
-                <th className="pb-2 font-semibold text-xs uppercase tracking-wide">Date</th>
-                <th className="pb-2 font-semibold text-xs uppercase tracking-wide text-right">Amount</th>
-                <th className="pb-2 font-semibold text-xs uppercase tracking-wide text-center">Status</th>
-                <th className="pb-2 font-semibold text-xs uppercase tracking-wide text-right">Actions</th>
+            <table className="nebula-table">
+              <thead><tr>
+                <th>Quotation #</th>
+                <th>Customer</th>
+                <th>Date</th>
+                <th className="text-right">Amount</th>
+                <th className="text-center">Status</th>
+                <th className="text-right">Actions</th>
               </tr></thead>
               <tbody>
-                {filtered.map(q => (
-                  <tr key={q.id} className="border-b border-white/5 hover:bg-white/[0.03] cursor-pointer" onClick={() => navigate(`/app/quotations/${q.id}`)}>
-                    <td className="py-3 font-semibold accent-text">{q.quotation_number}</td>
-                    <td className="py-3 text-white font-medium" style={{ fontWeight: boldOn ? 'bold' : '500' }}>{q.customer_name || 'N/A'}</td>
-                    <td className="py-3 text-white/55">{formatDate(q.quotation_date)}</td>
-                    <td className="py-3 text-right font-semibold text-white">{formatCurrency(q.total_amount)}</td>
-                    <td className="py-3 text-center">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                        q.status === 'Converted' ? 'text-green-400' : q.status === 'Sent' ? 'text-blue-400' : 'text-white/60'
-                      }`} style={{ background: q.status === 'Converted' ? 'rgba(34,197,94,0.12)' : q.status === 'Sent' ? 'rgba(59,130,246,0.12)' : 'rgba(255,255,255,0.06)' }}>
+                {filtered.map((q, i) => (
+                  <tr key={q.id} className="anim-row cursor-pointer" style={{ animationDelay: `${i * 0.03}s` }} onClick={() => navigate(`/app/quotations/${q.id}`)}>
+                    <td className="font-semibold accent-text">{q.quotation_number}</td>
+                    <td className="text-white font-medium" style={{ fontWeight: boldOn ? 'bold' : '500' }}>{q.customer_name || 'N/A'}</td>
+                    <td className="text-white/55">{formatDate(q.quotation_date)}</td>
+                    <td className="text-right font-semibold text-white">{formatCurrency(q.total_amount)}</td>
+                    <td className="text-center">
+                      <span className={`status-badge ${q.status === 'Converted' ? 'status-converted' : q.status === 'Sent' ? 'status-sent' : 'status-draft'}`}>
                         {q.status}
                       </span>
                     </td>
-                    <td className="py-3 text-right" onClick={e => e.stopPropagation()}>
+                    <td className="text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => navigate(`/app/quotations/${q.id}`)} className="p-1.5 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/5"><Eye size={16} /></button>
-                        <button onClick={() => navigate(`/app/quotations/${q.id}/edit`)} className="p-1.5 rounded-lg text-white/40 hover:text-blue-400 hover:bg-white/5"><Edit size={16} /></button>
-                        <button onClick={() => duplicate(q)} className="p-1.5 rounded-lg text-white/40 hover:text-green-400 hover:bg-white/5"><Copy size={16} /></button>
-                        <button onClick={() => deleteQ(q.id)} className="p-1.5 rounded-lg text-white/40 hover:text-red-400 hover:bg-white/5"><Trash2 size={16} /></button>
+                        <button onClick={() => navigate(`/app/quotations/${q.id}`)} className="p-1.5 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/5 transition-all duration-200 active:scale-90"><Eye size={16} /></button>
+                        <button onClick={() => navigate(`/app/quotations/${q.id}/edit`)} className="p-1.5 rounded-lg text-white/40 hover:text-blue-400 hover:bg-white/5 transition-all duration-200 active:scale-90"><Edit size={16} /></button>
+                        <button onClick={() => duplicate(q)} className="p-1.5 rounded-lg text-white/40 hover:text-green-400 hover:bg-white/5 transition-all duration-200 active:scale-90"><Copy size={16} /></button>
+                        <button onClick={() => deleteQ(q.id)} className="p-1.5 rounded-lg text-white/40 hover:text-red-400 hover:bg-white/5 transition-all duration-200 active:scale-90"><Trash2 size={16} /></button>
                       </div>
                     </td>
                   </tr>
