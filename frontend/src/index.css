@@ -97,14 +97,9 @@
   66% { transform: translate3d(-60px, 80px, 0) scale(0.9); }
 }
 
-/* ── Page Enter Animation ── */
+/* ── Page transition — NO opacity:0 start, instant render ── */
 .page-enter {
-  animation: pageEnter 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  will-change: transform, opacity;
-}
-@keyframes pageEnter {
-  0% { opacity: 0; transform: translate3d(0, 16px, 0); }
-  100% { opacity: 1; transform: translate3d(0, 0, 0); }
+  /* No animation that starts invisible — prevents white flash */
 }
 
 /* ── Stagger Children Animation ── */
@@ -587,3 +582,4 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }
+
