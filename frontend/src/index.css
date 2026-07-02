@@ -81,16 +81,16 @@
 
 /* ── Animated Background Mesh ── */
 .bg-mesh {
-  position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
+  position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
 }
 .bg-orb {
-  position: absolute; border-radius: 50%; filter: blur(120px); opacity: 0.12;
+  position: absolute; border-radius: 50%; filter: blur(120px); opacity: 0.10;
   animation: orbFloat 25s ease-in-out infinite;
   will-change: transform;
 }
-.bg-orb:nth-child(1) { width: 600px; height: 600px; background: var(--accent); top: -200px; left: -100px; }
-.bg-orb:nth-child(2) { width: 500px; height: 500px; background: #7c4dff; bottom: -150px; right: -100px; animation-delay: -8s; animation-duration: 30s; }
-.bg-orb:nth-child(3) { width: 400px; height: 400px; background: #ff6b6b; top: 40%; left: 40%; animation-delay: -16s; animation-duration: 35s; opacity: 0.06; }
+.bg-orb:nth-child(1) { width: 500px; height: 500px; background: var(--accent); top: -200px; left: -100px; }
+.bg-orb:nth-child(2) { width: 400px; height: 400px; background: #7c4dff; bottom: -150px; right: -100px; animation-delay: -8s; animation-duration: 30s; }
+.bg-orb:nth-child(3) { width: 300px; height: 300px; background: #ff6b6b; top: 40%; left: 40%; animation-delay: -16s; animation-duration: 35s; opacity: 0.05; }
 @keyframes orbFloat {
   0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
   33% { transform: translate3d(80px, -60px, 0) scale(1.1); }
@@ -99,12 +99,12 @@
 
 /* ── Page Enter Animation ── */
 .page-enter {
-  animation: pageEnter 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  will-change: transform, opacity, filter;
+  animation: pageEnter 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
 }
 @keyframes pageEnter {
-  0% { opacity: 0; transform: translate3d(0, 24px, 0) scale(0.98); filter: blur(6px); }
-  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); filter: blur(0); }
+  0% { opacity: 0; transform: translate3d(0, 16px, 0); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 
 /* ── Stagger Children Animation ── */
