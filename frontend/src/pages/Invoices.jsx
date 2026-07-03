@@ -1,122 +1,146 @@
-import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Plus, Download, Eye, Trash2, Search, FileText } from 'lucide-react'
 import api from '../api/client'
-import { Plus, Search, Eye, Edit, Trash2, FileText } from 'lucide-react'
-import { formatCurrency, formatDate } from '../utils'
+import useCachedApi, { invalidateCache } from '../hooks/useCachedApi'
+import { generateInvoicePDF } from '../utils/invoicePDF'
 
 export default function Invoices() {
-  const [invoices, setInvoices] = useState([])
-  const [stats, setStats] = useState({})
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState('All')
-  const [loading, setLoading] = useState(true)
+  const [filterStatus, setFilterStatus] = useState('All')
   const navigate = useNavigate()
+  const { data, loading, refetch } = useCachedApi('/invoices', { maxAge: 30000 })
+  const invoices = data && data.invoices ? data.invoices : []
+  const load = () => { invalidateCache('/invoices'); refetch() }
 
-  useEffect(() => { loadInvoices() }, [search, status])
-
-  const loadInvoices = async () => {
+  const del = async (id, num, e) => {
+    if (e) e.stopPropagation()
+    if (!confirm('Delete invoice ' + num + '?')) return
     try {
-      const params = {}
-      if (search) params.search = search
-      if (status !== 'All') params.status = status
-      const res = await api.get('/invoices', { params })
-      setInvoices(res.data.invoices || [])
-      setStats(res.data.stats || {})
-    } catch (err) { console.error('Load invoices error:', err) }
-    finally { setLoading(false) }
+      await api.delete('/invoices/' + id)
+      load()
+    } catch (err) { alert('Delete failed: ' + err.message) }
   }
 
-  const deleteInvoice = async (id) => {
-    if (!confirm('Delete this invoice? This cannot be undone.')) return
-    try { await api.delete(`/invoices/${id}`); loadInvoices() }
-    catch (err) { alert(err.response?.data?.msg || 'Delete failed') }
+  const download = async (inv, e) => {
+    if (e) e.stopPropagation()
+    if (!inv.id || inv.id <= 0) { alert('Invalid invoice ID'); return }
+    try {
+      const r = await api.get('/invoices/' + inv.id)
+      if (r.data.success) {
+        await generateInvoicePDF(r.data.invoice, r.data.items)
+      }
+    } catch (e) { alert('Failed: ' + (e.response?.data?.msg || e.message)) }
   }
 
-  const statCards = [
-    { label: 'Total Bills', value: stats.total_bills || 0, color: 'var(--accent)', bg: 'rgba(var(--accent-rgb),0.1)' },
-    { label: 'Total Amount', value: formatCurrency(stats.total_amount), color: '#22c55e', bg: 'rgba(34,197,94,0.1)' },
-    { label: 'Paid', value: formatCurrency(stats.total_paid), color: '#4ade80', bg: 'rgba(74,222,128,0.1)' },
-    { label: 'Outstanding', value: formatCurrency(stats.outstanding), color: '#f87171', bg: 'rgba(248,113,113,0.1)' },
-  ]
+  const openInvoice = (inv) => {
+    if (!inv.id || inv.id <= 0) { alert('Invalid invoice - cannot open'); return }
+    navigate('/app/invoices/' + inv.id)
+  }
+
+  const filtered = invoices.filter(i => {
+    const matchSearch = !search || i.invoice_number?.toLowerCase().includes(search.toLowerCase()) || i.customer_name?.toLowerCase().includes(search.toLowerCase())
+    const matchStatus = filterStatus === 'All' || i.payment_status === filterStatus
+    return matchSearch && matchStatus
+  })
+
+  const stats = {
+    total: filtered.length,
+    totalAmount: filtered.reduce((s, i) => s + (parseFloat(i.total_amount) || 0), 0),
+    paid: filtered.filter(i => i.payment_status === 'Paid').reduce((s, i) => s + (parseFloat(i.total_amount) || 0), 0),
+    unpaid: filtered.filter(i => i.payment_status !== 'Paid').reduce((s, i) => s + (parseFloat(i.total_amount) || 0), 0)
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+    <div className="space-y-5">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-white">GST Invoices</h1>
-          <p className="text-white/40 text-sm">Manage your sales invoices</p>
+          <h1 className="text-2xl font-bold text-white">GST Tax Invoices</h1>
+          <p className="text-slate-400 text-sm">Manage all your tax invoices</p>
         </div>
-        <Link to="/app/invoices/new" className="btn-primary flex items-center gap-2">
-          <Plus size={18} /> New Invoice
-        </Link>
+        <button onClick={() => navigate('/app/invoices/new')} className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 hover:shadow-lg text-white px-5 py-2.5 rounded-xl text-sm font-bold transition">
+          <Plus size={18} />Create New Invoice
+        </button>
       </div>
 
-      {/* Stats - Staggered animation */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 stagger">
-        {statCards.map((s, i) => (
-          <div key={i} className="stat-card text-center">
-            <div className="shimmer"></div>
-            <p className="text-sm text-white/40">{s.label}</p>
-            <p className="text-xl font-bold text-white mt-1" style={{ color: s.color }}>{s.value}</p>
-          </div>
-        ))}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="glass rounded-2xl p-4 border-l-4 border-blue-500">
+          <div className="text-xs text-slate-400">Total Invoices</div>
+          <div className="text-2xl font-bold text-white mt-1">{stats.total}</div>
+        </div>
+        <div className="glass rounded-2xl p-4 border-l-4 border-purple-500">
+          <div className="text-xs text-slate-400">Total Amount</div>
+          <div className="text-2xl font-bold text-purple-400 mt-1">Rs.{Math.round(stats.totalAmount).toLocaleString('en-IN')}</div>
+        </div>
+        <div className="glass rounded-2xl p-4 border-l-4 border-emerald-500">
+          <div className="text-xs text-slate-400">Paid Amount</div>
+          <div className="text-2xl font-bold text-emerald-400 mt-1">Rs.{Math.round(stats.paid).toLocaleString('en-IN')}</div>
+        </div>
+        <div className="glass rounded-2xl p-4 border-l-4 border-red-500">
+          <div className="text-xs text-slate-400">Outstanding</div>
+          <div className="text-2xl font-bold text-red-400 mt-1">Rs.{Math.round(stats.unpaid).toLocaleString('en-IN')}</div>
+        </div>
       </div>
 
-      {/* Filters */}
-      <div className="card">
-        <div className="flex flex-col sm:flex-row gap-3 mb-4">
-          <div className="relative flex-1">
-            <Search size={18} className="absolute left-3 top-2.5 text-white/30" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search invoices..." className="input-field pl-10" />
+      <div className="glass rounded-2xl p-4">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search invoice or customer..." className="w-full pl-10 pr-3 py-2.5 rounded-xl text-sm" />
           </div>
-          <div className="flex gap-1">
-            {['All', 'Pending', 'Paid', 'Overdue'].map(s => (
-              <button key={s} onClick={() => setStatus(s)}
-                className={`chip ${status === s ? 'active' : ''}`}>
-                {s}
-              </button>
-            ))}
-          </div>
+          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="px-3 py-2.5 rounded-xl text-sm">
+            <option>All</option>
+            <option>Paid</option>
+            <option>Unpaid</option>
+            <option>Partial</option>
+          </select>
         </div>
+      </div>
 
+      <div className="glass rounded-2xl overflow-hidden">
         {loading ? (
-          <div className="flex justify-center py-12"><div className="animate-spin h-8 w-8 border-4 rounded-full" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}></div></div>
-        ) : invoices.length === 0 ? (
-          <div className="text-center py-12">
-            <FileText size={48} className="mx-auto text-white/20 mb-3" />
-            <p className="text-white/30">No invoices found</p>
-            <Link to="/app/invoices/new" className="accent-text text-sm hover:underline mt-2 inline-block">Create your first invoice</Link>
+          <div className="p-12 text-center"><div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" /></div>
+        ) : filtered.length === 0 ? (
+          <div className="p-12 text-center">
+            <FileText size={48} className="text-slate-600 mx-auto mb-3" />
+            <h3 className="text-lg font-bold text-white">No Invoices Yet</h3>
+            <p className="text-sm text-slate-400 mt-1 mb-4">Get started by creating your first invoice</p>
+            <button onClick={() => navigate('/app/invoices/new')} className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-xl font-bold inline-flex items-center gap-2">
+              <Plus size={16} />Create First Invoice
+            </button>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="nebula-table">
-              <thead><tr>
-                <th>Invoice #</th>
-                <th>Customer</th>
-                <th>Date</th>
-                <th className="text-right">Amount</th>
-                <th className="text-center">Status</th>
-                <th className="text-center">Payment</th>
-                <th className="text-right">Actions</th>
-              </tr></thead>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-700 bg-slate-800/50">
+                  <th className="text-left py-3 px-4 text-slate-400 text-xs font-bold uppercase">Invoice No</th>
+                  <th className="text-left py-3 px-4 text-slate-400 text-xs font-bold uppercase">Date</th>
+                  <th className="text-left py-3 px-4 text-slate-400 text-xs font-bold uppercase">Customer</th>
+                  <th className="text-right py-3 px-4 text-slate-400 text-xs font-bold uppercase">Subtotal</th>
+                  <th className="text-right py-3 px-4 text-slate-400 text-xs font-bold uppercase">GST</th>
+                  <th className="text-right py-3 px-4 text-slate-400 text-xs font-bold uppercase">Total</th>
+                  <th className="text-center py-3 px-4 text-slate-400 text-xs font-bold uppercase">Status</th>
+                  <th className="text-center py-3 px-4 text-slate-400 text-xs font-bold uppercase">Actions</th>
+                </tr>
+              </thead>
               <tbody>
-                {invoices.map((inv, i) => (
-                  <tr key={inv.id} className="anim-row" style={{ animationDelay: `${i * 0.03}s` }}>
-                    <td><Link to={`/app/invoices/${inv.id}`} className="accent-text hover:underline font-semibold">{inv.invoice_number}</Link></td>
-                    <td className="text-white">{inv.customer_name || 'N/A'}</td>
-                    <td className="text-white/50">{formatDate(inv.invoice_date)}</td>
-                    <td className="text-right font-semibold text-white">{formatCurrency(inv.total_amount)}</td>
-                    <td className="text-center">
-                      <span className={`status-badge ${inv.status === 'Paid' ? 'status-paid' : 'status-pending'}`}>{inv.status}</span>
+                {filtered.map(inv => (
+                  <tr key={inv.id} className="border-b border-slate-800 hover:bg-slate-800/30 transition cursor-pointer" onClick={() => openInvoice(inv)}>
+                    <td className="py-3 px-4 text-blue-400 font-mono font-bold">{inv.invoice_number || '-'}</td>
+                    <td className="py-3 px-4 text-slate-300">{inv.invoice_date || '-'}</td>
+                    <td className="py-3 px-4 text-white font-semibold">{inv.customer_name || '-'}</td>
+                    <td className="py-3 px-4 text-right text-slate-300">Rs.{Math.round(inv.subtotal || 0).toLocaleString('en-IN')}</td>
+                    <td className="py-3 px-4 text-right text-cyan-400">Rs.{Math.round((inv.cgst_amount || 0) + (inv.sgst_amount || 0) + (inv.igst_amount || 0)).toLocaleString('en-IN')}</td>
+                    <td className="py-3 px-4 text-right text-emerald-400 font-bold">Rs.{Math.round(inv.total_amount || 0).toLocaleString('en-IN')}</td>
+                    <td className="py-3 px-4 text-center">
+                      <span className={"px-3 py-1 rounded-full text-xs font-bold " + (inv.payment_status === 'Paid' ? 'bg-emerald-500/20 text-emerald-400' : inv.payment_status === 'Partial' ? 'bg-amber-500/20 text-amber-400' : 'bg-red-500/20 text-red-400')}>{inv.payment_status || 'Unpaid'}</span>
                     </td>
-                    <td className="text-center">
-                      <span className={`status-badge ${inv.payment_status === 'Paid' ? 'status-paid' : inv.payment_status === 'Partial' ? 'status-pending' : 'status-overdue'}`}>{inv.payment_status}</span>
-                    </td>
-                    <td className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => navigate(`/app/invoices/${inv.id}`)} className="p-1.5 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/5 transition-all duration-200 active:scale-90" title="View"><Eye size={16} /></button>
-                        <button onClick={() => navigate(`/app/invoices/${inv.id}/edit`)} className="p-1.5 rounded-lg text-white/40 hover:text-blue-400 hover:bg-white/5 transition-all duration-200 active:scale-90" title="Edit"><Edit size={16} /></button>
-                        <button onClick={() => deleteInvoice(inv.id)} className="p-1.5 rounded-lg text-white/40 hover:text-red-400 hover:bg-white/5 transition-all duration-200 active:scale-90" title="Delete"><Trash2 size={16} /></button>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center justify-center gap-1" onClick={e => e.stopPropagation()}>
+                        <button onClick={() => openInvoice(inv)} className="p-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg transition" title="View"><Eye size={14} /></button>
+                        <button onClick={(e) => download(inv, e)} className="p-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg transition" title="PDF"><Download size={14} /></button>
+                        <button onClick={(e) => del(inv.id, inv.invoice_number, e)} className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition" title="Delete"><Trash2 size={14} /></button>
                       </div>
                     </td>
                   </tr>
