@@ -1,334 +1,345 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { findHSN } from '../data/hsnCodes'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { ArrowLeft, Save, Plus, Trash2, Loader2, CheckCircle, AlertCircle, Info } from 'lucide-react'
 import api from '../api/client'
-import { useAuth } from '../context/AuthContext'
-import { HSN_CODES } from '../data/hsnCodes'
-import { Save, Plus, X, ArrowLeft } from 'lucide-react'
 
-// Auto-detect HSN from item description keywords
-const HSN_KEYWORDS = [
-  { keywords: ['TANK', 'TANKER', 'RESERVOIR', 'VAT', 'DRUM', 'CASK'], hsn: '7309' },
-  { keywords: ['CHASSIS', 'MOUNTING', 'MUDGUARD', 'EXHAUST', 'BUMPER', 'BRAKE', 'CLUTCH', 'GEAR', 'AXLE', 'SUSPENSION', 'STEERING'], hsn: '8708' },
-  { keywords: ['STRUCTURE', 'PLATFORM', 'CATWALK', 'LADDER', 'RAILING', 'FRAME', 'COLUMN', 'BEAM', 'TRUSS', 'GIRDER'], hsn: '7308' },
-  { keywords: ['TRAILER', 'SEMI-TRAILER', 'TROLLEY'], hsn: '8716' },
-  { keywords: ['BODY', 'CABIN', 'CAB', 'D-BOX', 'DOME', 'COCKPIT'], hsn: '8707' },
-  { keywords: ['VALVE', 'COCK', 'TAP', 'FITTING', 'FLANGE', 'MANHOLE'], hsn: '8481' },
-  { keywords: ['PIPE', 'TUBE', 'PIPELINE', 'HOSE', 'DUCT'], hsn: '7308' },
-  { keywords: ['BOLT', 'NUT', 'SCREW', 'RIVET', 'WASHER', 'STUD', 'ANCHOR'], hsn: '7318' },
-  { keywords: ['NAIL', 'TACK', 'STAPLE', 'PIN'], hsn: '7317' },
-  { keywords: ['CHAIN', 'HOOK', 'SHACKLE', 'SLING'], hsn: '7315' },
-  { keywords: ['ROPE', 'CABLE', 'WIRE', 'STRAND'], hsn: '7312' },
-  { keywords: ['CRANE', 'HOIST', 'LIFT', 'CONVEYOR', 'ELEVATOR', 'WINCH'], hsn: '8428' },
-  { keywords: ['ALUMINIUM', 'ALUMINUM', 'ALUM'], hsn: '7610' },
-  { keywords: ['PLASTIC', 'PVC', 'HDPE', 'PP', 'NYLON'], hsn: '3925' },
-  { keywords: ['RUBBER', 'GASKET', 'SEAL', 'O-RING', 'BELT'], hsn: '4016' },
-  { keywords: ['PAINT', 'COATING', 'PRIMER', 'VARNISH', 'LACQUER'], hsn: '3208' },
-  { keywords: ['WELDING', 'ELECTRODE', 'FILLER', 'FLUX', 'SOLDER'], hsn: '8311' },
-  { keywords: ['PUMP', 'COMPRESSOR', 'FAN', 'BLOWER', 'MOTOR', 'ENGINE', 'GENERATOR'], hsn: '8413' },
+const GST_SLABS = [
+  { value: '0', label: '0%' },
+  { value: '5', label: '5%' },
+  { value: '12', label: '12%' },
+  { value: '18', label: '18%' },
+  { value: '28', label: '28%' }
 ]
 
-function autoDetectHSN(description) {
-  if (!description) return ''
-  const upper = description.toUpperCase()
-  for (const rule of HSN_KEYWORDS) {
-    for (const kw of rule.keywords) {
-      if (upper.includes(kw)) return rule.hsn
-    }
-  }
-  return ''
-}
+const UNITS = ['NOS', 'KG', 'PCS', 'MTR', 'SET', 'BOX', 'LTR', 'TON', 'BAG', 'SQM']
 
 export default function InvoiceNew() {
   const navigate = useNavigate()
-  const { user } = useAuth()
-  const orgId = user?.organization_id
-  const orgStateCode = user?.organization?.state_code || '27'
-
+  const [params] = useSearchParams()
   const [customers, setCustomers] = useState([])
-  const [showQuickAdd, setShowQuickAdd] = useState(false)
-  const [quickCustomer, setQuickCustomer] = useState({ name: '', gstin: '', phone: '', state: 'Maharashtra', state_code: '27', address: '', city: '', pincode: '' })
-  const [gstinLookup, setGstinLookup] = useState('')
-  const [gstinLoading, setGstinLoading] = useState(false)
-  const [gstinMsg, setGstinMsg] = useState('')
+  const [selectedCust, setSelectedCust] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState({ type: '', text: '' })
 
-  const [form, setForm] = useState({
-    customer_id: '',
-    invoice_date: new Date().toISOString().split('T')[0],
-    discount: 0,
-    round_off: 0,
-    notes: 'Terms: Payment due within 30 days.',
-    status: 'Pending',
-    payment_status: 'Unpaid'
-  })
+  const COMPANY_STATE = '27'
+
   const [invoiceNumber, setInvoiceNumber] = useState('')
-  const [suggestedNumber, setSuggestedNumber] = useState('')
-  const [items, setItems] = useState([{ description: '', hsn_code: '', quantity: 1, unit: 'NOS', rate: 0, cgst_rate: 9, sgst_rate: 9, igst_rate: 0, amount: 0 }])
-  const [calculated, setCalculated] = useState({ subtotal: 0, cgst_amount: 0, sgst_amount: 0, igst_amount: 0, total_amount: 0 })
-  const [saving, setSaving] = useState(false)
+  const [customerId, setCustomerId] = useState(params.get('customer') || '')
+  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0])
+  const [dueDate, setDueDate] = useState('')
+  const [discount, setDiscount] = useState('')
+  const [roundOff, setRoundOff] = useState('')
+  const [notes, setNotes] = useState('')
+  const [terms, setTerms] = useState('')
+  const [manualCgst, setManualCgst] = useState('')
+  const [manualSgst, setManualSgst] = useState('')
+  const [manualIgst, setManualIgst] = useState('')
+  const [manualTotal, setManualTotal] = useState('')
+
+  const [items, setItems] = useState([
+    { description: '', hsn_code: '7308', quantity: '1', unit: 'NOS', rate: '', tax_rate: '18' }
+  ])
 
   useEffect(() => {
-    api.get('/customers').then(res => setCustomers(res.data.customers || [])).catch(() => {})
-    // Fetch next invoice number for auto-suggest
-    api.get('/invoices/next-number').then(res => {
-      if (res.data.success) {
-        setSuggestedNumber(res.data.nextNumber)
-        setInvoiceNumber(res.data.nextNumber)
-      }
-    }).catch(() => {})
+    loadCustomers()
+    genNumber()
   }, [])
 
   useEffect(() => {
-    const customer = customers.find(c => c.id === parseInt(form.customer_id))
-    const cStateCode = customer?.state_code || customer?.gstin?.substring(0, 2) || orgStateCode
-    const isIntra = cStateCode === orgStateCode
+    if (customerId && customers.length) {
+      const c = customers.find(x => String(x.id) === String(customerId))
+      setSelectedCust(c || null)
+    } else {
+      setSelectedCust(null)
+    }
+  }, [customerId, customers])
 
-    const updatedItems = items.map(item => {
-      const qty = parseFloat(item.quantity) || 0
-      const rate = parseFloat(item.rate) || 0
-      const amount = qty * rate
-      const taxRate = isIntra ? (parseFloat(item.igst_rate) || 18) : (parseFloat(item.cgst_rate) * 2 || 18)
-      
-      if (isIntra) {
-        return { ...item, cgst_rate: taxRate / 2, sgst_rate: taxRate / 2, igst_rate: 0, amount }
+  const loadCustomers = async () => {
+    try {
+      const r = await api.get('/customers')
+      setCustomers(r.data.customers || [])
+    } catch (e) { }
+  }
+
+  const genNumber = async () => {
+    try {
+      const r = await api.get('/invoices')
+      const cnt = (r.data.invoices || []).length
+      const now = new Date()
+      const m = now.getMonth()
+      const y = now.getFullYear()
+      const fy = m >= 3 ? (y % 100) + '-' + ((y + 1) % 100) : ((y - 1) % 100) + '-' + (y % 100)
+      setInvoiceNumber('GST-' + String(cnt + 1).padStart(4, '0') + '/' + fy)
+    } catch (e) { }
+  }
+
+  const isIntraState = selectedCust
+    ? (selectedCust.state_code || (selectedCust.gstin ? selectedCust.gstin.substring(0, 2) : '27')) === COMPANY_STATE
+    : true
+
+  const addItem = () => {
+    setItems(prev => [...prev, { description: '', hsn_code: '7308', quantity: '1', unit: 'NOS', rate: '', tax_rate: '18' }])
+  }
+
+  const removeItem = (i) => {
+    setItems(prev => {
+      if (prev.length === 1) return prev
+      return prev.filter((_, x) => x !== i)
+    })
+  }
+
+  const updateItem = (index, field, value) => {
+    setItems(prev => {
+      const n = [...prev]
+      n[index] = { ...n[index], [field]: value }
+      if (field === 'description') {
+        const autoHSN = findHSN(value)
+        if (autoHSN) n[index].hsn_code = autoHSN
+      }
+      return n
+    })
+  }
+
+  const calc = () => {
+    let sub = 0, cgst = 0, sgst = 0, igst = 0
+    items.forEach(it => {
+      const qty = parseFloat(it.quantity) || 0
+      const rate = parseFloat(it.rate) || 0
+      const tr = parseFloat(it.tax_rate) || 0
+      const tx = qty * rate
+      sub += tx
+      if (isIntraState) {
+        cgst += (tx * tr / 2) / 100
+        sgst += (tx * tr / 2) / 100
       } else {
-        return { ...item, cgst_rate: 0, sgst_rate: 0, igst_rate: taxRate, amount }
+        igst += (tx * tr) / 100
       }
     })
-    setItems(updatedItems)
-
-    const subtotal = updatedItems.reduce((s, i) => s + i.amount, 0)
-    const cgst = updatedItems.reduce((s, i) => s + i.amount * i.cgst_rate / 100, 0)
-    const sgst = updatedItems.reduce((s, i) => s + i.amount * i.sgst_rate / 100, 0)
-    const igst = updatedItems.reduce((s, i) => s + i.amount * i.igst_rate / 100, 0)
-    const discount = parseFloat(form.discount) || 0
-    const roundOff = parseFloat(form.round_off) || 0
-    const total = subtotal + cgst + sgst + igst - discount + roundOff
-
-    setCalculated({ subtotal, cgst_amount: cgst, sgst_amount: sgst, igst_amount: igst, total_amount: total })
-  }, [items, form.customer_id, form.discount, form.round_off, customers])
-
-  const updateItem = (idx, key, val) => {
-    const newItems = [...items]
-    newItems[idx] = { ...newItems[idx], [key]: val }
-
-    // Auto-detect HSN when description changes
-    if (key === 'description') {
-      const detected = autoDetectHSN(val)
-      if (detected && !newItems[idx].hsn_code) {
-        newItems[idx].hsn_code = detected
-      }
-    }
-    setItems(newItems)
+    const d = parseFloat(discount) || 0
+    const ro = parseFloat(roundOff) || 0
+    if (manualCgst !== '') cgst = parseFloat(manualCgst) || 0
+    if (manualSgst !== '') sgst = parseFloat(manualSgst) || 0
+    if (manualIgst !== '') igst = parseFloat(manualIgst) || 0
+    let total = sub + cgst + sgst + igst - d + ro
+    if (manualTotal !== '') total = parseFloat(manualTotal) || 0
+    return { sub, cgst, sgst, igst, total }
   }
 
-  const addItem = () => setItems([...items, { description: '', hsn_code: '', quantity: 1, unit: 'NOS', rate: 0, cgst_rate: 9, sgst_rate: 9, igst_rate: 0, amount: 0 }])
-  const removeItem = (idx) => setItems(items.filter((_, i) => i !== idx))
+  const t = calc()
 
-  const handleSave = async () => {
-    setSaving(true)
+  const submit = async (e) => {
+    e.preventDefault()
+    if (!invoiceNumber.trim()) return setMessage({ type: 'error', text: 'Invoice number required' })
+    if (!customerId) return setMessage({ type: 'error', text: 'Select customer' })
+
+    const valid = items.filter(it => it.description && it.quantity && it.rate)
+    if (valid.length === 0) return setMessage({ type: 'error', text: 'Add at least one item' })
+
+    setLoading(true)
     try {
-      await api.post('/invoices', {
-        ...form,
-        invoice_number: invoiceNumber || undefined,
-        due_date: null,
-        ...calculated,
-        items: items.map(i => ({ ...i, quantity: parseFloat(i.quantity), rate: parseFloat(i.rate), cgst_rate: parseFloat(i.cgst_rate), sgst_rate: parseFloat(i.sgst_rate), igst_rate: parseFloat(i.igst_rate), amount: parseFloat(i.amount) }))
+      const r = await api.post('/invoices', {
+        invoice_number: invoiceNumber,
+        customer_id: customerId,
+        invoice_date: invoiceDate,
+        due_date: dueDate,
+        items: valid.map(it => ({
+          description: it.description,
+          hsn_code: it.hsn_code,
+          quantity: parseFloat(it.quantity) || 0,
+          unit: it.unit,
+          rate: parseFloat(it.rate) || 0,
+          tax_rate: parseFloat(it.tax_rate) || 0
+        })),
+        discount: parseFloat(discount) || 0,
+        round_off: parseFloat(roundOff) || 0,
+        notes: (notes ? notes + '\n' : '') + (terms || '')
       })
-      navigate('/app/invoices')
+      setMessage({ type: 'success', text: 'Invoice created! Redirecting...' })
+      setTimeout(() => navigate('/app/invoices'), 800)
     } catch (err) {
-      alert(err.response?.data?.msg || 'Failed to create invoice')
-    } finally {
-      setSaving(false)
+      setMessage({ type: 'error', text: err.response?.data?.msg || 'Failed' })
+      setLoading(false)
     }
-  }
-
-  const addQuickCustomer = async () => {
-    try {
-      const res = await api.post('/customers', quickCustomer)
-      setCustomers([...customers, res.data.customer])
-      setForm({ ...form, customer_id: res.data.customer.id })
-      setShowQuickAdd(false)
-    } catch (err) {
-      alert('Failed to add customer')
-    }
-  }
-
-  const fetchGstinForCustomer = async () => {
-    const gstin = gstinLookup.trim().toUpperCase()
-    if (!gstin || gstin.length < 15) { setGstinMsg('Enter valid 15-digit GSTIN'); return }
-    setGstinLoading(true); setGstinMsg('')
-    try {
-      const res = await api.get(`/gst/lookup/${gstin}`)
-      if (res.data.success) {
-        const d = res.data
-        setQuickCustomer(prev => ({
-          ...prev,
-          name: d.name || d.trade_name || prev.name,
-          gstin: gstin,
-          state: d.state || prev.state,
-          state_code: d.state_code || gstin.substring(0, 2),
-          address: d.address || prev.address,
-          city: d.city || prev.city,
-          pincode: d.pincode || prev.pincode,
-          phone: d.phone || prev.phone,
-        }))
-        setGstinMsg(d.name ? `✓ Found: ${d.name}` : 'State found. Fill name manually.')
-      } else {
-        setGstinMsg('Not found. Fill details manually.')
-      }
-    } catch { setGstinMsg('Lookup failed. Fill manually.') }
-    setGstinLoading(false)
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <button onClick={() => navigate('/app/invoices')} className="p-2 hover:bg-gray-100 rounded-lg"><ArrowLeft size={20} /></button>
+        <button onClick={() => navigate('/app/invoices')} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-white"><ArrowLeft size={16} /></button>
         <div>
-          <h1 className="text-2xl font-bold">New GST Invoice</h1>
-          <p className="text-gray-500 text-sm">Create a new sales invoice</p>
+          <h1 className="text-2xl font-bold text-white">Create New Invoice</h1>
+          <p className="text-slate-400 text-sm">Fill details and save</p>
         </div>
       </div>
 
-      <div className="card space-y-4">
-        <div className="grid md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Customer *</label>
-            <div className="flex gap-2">
-              <select value={form.customer_id} onChange={e => setForm({ ...form, customer_id: e.target.value })} className="input-field flex-1" required>
-                <option value="">Select Customer</option>
-                {customers.map(c => <option key={c.id} value={c.id}>{c.name}{c.gstin ? ` (${c.gstin.substring(0,2)}...)` : ''}</option>)}
-              </select>
-              <button onClick={() => setShowQuickAdd(true)} className="btn-secondary text-sm whitespace-nowrap" title="Quick Add Customer"><Plus size={16} /></button>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Invoice No. *</label>
-              <input type="text" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} className="input-field font-mono" placeholder={suggestedNumber || 'GST-0001/26-27'} />
-              {suggestedNumber && invoiceNumber !== suggestedNumber && (
-                <button type="button" onClick={() => setInvoiceNumber(suggestedNumber)} className="text-xs text-blue-600 hover:underline mt-1">Use: {suggestedNumber}</button>
-              )}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Invoice Date</label>
-              <input type="date" value={form.invoice_date} onChange={e => setForm({ ...form, invoice_date: e.target.value })} className="input-field" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Items */}
-      <div className="card">
-        <h3 className="font-bold text-gray-800 mb-3">Items</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead><tr className="border-b text-gray-500 text-left">
-              <th className="pb-2 font-medium">Description</th>
-              <th className="pb-2 font-medium">HSN</th>
-              <th className="pb-2 font-medium w-20">Qty</th>
-              <th className="pb-2 font-medium w-20">Unit</th>
-              <th className="pb-2 font-medium w-24">Rate</th>
-              <th className="pb-2 font-medium w-20">GST%</th>
-              <th className="pb-2 font-medium w-24 text-right">Amount</th>
-              <th className="pb-2 font-medium w-10"></th>
-            </tr></thead>
-            <tbody>
-              {items.map((item, idx) => (
-                <tr key={idx} className="border-b border-gray-50">
-                  <td className="py-2 pr-2"><input value={item.description} onChange={e => updateItem(idx, 'description', e.target.value)} className="input-field text-sm" placeholder="e.g. SS TANK" /></td>
-                  <td className="py-2 pr-2"><input value={item.hsn_code} onChange={e => updateItem(idx, 'hsn_code', e.target.value)} list="hsn-list" className="input-field text-sm w-32" placeholder="7309" /><datalist id="hsn-list">{HSN_CODES.map(h => <option key={h.code} value={h.code}>{h.label}</option>)}</datalist></td>
-                  <td className="py-2 pr-2"><input type="number" value={item.quantity} onChange={e => updateItem(idx, 'quantity', e.target.value)} className="input-field text-sm" /></td>
-                  <td className="py-2 pr-2"><select value={item.unit} onChange={e => updateItem(idx, 'unit', e.target.value)} className="input-field text-sm">
-                    {['NOS','KG','MTR','SET','LOT','PCS','LTR'].map(u => <option key={u}>{u}</option>)}
-                  </select></td>
-                  <td className="py-2 pr-2"><input type="number" value={item.rate} onChange={e => updateItem(idx, 'rate', e.target.value)} className="input-field text-sm" /></td>
-                  <td className="py-2 pr-2">
-                    <input type="number" value={item.igst_rate > 0 ? item.igst_rate : (item.cgst_rate + item.sgst_rate)} onChange={e => {
-                      const rate = parseFloat(e.target.value) || 0
-                      const customer = customers.find(c => c.id === parseInt(form.customer_id))
-                      const cState = customer?.state_code || orgStateCode
-                      if (cState === orgStateCode) {
-                        updateItem(idx, 'cgst_rate', rate/2); updateItem(idx, 'sgst_rate', rate/2); updateItem(idx, 'igst_rate', 0)
-                      } else {
-                        updateItem(idx, 'igst_rate', rate); updateItem(idx, 'cgst_rate', 0); updateItem(idx, 'sgst_rate', 0)
-                      }
-                    }} className="input-field text-sm" />
-                  </td>
-                  <td className="py-2 text-right font-medium">{(item.amount || 0).toFixed(2)}</td>
-                  <td className="py-2">{items.length > 1 && <button onClick={() => removeItem(idx)} className="text-red-400 hover:text-red-600"><X size={16} /></button>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <button onClick={addItem} className="btn-secondary mt-3 text-sm flex items-center gap-1"><Plus size={14} /> Add Item</button>
-      </div>
-
-      {/* Totals */}
-      <div className="card">
-        <div className="max-w-sm ml-auto space-y-2 text-sm">
-          <div className="flex justify-between"><span>Subtotal</span><span className="font-medium">₹{calculated.subtotal.toFixed(2)}</span></div>
-          <div className="flex justify-between"><span>CGST</span><span className="font-medium">₹{calculated.cgst_amount.toFixed(2)}</span></div>
-          <div className="flex justify-between"><span>SGST</span><span className="font-medium">₹{calculated.sgst_amount.toFixed(2)}</span></div>
-          <div className="flex justify-between"><span>IGST</span><span className="font-medium">₹{calculated.igst_amount.toFixed(2)}</span></div>
-          <div className="flex justify-between items-center">
-            <span>Discount</span>
-            <input type="number" value={form.discount} onChange={e => setForm({...form, discount: e.target.value})} className="input-field w-28 text-right text-sm" />
-          </div>
-          <div className="flex justify-between items-center">
-            <span>Round Off</span>
-            <input type="number" step="0.01" value={form.round_off} onChange={e => setForm({...form, round_off: e.target.value})} className="input-field w-28 text-right text-sm" />
-          </div>
-          <hr />
-          <div className="flex justify-between text-base font-bold"><span>TOTAL</span><span>₹{calculated.total_amount.toFixed(2)}</span></div>
-        </div>
-      </div>
-
-      {/* Notes */}
-      <div className="card">
-        <label className="block text-sm font-medium text-gray-700 mb-1">Notes & Terms</label>
-        <textarea value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} className="input-field" rows={3} />
-      </div>
-
-      {/* Save */}
-      <div className="flex justify-end gap-3">
-        <button onClick={() => navigate('/app/invoices')} className="btn-secondary">Cancel</button>
-        <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2">
-          <Save size={16} /> {saving ? 'Saving...' : 'Save Invoice'}
-        </button>
-      </div>
-
-      {/* Quick Add Customer Modal */}
-      {showQuickAdd && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md">
-            <h3 className="font-bold text-lg mb-4">Quick Add Customer</h3>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Auto-fetch via GSTIN</label>
-                <div className="flex gap-2">
-                  <input value={gstinLookup} onChange={e => setGstinLookup(e.target.value.toUpperCase())} className="input-field flex-1" placeholder="Enter GSTIN" maxLength={15} />
-                  <button onClick={fetchGstinForCustomer} disabled={gstinLoading} className="btn-primary whitespace-nowrap text-sm">{gstinLoading ? '...' : 'Fetch'}</button>
-                </div>
-                {gstinMsg && <p className="text-xs text-blue-600 mt-1">{gstinMsg}</p>}
-              </div>
-              <input value={quickCustomer.name} onChange={e => setQuickCustomer({...quickCustomer, name: e.target.value})} className="input-field" placeholder="Customer Name *" />
-              <input value={quickCustomer.gstin} onChange={e => setQuickCustomer({...quickCustomer, gstin: e.target.value, state_code: e.target.value.substring(0,2)})} className="input-field" placeholder="GSTIN" />
-              <input value={quickCustomer.phone} onChange={e => setQuickCustomer({...quickCustomer, phone: e.target.value})} className="input-field" placeholder="Phone" />
-              <input value={quickCustomer.address} onChange={e => setQuickCustomer({...quickCustomer, address: e.target.value})} className="input-field" placeholder="Address" />
-              <div className="grid grid-cols-2 gap-3">
-                <input value={quickCustomer.city} onChange={e => setQuickCustomer({...quickCustomer, city: e.target.value})} className="input-field" placeholder="City" />
-                <input value={quickCustomer.pincode} onChange={e => setQuickCustomer({...quickCustomer, pincode: e.target.value})} className="input-field" placeholder="Pincode" />
-              </div>
-            </div>
-            <div className="flex justify-end gap-3 mt-4">
-              <button onClick={() => setShowQuickAdd(false)} className="btn-secondary">Cancel</button>
-              <button onClick={addQuickCustomer} className="btn-primary">Add Customer</button>
-            </div>
-          </div>
+      {message.text && (
+        <div className={"p-4 rounded-xl flex items-center gap-2 text-sm font-semibold " + (message.type === 'success' ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400' : 'bg-red-500/10 border border-red-500/30 text-red-400')}>
+          {message.type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}{message.text}
         </div>
       )}
+
+      <form onSubmit={submit} className="space-y-5">
+        <div className="glass rounded-2xl p-5">
+          <h3 className="text-sm font-bold text-white mb-4">Invoice Information</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1.5">Invoice Number * <span className="text-emerald-400">(Editable)</span></label>
+              <input type="text" value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} required className="w-full px-3 py-2.5 rounded-xl text-sm font-mono font-bold" autoComplete="off" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1.5">Customer *</label>
+              <div className="flex gap-2">
+                <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} required className="flex-1 px-3 py-2.5 rounded-xl text-sm">
+                  <option value="">Select Customer</option>
+                  {customers.map(c => <option key={c.id} value={c.id}>{c.name}{c.state ? ' (' + c.state + ')' : ''}</option>)}
+                </select>
+                <button type="button" onClick={() => navigate('/app/customers/new')} className="px-3 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold">+ New</button>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1.5">Invoice Date *</label>
+              <input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} required className="w-full px-3 py-2.5 rounded-xl text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1.5">Due Date</label>
+              <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="w-full px-3 py-2.5 rounded-xl text-sm" />
+            </div>
+          </div>
+
+          {selectedCust && (
+            <div className={"mt-4 p-3 rounded-xl flex items-center gap-2 text-sm " + (isIntraState ? 'bg-blue-500/10 border border-blue-500/30 text-blue-400' : 'bg-purple-500/10 border border-purple-500/30 text-purple-400')}>
+              <Info size={16} />
+              {isIntraState ? <span><strong>Intra-State:</strong> CGST + SGST</span> : <span><strong>Inter-State:</strong> IGST</span>}
+            </div>
+          )}
+        </div>
+
+        <div className="glass rounded-2xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-bold text-white">Items</h3>
+            <button type="button" onClick={addItem} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1"><Plus size={14} />Add Item</button>
+          </div>
+          <div className="space-y-3">
+            {items.map((item, idx) => {
+              const qty = parseFloat(item.quantity) || 0
+              const rate = parseFloat(item.rate) || 0
+              const tr = parseFloat(item.tax_rate) || 0
+              const taxable = qty * rate
+              const total = taxable + (taxable * tr / 100)
+
+              return (
+                <div key={idx} className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-bold text-blue-400">Item #{idx + 1}</span>
+                    <button type="button" onClick={() => removeItem(idx)} className="p-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded"><Trash2 size={14} /></button>
+                  </div>
+                  <div className="grid grid-cols-12 gap-2">
+                    <div className="col-span-12 md:col-span-3">
+                      <label className="block text-xs text-slate-400 mb-1">Description *</label>
+                      <input type="text" value={item.description} onChange={(e) => updateItem(idx, 'description', e.target.value)} placeholder="Steel Structure" className="w-full px-3 py-2 rounded-lg text-sm" autoComplete="off" />
+                    </div>
+                    <div className="col-span-6 md:col-span-2">
+                      <label className="block text-xs text-slate-400 mb-1">HSN</label>
+                      <input type="text" value={item.hsn_code} onChange={(e) => updateItem(idx, 'hsn_code', e.target.value)} className="w-full px-2 py-2 rounded-lg text-sm font-mono" autoComplete="off" />
+                    </div>
+                    <div className="col-span-3 md:col-span-1">
+                      <label className="block text-xs text-slate-400 mb-1">Qty *</label>
+                      <input type="text" inputMode="decimal" value={item.quantity} onChange={(e) => updateItem(idx, 'quantity', e.target.value)} className="w-full px-2 py-2 rounded-lg text-sm" autoComplete="off" />
+                    </div>
+                    <div className="col-span-3 md:col-span-1">
+                      <label className="block text-xs text-slate-400 mb-1">Unit</label>
+                      <select value={item.unit} onChange={(e) => updateItem(idx, 'unit', e.target.value)} className="w-full px-2 py-2 rounded-lg text-sm">
+                        {UNITS.map(u => <option key={u}>{u}</option>)}
+                      </select>
+                    </div>
+                    <div className="col-span-6 md:col-span-2">
+                      <label className="block text-xs text-slate-400 mb-1">Rate *</label>
+                      <input type="text" inputMode="decimal" value={item.rate} onChange={(e) => updateItem(idx, 'rate', e.target.value)} placeholder="2500" className="w-full px-3 py-2 rounded-lg text-sm" autoComplete="off" />
+                    </div>
+                    <div className="col-span-6 md:col-span-1">
+                      <label className="block text-xs text-slate-400 mb-1">GST %</label>
+                      <select value={item.tax_rate} onChange={(e) => updateItem(idx, 'tax_rate', e.target.value)} className="w-full px-2 py-2 rounded-lg text-sm font-bold">
+                        {GST_SLABS.map(s => <option key={s.value} value={s.value}>{s.value}%</option>)}
+                      </select>
+                    </div>
+                    <div className="col-span-12 md:col-span-2">
+                      <label className="block text-xs text-slate-400 mb-1">Total</label>
+                      <div className="px-3 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-sm font-bold text-emerald-400 text-right">Rs.{total.toFixed(2)}</div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="glass rounded-2xl p-5">
+          <h3 className="text-sm font-bold text-white mb-4">Adjustments</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1.5">Discount (Rs.)</label>
+              <input type="text" inputMode="decimal" value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="0" className="w-full px-3 py-2.5 rounded-xl text-sm" autoComplete="off" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1.5">Round Off (Rs.)</label>
+              <input type="text" inputMode="decimal" value={roundOff} onChange={(e) => setRoundOff(e.target.value)} placeholder="0" className="w-full px-3 py-2.5 rounded-xl text-sm" autoComplete="off" />
+            </div>
+          </div>
+        </div>
+
+        <div className="glass rounded-2xl p-5">
+          <h3 className="text-sm font-bold text-white mb-4">Notes</h3>
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows="2" className="w-full px-3 py-2.5 rounded-xl text-sm" autoComplete="off" placeholder="Any notes..." />
+        </div>
+
+        <div className="glass rounded-2xl p-5">
+          <h3 className="text-sm font-bold text-white mb-4">Terms and Conditions (Type your own)</h3>
+          <textarea value={terms} onChange={(e) => setTerms(e.target.value)} rows="5" className="w-full px-3 py-2.5 rounded-xl text-sm" autoComplete="off" placeholder="Type your terms and conditions here..." />
+        </div>
+
+        <div className="bg-gradient-to-r from-blue-600/20 via-cyan-500/20 to-emerald-500/20 border-2 border-blue-500/30 rounded-2xl p-6">
+          <div className="text-xs text-amber-400 font-bold mb-3 text-center">Auto-calculated. Type in any field to manually override.</div>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
+            <div>
+              <div className="text-xs text-slate-400 font-bold mb-1">SUBTOTAL</div>
+              <div className="text-lg font-black text-white">Rs.{t.sub.toFixed(2)}</div>
+            </div>
+            {isIntraState ? (
+              <>
+                <div>
+                  <div className="text-xs text-slate-400 font-bold mb-1">CGST <span className="text-emerald-400">(edit)</span></div>
+                  <input type="text" inputMode="decimal" value={manualCgst} onChange={(e) => setManualCgst(e.target.value)} placeholder={t.cgst.toFixed(2)} className="w-full px-2 py-1.5 rounded-lg text-sm font-bold text-cyan-400 bg-slate-800 text-center" autoComplete="off" />
+                </div>
+                <div>
+                  <div className="text-xs text-slate-400 font-bold mb-1">SGST <span className="text-emerald-400">(edit)</span></div>
+                  <input type="text" inputMode="decimal" value={manualSgst} onChange={(e) => setManualSgst(e.target.value)} placeholder={t.sgst.toFixed(2)} className="w-full px-2 py-1.5 rounded-lg text-sm font-bold text-blue-400 bg-slate-800 text-center" autoComplete="off" />
+                </div>
+                <div>
+                  <div className="text-xs text-slate-400 font-bold mb-1">TOTAL TAX</div>
+                  <div className="text-lg font-black text-purple-400">Rs.{(t.cgst + t.sgst).toFixed(2)}</div>
+                </div>
+              </>
+            ) : (
+              <div className="md:col-span-3">
+                <div className="text-xs text-slate-400 font-bold mb-1">IGST <span className="text-emerald-400">(edit)</span></div>
+                <input type="text" inputMode="decimal" value={manualIgst} onChange={(e) => setManualIgst(e.target.value)} placeholder={t.igst.toFixed(2)} className="w-full px-3 py-1.5 rounded-lg text-sm font-bold text-purple-400 bg-slate-800 text-center" autoComplete="off" />
+              </div>
+            )}
+            <div className="bg-emerald-500/20 rounded-xl p-2 border border-emerald-500/40">
+              <div className="text-xs text-emerald-300 font-bold mb-1">GRAND TOTAL <span className="text-amber-400">(edit)</span></div>
+              <input type="text" inputMode="decimal" value={manualTotal} onChange={(e) => setManualTotal(e.target.value)} placeholder={t.total.toFixed(2)} className="w-full px-2 py-1.5 rounded-lg text-lg font-black text-emerald-400 bg-slate-900 text-center" autoComplete="off" />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          <button type="button" onClick={() => navigate('/app/invoices')} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl text-sm font-bold">Cancel</button>
+          <button type="submit" disabled={loading} className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-500 hover:shadow-lg text-white py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50">
+            {loading ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}{loading ? 'Saving...' : 'Save Invoice'}
+          </button>
+        </div>
+      </form>
     </div>
   )
 }
