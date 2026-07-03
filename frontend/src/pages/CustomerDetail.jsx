@@ -1,213 +1,187 @@
-import { useState, useEffect } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, Edit, Trash2, Plus, FileText, Factory, Building2, Phone, Mail, MapPin, IndianRupee, Calendar, Eye, Download } from 'lucide-react'
 import api from '../api/client'
-import { ArrowLeft, Edit, Trash2, Phone, Mail, MapPin, Hash, Building2, User, FileText, IndianRupee } from 'lucide-react'
-import { formatCurrency, formatDate, parseGSTIN } from '../utils'
+import { motion } from 'framer-motion'
 
 export default function CustomerDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const [customer, setCustomer] = useState(null)
-  const [invoices, setInvoices] = useState([])
-  const [stats, setStats] = useState({})
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [tab, setTab] = useState('invoices')
 
-  useEffect(() => { loadCustomer() }, [id])
+  useEffect(() => { load() }, [id])
 
-  const loadCustomer = async () => {
+  const load = async () => {
     try {
-      const res = await api.get(`/customers/${id}`)
-      setCustomer(res.data.customer)
-      setInvoices(res.data.invoices || [])
-      setStats({ totalBusiness: res.data.totalBusiness, totalPaid: res.data.totalPaid, outstanding: res.data.outstanding })
-    } catch {
+      const r = await api.get('/customers/' + id)
+      setData(r.data)
+    } catch (e) {
+      alert('Failed to load customer')
       navigate('/app/customers')
+    } finally { setLoading(false) }
+  }
+
+  const del = async () => {
+    if (!confirm(`Delete customer "${data.customer.name}"? This cannot be undone.`)) return
+    try {
+      await api.delete('/customers/' + id)
+      navigate('/app/customers')
+    } catch (e) {
+      alert(e.response?.data?.msg || 'Delete failed')
     }
   }
 
-  const handleDelete = async () => {
-    if (!confirm('Delete this customer?')) return
-    try {
-      await api.delete(`/customers/${id}`)
-      navigate('/app/customers')
-    } catch (err) {
-      alert(err.response?.data?.msg || 'Cannot delete customer with invoices')
-    }
+  if (loading) return <div className="flex items-center justify-center h-96"><div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
+
+  const c = data?.customer || {}
+  const invoices = data?.invoices || []
+  const production = data?.productionOrders || []
+  // Backend returns stats as flat keys: totalBusiness, totalPaid, outstanding
+  const s = {
+    totalBusiness: data?.totalBusiness || data?.stats?.totalBusiness || 0,
+    paidAmount: data?.totalPaid || data?.stats?.paidAmount || 0,
+    outstanding: data?.outstanding || data?.stats?.outstanding || 0,
+    invoiceCount: invoices.length || data?.stats?.invoiceCount || 0
   }
-
-  if (!customer) return <div className="flex justify-center py-20"><div className="animate-spin h-8 w-8 border-4 rounded-full" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}></div></div>
-
-  const isIntra = !customer.state_code || customer.state_code === '27'
-  const gstinInfo = customer.gstin ? parseGSTIN(customer.gstin) : null
-  const paidInvoices = invoices.filter(i => i.payment_status === 'Paid')
-  const unpaidInvoices = invoices.filter(i => i.payment_status !== 'Paid')
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <button onClick={() => navigate('/app/customers')} className="p-2 rounded-lg hover:bg-white/5 text-white/60 hover:text-white"><ArrowLeft size={20} /></button>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-bold text-white truncate">{customer.name}</h1>
-          {customer.trade_name && customer.trade_name !== customer.name && <p className="text-sm text-white/40">T/A: {customer.trade_name}</p>}
-        </div>
-        <div className="flex items-center gap-2">
-          <span className={`px-3 py-1 rounded-full text-xs font-bold ${isIntra ? 'text-cyan-400' : 'text-orange-400'}`}
-            style={{ background: isIntra ? 'rgba(6,182,212,0.12)' : 'rgba(249,115,22,0.12)' }}>
-            {isIntra ? 'Intra-State (CGST+SGST)' : `Inter-State (IGST → ${customer.state || customer.state_code})`}
-          </span>
-          <button onClick={handleDelete} className="btn-danger text-sm flex items-center gap-1"><Trash2 size={14} /> Delete</button>
-        </div>
+    <div className="space-y-5">
+      <div className="flex items-center gap-2 text-sm">
+        <button onClick={() => navigate('/app/customers')} className="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-white">
+          <ArrowLeft size={14} />
+        </button>
+        <span className="text-slate-500">Customers</span>
+        <span className="text-slate-700">›</span>
+        <span className="text-white font-semibold">{c.name}</span>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="card text-center">
-          <div className="w-10 h-10 rounded-lg flex items-center justify-center mx-auto mb-2" style={{ background: 'rgba(34,197,94,0.12)' }}><IndianRupee size={20} className="text-green-400" /></div>
-          <p className="text-xl font-bold text-white">{formatCurrency(stats.totalBusiness)}</p>
-          <p className="text-xs text-white/40">Total Business</p>
-        </div>
-        <div className="card text-center">
-          <div className="w-10 h-10 rounded-lg flex items-center justify-center mx-auto mb-2" style={{ background: 'rgba(59,130,246,0.12)' }}><FileText size={20} className="text-blue-400" /></div>
-          <p className="text-xl font-bold text-white">{invoices.length}</p>
-          <p className="text-xs text-white/40">Total Invoices</p>
-        </div>
-        <div className="card text-center">
-          <div className="w-10 h-10 rounded-lg flex items-center justify-center mx-auto mb-2" style={{ background: 'rgba(34,197,94,0.12)' }}><IndianRupee size={20} className="text-green-400" /></div>
-          <p className="text-xl font-bold text-green-400">{formatCurrency(stats.totalPaid)}</p>
-          <p className="text-xs text-white/40">Paid</p>
-        </div>
-        <div className="card text-center">
-          <div className="w-10 h-10 rounded-lg flex items-center justify-center mx-auto mb-2" style={{ background: 'rgba(239,68,68,0.12)' }}><IndianRupee size={20} className="text-red-400" /></div>
-          <p className="text-xl font-bold text-red-400">{formatCurrency(stats.outstanding)}</p>
-          <p className="text-xs text-white/40">Outstanding</p>
-        </div>
-      </div>
-
-      {/* Customer Details Grid */}
-      <div className="grid md:grid-cols-2 gap-6">
-        {/* Basic Info */}
-        <div className="card space-y-4">
-          <h3 className="font-bold text-white text-lg flex items-center gap-2"><Building2 size={18} className="accent-text" /> Business Details</h3>
-          <div className="space-y-3">
-            {customer.gstin && (
-              <div className="flex items-start gap-3 p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)' }}>
-                <Hash size={16} className="text-white/30 mt-0.5" />
-                <div>
-                  <p className="text-xs text-white/40">GSTIN</p>
-                  <p className="font-mono text-white font-medium">{customer.gstin}</p>
-                  {gstinInfo && (
-                    <div className="flex gap-3 mt-1 text-xs text-white/50">
-                      <span>State: {gstinInfo.state}</span>
-                      <span>PAN: {gstinInfo.pan}</span>
-                      <span>Type: {gstinInfo.entity_type}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-            {customer.business_type && (
-              <div className="flex items-start gap-3 p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)' }}>
-                <Building2 size={16} className="text-white/30 mt-0.5" />
-                <div>
-                  <p className="text-xs text-white/40">Business Type</p>
-                  <p className="text-white">{customer.business_type}</p>
-                </div>
-              </div>
-            )}
-            {customer.contact_person && (
-              <div className="flex items-start gap-3 p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)' }}>
-                <User size={16} className="text-white/30 mt-0.5" />
-                <div>
-                  <p className="text-xs text-white/40">Contact Person</p>
-                  <p className="text-white">{customer.contact_person}</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Contact Info */}
-        <div className="card space-y-4">
-          <h3 className="font-bold text-white text-lg flex items-center gap-2"><Phone size={18} className="accent-text" /> Contact & Address</h3>
-          <div className="space-y-3">
-            {customer.phone && (
-              <div className="flex items-start gap-3 p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)' }}>
-                <Phone size={16} className="text-white/30 mt-0.5" />
-                <div>
-                  <p className="text-xs text-white/40">Phone</p>
-                  <p className="text-white">{customer.phone}</p>
-                </div>
-              </div>
-            )}
-            {customer.email && (
-              <div className="flex items-start gap-3 p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)' }}>
-                <Mail size={16} className="text-white/30 mt-0.5" />
-                <div>
-                  <p className="text-xs text-white/40">Email</p>
-                  <p className="text-white">{customer.email}</p>
-                </div>
-              </div>
-            )}
-            <div className="flex items-start gap-3 p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)' }}>
-              <MapPin size={16} className="text-white/30 mt-0.5" />
-              <div>
-                <p className="text-xs text-white/40">Address</p>
-                <p className="text-white">{customer.address || 'N/A'}</p>
-                <p className="text-white/50 text-sm">{[customer.city, customer.state, customer.pincode].filter(Boolean).join(', ')}</p>
-                {customer.state_code && <p className="text-xs text-white/30 mt-1">State Code: {customer.state_code}</p>}
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 p-6 shadow-2xl">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl transform translate-x-32 -translate-y-32"></div>
+        <div className="relative flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-20 h-20 rounded-2xl bg-white flex items-center justify-center shadow-2xl">
+              <span className="text-4xl font-black bg-gradient-to-br from-blue-600 to-cyan-500 bg-clip-text text-transparent">
+                {c.name?.charAt(0)?.toUpperCase() || 'C'}
+              </span>
+            </div>
+            <div>
+              <div className="text-xs text-white/70 font-semibold tracking-widest">CUSTOMER</div>
+              <h1 className="text-3xl font-black text-white">{c.name}</h1>
+              {c.gstin && <div className="text-sm text-white/90 font-mono mt-1">GSTIN: {c.gstin}</div>}
+              <div className="flex items-center gap-2 mt-2 flex-wrap">
+                {c.business_type && <span className="px-2.5 py-1 bg-white/20 backdrop-blur rounded-lg text-xs text-white font-semibold">{c.business_type}</span>}
+                {c.city && <span className="px-2.5 py-1 bg-white/20 backdrop-blur rounded-lg text-xs text-white font-semibold">{c.city}, {c.state}</span>}
               </div>
             </div>
           </div>
+          <div className="flex gap-2">
+            <button onClick={() => navigate('/app/customers/' + id + '/edit')} className="px-4 py-2 bg-white/20 hover:bg-white/30 backdrop-blur text-white rounded-xl text-sm font-bold flex items-center gap-2 transition">
+              <Edit size={14} />Edit
+            </button>
+            <button onClick={del} className="px-4 py-2 bg-red-500/30 hover:bg-red-500/50 backdrop-blur text-white rounded-xl text-sm font-bold flex items-center gap-2 transition">
+              <Trash2 size={14} />Delete
+            </button>
+          </div>
+        </div>
+      </motion.div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="glass rounded-2xl p-5 border-l-4 border-blue-500">
+          <div className="text-xs text-slate-400">Total Business</div>
+          <div className="text-2xl font-bold text-white mt-1">₹{Math.round(s.totalBusiness || 0).toLocaleString('en-IN')}</div>
+        </div>
+        <div className="glass rounded-2xl p-5 border-l-4 border-emerald-500">
+          <div className="text-xs text-slate-400">Paid Amount</div>
+          <div className="text-2xl font-bold text-emerald-400 mt-1">₹{Math.round(s.paidAmount || 0).toLocaleString('en-IN')}</div>
+        </div>
+        <div className="glass rounded-2xl p-5 border-l-4 border-amber-500">
+          <div className="text-xs text-slate-400">Outstanding</div>
+          <div className="text-2xl font-bold text-amber-400 mt-1">₹{Math.round(s.outstanding || 0).toLocaleString('en-IN')}</div>
+        </div>
+        <div className="glass rounded-2xl p-5 border-l-4 border-purple-500">
+          <div className="text-xs text-slate-400">Total Invoices</div>
+          <div className="text-2xl font-bold text-purple-400 mt-1">{s.invoiceCount || 0}</div>
         </div>
       </div>
 
-      {/* Invoice History */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-bold text-white text-lg">Invoice History ({invoices.length})</h3>
-          <div className="flex gap-2 text-xs">
-            <span className="px-2 py-1 rounded-lg" style={{ background: 'rgba(34,197,94,0.1)', color: '#4ade80' }}>{paidInvoices.length} Paid</span>
-            <span className="px-2 py-1 rounded-lg" style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171' }}>{unpaidInvoices.length} Unpaid</span>
-          </div>
+      <div className="glass rounded-2xl p-5">
+        <h3 className="text-sm font-bold text-white mb-4">Contact Details</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          {c.contact_person && <div className="flex items-center gap-3"><Building2 size={16} className="text-blue-400" /><div><div className="text-xs text-slate-500">Contact Person</div><div className="text-white font-semibold">{c.contact_person}</div></div></div>}
+          {c.phone && <div className="flex items-center gap-3"><Phone size={16} className="text-emerald-400" /><div><div className="text-xs text-slate-500">Phone</div><div className="text-white font-semibold">{c.phone}</div></div></div>}
+          {c.email && <div className="flex items-center gap-3"><Mail size={16} className="text-purple-400" /><div><div className="text-xs text-slate-500">Email</div><div className="text-white font-semibold">{c.email}</div></div></div>}
+          {c.address && <div className="flex items-start gap-3"><MapPin size={16} className="text-amber-400 mt-0.5" /><div><div className="text-xs text-slate-500">Address</div><div className="text-white font-semibold">{c.address}{c.city ? ', ' + c.city : ''}{c.state ? ', ' + c.state : ''}{c.pincode ? ' - ' + c.pincode : ''}</div></div></div>}
         </div>
-        {invoices.length === 0 ? (
-          <p className="text-white/30 text-center py-8">No invoices yet</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead><tr className="border-b border-white/5 text-left text-white/40">
-                <th className="pb-2 font-medium">Invoice #</th>
-                <th className="pb-2 font-medium">Date</th>
-                <th className="pb-2 font-medium text-right">Amount</th>
-                <th className="pb-2 font-medium text-center">Status</th>
-                <th className="pb-2 font-medium text-center">GST Type</th>
-              </tr></thead>
-              <tbody>
-                {invoices.map(inv => {
-                  const hasIgst = parseFloat(inv.igst_amount) > 0
-                  return (
-                    <tr key={inv.id} className="border-b border-white/5 hover:bg-white/[0.02]">
-                      <td className="py-3"><Link to={`/app/invoices/${inv.id}`} className="accent-text hover:underline font-medium">{inv.invoice_number}</Link></td>
-                      <td className="py-3 text-white/40">{formatDate(inv.invoice_date)}</td>
-                      <td className="py-3 text-right font-medium text-white">{formatCurrency(inv.total_amount)}</td>
-                      <td className="py-3 text-center">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${inv.payment_status === 'Paid' ? 'text-green-400' : inv.payment_status === 'Partial' ? 'text-yellow-400' : 'text-red-400'}`}
-                          style={{ background: inv.payment_status === 'Paid' ? 'rgba(34,197,94,0.1)' : inv.payment_status === 'Partial' ? 'rgba(234,179,8,0.1)' : 'rgba(239,68,68,0.1)' }}>
-                          {inv.payment_status}
-                        </span>
-                      </td>
-                      <td className="py-3 text-center">
-                        <span className={`text-xs font-medium ${hasIgst ? 'text-orange-400' : 'text-cyan-400'}`}>
-                          {hasIgst ? 'IGST' : 'CGST+SGST'}
-                        </span>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+      </div>
+
+      <div className="glass rounded-2xl overflow-hidden">
+        <div className="flex border-b border-slate-700">
+          <button onClick={() => setTab('invoices')} className={"flex-1 px-5 py-3 text-sm font-bold transition " + (tab === 'invoices' ? 'bg-blue-500/20 text-blue-400 border-b-2 border-blue-500' : 'text-slate-400 hover:text-white')}>
+            <FileText size={14} className="inline mr-2" />Invoices ({invoices.length})
+          </button>
+          <button onClick={() => setTab('production')} className={"flex-1 px-5 py-3 text-sm font-bold transition " + (tab === 'production' ? 'bg-orange-500/20 text-orange-400 border-b-2 border-orange-500' : 'text-slate-400 hover:text-white')}>
+            <Factory size={14} className="inline mr-2" />Production Orders ({production.length})
+          </button>
+        </div>
+
+        <div className="p-5">
+          {tab === 'invoices' && (
+            <div>
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="text-sm font-bold text-white">All Invoices</h3>
+                <button onClick={() => navigate('/app/invoices/new?customer=' + id)} className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1">
+                  <Plus size={12} />New Invoice
+                </button>
+              </div>
+              {invoices.length === 0 ? (
+                <div className="text-center py-8 text-slate-500 text-sm">No invoices yet</div>
+              ) : (
+                <div className="space-y-2">
+                  {invoices.map(inv => (
+                    <div key={inv.id} onClick={() => navigate('/app/invoices/' + inv.id)} className="flex items-center justify-between p-3 bg-slate-800/50 hover:bg-slate-800 rounded-xl cursor-pointer transition">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center"><FileText size={14} className="text-blue-400" /></div>
+                        <div>
+                          <div className="text-sm font-bold text-blue-400 font-mono">{inv.invoice_number}</div>
+                          <div className="text-xs text-slate-400">{inv.invoice_date}</div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-bold text-white">₹{Math.round(inv.total_amount || 0).toLocaleString('en-IN')}</div>
+                        <span className={"text-xs px-2 py-0.5 rounded-full font-semibold " + (inv.payment_status === 'Paid' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400')}>{inv.payment_status}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === 'production' && (
+            <div>
+              <h3 className="text-sm font-bold text-white mb-3">Production Orders</h3>
+              {production.length === 0 ? (
+                <div className="text-center py-8 text-slate-500 text-sm">No production orders</div>
+              ) : (
+                <div className="space-y-2">
+                  {production.map(po => (
+                    <div key={po.id} className="p-3 bg-slate-800/50 rounded-xl">
+                      <div className="flex justify-between">
+                        <div>
+                          <div className="text-sm font-bold text-orange-400 font-mono">{po.order_number}</div>
+                          <div className="text-xs text-slate-400 mt-0.5">{po.job_name}</div>
+                        </div>
+                        <span className={"text-xs px-2 py-1 rounded-full font-semibold h-fit " + (po.status === 'Completed' ? 'bg-emerald-500/20 text-emerald-400' : po.status === 'In Progress' ? 'bg-blue-500/20 text-blue-400' : 'bg-amber-500/20 text-amber-400')}>{po.status}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
