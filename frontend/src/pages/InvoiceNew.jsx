@@ -138,19 +138,39 @@ export default function InvoiceNew() {
 
     setLoading(true)
     try {
-      const r = await api.post('/invoices', {
-        invoice_number: invoiceNumber,
-        customer_id: customerId,
-        invoice_date: invoiceDate,
-        due_date: dueDate,
-        items: valid.map(it => ({
+      const dbItems = valid.map(it => {
+        const tr = parseFloat(it.tax_rate) || 0
+        const itemData = {
           description: it.description,
           hsn_code: it.hsn_code,
           quantity: parseFloat(it.quantity) || 0,
           unit: it.unit,
           rate: parseFloat(it.rate) || 0,
-          tax_rate: parseFloat(it.tax_rate) || 0
-        })),
+          amount: (parseFloat(it.quantity) || 0) * (parseFloat(it.rate) || 0)
+        }
+        if (isIntraState) {
+          itemData.cgst_rate = tr / 2
+          itemData.sgst_rate = tr / 2
+          itemData.igst_rate = 0
+        } else {
+          itemData.cgst_rate = 0
+          itemData.sgst_rate = 0
+          itemData.igst_rate = tr
+        }
+        return itemData
+      })
+
+      const r = await api.post('/invoices', {
+        invoice_number: invoiceNumber,
+        customer_id: customerId,
+        invoice_date: invoiceDate,
+        due_date: dueDate,
+        items: dbItems,
+        subtotal: t.sub,
+        cgst_amount: t.cgst,
+        sgst_amount: t.sgst,
+        igst_amount: t.igst,
+        total_amount: t.total,
         discount: parseFloat(discount) || 0,
         round_off: parseFloat(roundOff) || 0,
         notes: (notes ? notes + '\n' : '') + (terms || '')
@@ -185,12 +205,12 @@ export default function InvoiceNew() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1.5">Invoice Number * <span className="text-emerald-400">(Editable)</span></label>
-              <input type="text" value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} required className="w-full px-3 py-2.5 rounded-xl text-sm font-mono font-bold" autoComplete="off" />
+              <input type="text" value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} required className="w-full px-3 py-2.5 rounded-xl text-sm font-mono font-bold bg-slate-800/80 border border-slate-600 text-white placeholder-slate-500" autoComplete="off" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1.5">Customer *</label>
               <div className="flex gap-2">
-                <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} required className="flex-1 px-3 py-2.5 rounded-xl text-sm">
+                <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} required className="flex-1 px-3 py-2.5 rounded-xl text-sm bg-slate-800/80 border border-slate-600 text-white">
                   <option value="">Select Customer</option>
                   {customers.map(c => <option key={c.id} value={c.id}>{c.name}{c.state ? ' (' + c.state + ')' : ''}</option>)}
                 </select>
@@ -199,11 +219,11 @@ export default function InvoiceNew() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1.5">Invoice Date *</label>
-              <input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} required className="w-full px-3 py-2.5 rounded-xl text-sm" />
+              <input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} required className="w-full px-3 py-2.5 rounded-xl text-sm bg-slate-800/80 border border-slate-600 text-white [color-scheme:dark]" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1.5">Due Date</label>
-              <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="w-full px-3 py-2.5 rounded-xl text-sm" />
+              <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="w-full px-3 py-2.5 rounded-xl text-sm bg-slate-800/80 border border-slate-600 text-white [color-scheme:dark]" />
             </div>
           </div>
 
@@ -237,29 +257,29 @@ export default function InvoiceNew() {
                   <div className="grid grid-cols-12 gap-2">
                     <div className="col-span-12 md:col-span-3">
                       <label className="block text-xs text-slate-400 mb-1">Description *</label>
-                      <input type="text" value={item.description} onChange={(e) => updateItem(idx, 'description', e.target.value)} placeholder="Steel Structure" className="w-full px-3 py-2 rounded-lg text-sm" autoComplete="off" />
+                      <input type="text" value={item.description} onChange={(e) => updateItem(idx, 'description', e.target.value)} placeholder="Steel Structure" className="w-full px-3 py-2 rounded-lg text-sm bg-slate-800/80 border border-slate-600 text-white placeholder-slate-500" autoComplete="off" />
                     </div>
                     <div className="col-span-6 md:col-span-2">
                       <label className="block text-xs text-slate-400 mb-1">HSN</label>
-                      <input type="text" value={item.hsn_code} onChange={(e) => updateItem(idx, 'hsn_code', e.target.value)} className="w-full px-2 py-2 rounded-lg text-sm font-mono" autoComplete="off" />
+                      <input type="text" value={item.hsn_code} onChange={(e) => updateItem(idx, 'hsn_code', e.target.value)} className="w-full px-2 py-2 rounded-lg text-sm font-mono bg-slate-800/80 border border-slate-600 text-white placeholder-slate-500" autoComplete="off" />
                     </div>
                     <div className="col-span-3 md:col-span-1">
                       <label className="block text-xs text-slate-400 mb-1">Qty *</label>
-                      <input type="text" inputMode="decimal" value={item.quantity} onChange={(e) => updateItem(idx, 'quantity', e.target.value)} className="w-full px-2 py-2 rounded-lg text-sm" autoComplete="off" />
+                      <input type="text" inputMode="decimal" value={item.quantity} onChange={(e) => updateItem(idx, 'quantity', e.target.value)} className="w-full px-2 py-2 rounded-lg text-sm bg-slate-800/80 border border-slate-600 text-white placeholder-slate-500" autoComplete="off" />
                     </div>
                     <div className="col-span-3 md:col-span-1">
                       <label className="block text-xs text-slate-400 mb-1">Unit</label>
-                      <select value={item.unit} onChange={(e) => updateItem(idx, 'unit', e.target.value)} className="w-full px-2 py-2 rounded-lg text-sm">
+                      <select value={item.unit} onChange={(e) => updateItem(idx, 'unit', e.target.value)} className="w-full px-2 py-2 rounded-lg text-sm bg-slate-800/80 border border-slate-600 text-white">
                         {UNITS.map(u => <option key={u}>{u}</option>)}
                       </select>
                     </div>
                     <div className="col-span-6 md:col-span-2">
                       <label className="block text-xs text-slate-400 mb-1">Rate *</label>
-                      <input type="text" inputMode="decimal" value={item.rate} onChange={(e) => updateItem(idx, 'rate', e.target.value)} placeholder="2500" className="w-full px-3 py-2 rounded-lg text-sm" autoComplete="off" />
+                      <input type="text" inputMode="decimal" value={item.rate} onChange={(e) => updateItem(idx, 'rate', e.target.value)} placeholder="2500" className="w-full px-3 py-2 rounded-lg text-sm bg-slate-800/80 border border-slate-600 text-white placeholder-slate-500" autoComplete="off" />
                     </div>
                     <div className="col-span-6 md:col-span-1">
                       <label className="block text-xs text-slate-400 mb-1">GST %</label>
-                      <select value={item.tax_rate} onChange={(e) => updateItem(idx, 'tax_rate', e.target.value)} className="w-full px-2 py-2 rounded-lg text-sm font-bold">
+                      <select value={item.tax_rate} onChange={(e) => updateItem(idx, 'tax_rate', e.target.value)} className="w-full px-2 py-2 rounded-lg text-sm font-bold bg-slate-800/80 border border-slate-600 text-white">
                         {GST_SLABS.map(s => <option key={s.value} value={s.value}>{s.value}%</option>)}
                       </select>
                     </div>
@@ -279,23 +299,23 @@ export default function InvoiceNew() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1.5">Discount (Rs.)</label>
-              <input type="text" inputMode="decimal" value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="0" className="w-full px-3 py-2.5 rounded-xl text-sm" autoComplete="off" />
+              <input type="text" inputMode="decimal" value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="0" className="w-full px-3 py-2.5 rounded-xl text-sm bg-slate-800/80 border border-slate-600 text-white placeholder-slate-500" autoComplete="off" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1.5">Round Off (Rs.)</label>
-              <input type="text" inputMode="decimal" value={roundOff} onChange={(e) => setRoundOff(e.target.value)} placeholder="0" className="w-full px-3 py-2.5 rounded-xl text-sm" autoComplete="off" />
+              <input type="text" inputMode="decimal" value={roundOff} onChange={(e) => setRoundOff(e.target.value)} placeholder="0" className="w-full px-3 py-2.5 rounded-xl text-sm bg-slate-800/80 border border-slate-600 text-white placeholder-slate-500" autoComplete="off" />
             </div>
           </div>
         </div>
 
         <div className="glass rounded-2xl p-5">
           <h3 className="text-sm font-bold text-white mb-4">Notes</h3>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows="2" className="w-full px-3 py-2.5 rounded-xl text-sm" autoComplete="off" placeholder="Any notes..." />
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows="2" className="w-full px-3 py-2.5 rounded-xl text-sm bg-slate-800/80 border border-slate-600 text-white placeholder-slate-500" autoComplete="off" placeholder="Any notes..." />
         </div>
 
         <div className="glass rounded-2xl p-5">
           <h3 className="text-sm font-bold text-white mb-4">Terms and Conditions (Type your own)</h3>
-          <textarea value={terms} onChange={(e) => setTerms(e.target.value)} rows="5" className="w-full px-3 py-2.5 rounded-xl text-sm" autoComplete="off" placeholder="Type your terms and conditions here..." />
+          <textarea value={terms} onChange={(e) => setTerms(e.target.value)} rows="5" className="w-full px-3 py-2.5 rounded-xl text-sm bg-slate-800/80 border border-slate-600 text-white placeholder-slate-500" autoComplete="off" placeholder="Type your terms and conditions here..." />
         </div>
 
         <div className="bg-gradient-to-r from-blue-600/20 via-cyan-500/20 to-emerald-500/20 border-2 border-blue-500/30 rounded-2xl p-6">
@@ -309,11 +329,11 @@ export default function InvoiceNew() {
               <>
                 <div>
                   <div className="text-xs text-slate-400 font-bold mb-1">CGST <span className="text-emerald-400">(edit)</span></div>
-                  <input type="text" inputMode="decimal" value={manualCgst} onChange={(e) => setManualCgst(e.target.value)} placeholder={t.cgst.toFixed(2)} className="w-full px-2 py-1.5 rounded-lg text-sm font-bold text-cyan-400 bg-slate-800 text-center" autoComplete="off" />
+                  <input type="text" inputMode="decimal" value={manualCgst} onChange={(e) => setManualCgst(e.target.value)} placeholder={t.cgst.toFixed(2)} className="w-full px-2 py-1.5 rounded-lg text-sm font-bold text-cyan-400 bg-slate-800 text-center border border-slate-600" autoComplete="off" />
                 </div>
                 <div>
                   <div className="text-xs text-slate-400 font-bold mb-1">SGST <span className="text-emerald-400">(edit)</span></div>
-                  <input type="text" inputMode="decimal" value={manualSgst} onChange={(e) => setManualSgst(e.target.value)} placeholder={t.sgst.toFixed(2)} className="w-full px-2 py-1.5 rounded-lg text-sm font-bold text-blue-400 bg-slate-800 text-center" autoComplete="off" />
+                  <input type="text" inputMode="decimal" value={manualSgst} onChange={(e) => setManualSgst(e.target.value)} placeholder={t.sgst.toFixed(2)} className="w-full px-2 py-1.5 rounded-lg text-sm font-bold text-blue-400 bg-slate-800 text-center border border-slate-600" autoComplete="off" />
                 </div>
                 <div>
                   <div className="text-xs text-slate-400 font-bold mb-1">TOTAL TAX</div>
@@ -323,12 +343,12 @@ export default function InvoiceNew() {
             ) : (
               <div className="md:col-span-3">
                 <div className="text-xs text-slate-400 font-bold mb-1">IGST <span className="text-emerald-400">(edit)</span></div>
-                <input type="text" inputMode="decimal" value={manualIgst} onChange={(e) => setManualIgst(e.target.value)} placeholder={t.igst.toFixed(2)} className="w-full px-3 py-1.5 rounded-lg text-sm font-bold text-purple-400 bg-slate-800 text-center" autoComplete="off" />
+                <input type="text" inputMode="decimal" value={manualIgst} onChange={(e) => setManualIgst(e.target.value)} placeholder={t.igst.toFixed(2)} className="w-full px-3 py-1.5 rounded-lg text-sm font-bold text-purple-400 bg-slate-800 text-center border border-slate-600" autoComplete="off" />
               </div>
             )}
             <div className="bg-emerald-500/20 rounded-xl p-2 border border-emerald-500/40">
               <div className="text-xs text-emerald-300 font-bold mb-1">GRAND TOTAL <span className="text-amber-400">(edit)</span></div>
-              <input type="text" inputMode="decimal" value={manualTotal} onChange={(e) => setManualTotal(e.target.value)} placeholder={t.total.toFixed(2)} className="w-full px-2 py-1.5 rounded-lg text-lg font-black text-emerald-400 bg-slate-900 text-center" autoComplete="off" />
+              <input type="text" inputMode="decimal" value={manualTotal} onChange={(e) => setManualTotal(e.target.value)} placeholder={t.total.toFixed(2)} className="w-full px-2 py-1.5 rounded-lg text-lg font-black text-emerald-400 bg-slate-900 text-center border border-slate-600" autoComplete="off" />
             </div>
           </div>
         </div>
