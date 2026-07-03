@@ -31,6 +31,80 @@ function sanitizeDates(data) {
   return clean;
 }
 
+// ═══ SAFE ITEM SANITIZER ═══
+// Only allows valid invoice_items columns.
+// Converts tax_rate → cgst_rate/sgst_rate/igst_rate if needed.
+// Strips invalid fields like tax_rate, id, etc.
+function sanitizeItem(item, invoiceId) {
+  // Detect if we need to convert tax_rate
+  const hasTaxRate = item.tax_rate !== undefined && item.tax_rate !== null;
+  const hasCgstRate = item.cgst_rate !== undefined && item.cgst_rate !== null;
+  const hasSgstRate = item.sgst_rate !== undefined && item.sgst_rate !== null;
+  const hasIgstRate = item.igst_rate !== undefined && item.igst_rate !== null;
+
+  let cgstRate = parseFloat(item.cgst_rate) || 0;
+  let sgstRate = parseFloat(item.sgst_rate) || 0;
+  let igstRate = parseFloat(item.igst_rate) || 0;
+
+  // If only tax_rate is provided (frontend not yet updated), convert it
+  if (hasTaxRate && !hasCgstRate && !hasSgstRate && !hasIgstRate) {
+    const tr = parseFloat(item.tax_rate) || 0;
+    // Determine intra vs inter state from organization state code
+    // Default to intra-state (Maharashtra = 27) for GLOB FABRICATION
+    // The frontend should send the proper split, but as fallback:
+    // If any existing items have igst_rate > 0, it's inter-state
+    if (igstRate > 0) {
+      // Inter-state: all tax goes to IGST
+      igstRate = tr;
+      cgstRate = 0;
+      sgstRate = 0;
+    } else {
+      // Intra-state: split equally CGST + SGST
+      cgstRate = tr / 2;
+      sgstRate = tr / 2;
+      igstRate = 0;
+    }
+  }
+
+  const qty = parseFloat(item.quantity) || 0;
+  const rate = parseFloat(item.rate) || 0;
+
+  return {
+    invoice_id: invoiceId,
+    description: item.description || '',
+    hsn_code: item.hsn_code || '',
+    quantity: qty,
+    unit: item.unit || 'NOS',
+    rate: rate,
+    cgst_rate: cgstRate,
+    sgst_rate: sgstRate,
+    igst_rate: igstRate,
+    amount: parseFloat(item.amount) || (qty * rate)
+  };
+}
+
+// ═══ SAFE INVOICE DATA SANITIZER ═══
+// Only allows valid invoices table columns.
+// Strips invalid fields like manual_cgst, manual_sgst, etc.
+const VALID_INVOICE_COLUMNS = [
+  'organization_id', 'invoice_number', 'customer_id',
+  'invoice_date', 'due_date',
+  'subtotal', 'cgst_amount', 'sgst_amount', 'igst_amount',
+  'discount', 'round_off', 'total_amount',
+  'status', 'payment_status', 'notes',
+  'irn_number', 'ack_no', 'ack_date'
+];
+
+function sanitizeInvoiceData(data) {
+  const clean = {};
+  VALID_INVOICE_COLUMNS.forEach(col => {
+    if (data[col] !== undefined) {
+      clean[col] = data[col];
+    }
+  });
+  return clean;
+}
+
 // Get next invoice number for auto-suggest
 router.get('/next-number', auth, async (req, res) => {
   try {
@@ -155,17 +229,19 @@ router.post('/', auth, async (req, res) => {
       invoiceNumber = `${prefix}${String(nextNo).padStart(4, '0')}/${fy}`;
     }
 
-    const data = sanitizeDates({
+    // ═══ SANITIZE: strip invalid columns, convert tax_rate ═══
+    const data = sanitizeDates(sanitizeInvoiceData({
       ...invoiceData,
       organization_id: orgId,
       invoice_number: invoiceNumber
-    });
+    }));
 
     const [invoice] = await db('invoices').insert(data).returning('id');
     const invoiceId = invoice.id || invoice;
 
     if (items && items.length > 0) {
-      const itemRows = items.map(item => ({ ...item, invoice_id: invoiceId }));
+      // ═══ SANITIZE: each item — strip tax_rate, only valid columns ═══
+      const itemRows = items.map(item => sanitizeItem(item, invoiceId));
       await db('invoice_items').insert(itemRows);
     }
 
@@ -188,20 +264,23 @@ router.put('/:id/full', auth, async (req, res) => {
     const old = await db('invoices').where({ id: req.params.id, organization_id: orgId }).first();
     if (!old) return res.status(404).json({ success: false, msg: 'Invoice not found' });
 
-    await db('invoices').where({ id: req.params.id }).update(invoiceData);
+    // ═══ SANITIZE: strip invalid columns from invoice data ═══
+    const cleanData = sanitizeInvoiceData(invoiceData);
+    await db('invoices').where({ id: req.params.id }).update(cleanData);
 
     await db('invoice_items').where({ invoice_id: req.params.id }).del();
     if (items && items.length > 0) {
-      const itemRows = items.map(item => ({ ...item, invoice_id: req.params.id }));
+      // ═══ SANITIZE: each item — strip tax_rate, only valid columns ═══
+      const itemRows = items.map(item => sanitizeItem(item, req.params.id));
       await db('invoice_items').insert(itemRows);
     }
 
-    await auditLog(req.user.id, orgId, 'UPDATE', 'invoices', req.params.id, old, invoiceData, req.ip);
+    await auditLog(req.user.id, orgId, 'UPDATE', 'invoices', req.params.id, old, cleanData, req.ip);
 
     res.json({ success: true, msg: 'Invoice updated' });
   } catch (err) {
     console.error('Update invoice error:', err);
-    res.status(500).json({ success: false, msg: 'Failed to update' });
+    res.status(500).json({ success: false, msg: 'Failed to update: ' + err.message });
   }
 });
 
@@ -212,8 +291,10 @@ router.put('/:id', auth, async (req, res) => {
     const old = await db('invoices').where({ id: req.params.id, organization_id: req.user.organization_id }).first();
     if (!old) return res.status(404).json({ success: false, msg: 'Invoice not found' });
 
-    await db('invoices').where({ id: req.params.id }).update(req.body);
-    await auditLog(req.user.id, req.user.organization_id, 'UPDATE', 'invoices', req.params.id, old, req.body, req.ip);
+    // ═══ SANITIZE: only allow valid columns ═══
+    const cleanData = sanitizeInvoiceData(req.body);
+    await db('invoices').where({ id: req.params.id }).update(cleanData);
+    await auditLog(req.user.id, req.user.organization_id, 'UPDATE', 'invoices', req.params.id, old, cleanData, req.ip);
 
     res.json({ success: true, msg: 'Invoice updated' });
   } catch (err) {
