@@ -1,6 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { useAuth } from './context/AuthContext'
 import { Component } from 'react'
+import { useAuth } from './context/AuthContext'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import ForgotPassword from './pages/ForgotPassword'
@@ -14,6 +14,8 @@ import QuotationDetail from './pages/QuotationDetail'
 import QuotationForm from './pages/QuotationForm'
 import Customers from './pages/Customers'
 import CustomerDetail from './pages/CustomerDetail'
+import CustomerNew from './pages/CustomerNew'
+import CustomerEdit from './pages/CustomerEdit'
 import Purchases from './pages/Purchases'
 import PurchaseNew from './pages/PurchaseNew'
 import PurchaseDetail from './pages/PurchaseDetail'
@@ -29,88 +31,23 @@ import DeployControl from './pages/DeployControl'
 import MainLayout from './layouts/MainLayout'
 import LandingPage from './pages/LandingPage'
 
-// ── ERROR BOUNDARY — catches crashes, shows error instead of white screen ──
 class ErrorBoundary extends Component {
-  constructor(props) {
-    super(props)
-    this.state = { hasError: false, error: null, errorInfo: null }
-  }
-
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error }
-  }
-
-  componentDidCatch(error, errorInfo) {
-    console.error('App crashed:', error, errorInfo)
-    this.setState({ errorInfo })
-  }
-
-  handleReload = () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-    window.location.href = '/login'
-  }
-
+  constructor(props) { super(props); this.state = { hasError: false, error: null } }
+  static getDerivedStateFromError(error) { return { hasError: true, error } }
+  componentDidCatch(error, info) { console.error('App crashed:', error, info) }
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{
-          minHeight: '100vh',
-          background: '#080b14',
-          color: '#fff',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '2rem',
-          fontFamily: 'Inter, system-ui, sans-serif'
-        }}>
+        <div style={{ minHeight: '100vh', background: '#080b14', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', fontFamily: 'Inter, system-ui, sans-serif' }}>
           <div style={{ maxWidth: '500px', textAlign: 'center' }}>
             <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
             <h1 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '8px' }}>Something went wrong</h1>
-            <p style={{ color: 'rgba(255,255,255,0.5)', marginBottom: '16px', fontSize: '14px' }}>
-              The app encountered an error. This is usually fixed by reloading.
-            </p>
-            <div style={{
-              background: 'rgba(239,68,68,0.1)',
-              border: '1px solid rgba(239,68,68,0.2)',
-              borderRadius: '12px',
-              padding: '12px',
-              marginBottom: '20px',
-              fontSize: '12px',
-              fontFamily: 'monospace',
-              color: '#f87171',
-              textAlign: 'left',
-              maxHeight: '150px',
-              overflow: 'auto',
-              wordBreak: 'break-all'
-            }}>
+            <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '12px', padding: '12px', marginBottom: '20px', fontSize: '12px', fontFamily: 'monospace', color: '#f87171', textAlign: 'left', wordBreak: 'break-all' }}>
               {this.state.error?.message || 'Unknown error'}
             </div>
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-              <button onClick={() => window.location.reload()} style={{
-                padding: '10px 24px',
-                borderRadius: '12px',
-                background: 'linear-gradient(135deg, #06b6d4, #22d3ee)',
-                color: '#fff',
-                border: 'none',
-                fontWeight: 600,
-                cursor: 'pointer',
-                fontSize: '14px'
-              }}>
-                Reload Page
-              </button>
-              <button onClick={this.handleReload} style={{
-                padding: '10px 24px',
-                borderRadius: '12px',
-                background: 'rgba(255,255,255,0.06)',
-                color: '#fff',
-                border: '1px solid rgba(255,255,255,0.1)',
-                fontWeight: 600,
-                cursor: 'pointer',
-                fontSize: '14px'
-              }}>
-                Clear & Login
-              </button>
+              <button onClick={() => window.location.reload()} style={{ padding: '10px 24px', borderRadius: '12px', background: 'linear-gradient(135deg, #06b6d4, #22d3ee)', color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Reload Page</button>
+              <button onClick={() => { localStorage.clear(); window.location.href = '/login' }} style={{ padding: '10px 24px', borderRadius: '12px', background: 'rgba(255,255,255,0.06)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', fontWeight: 600, cursor: 'pointer' }}>Clear & Login</button>
             </div>
           </div>
         </div>
@@ -122,12 +59,7 @@ class ErrorBoundary extends Component {
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
-  if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#080b14' }}>
-      <div style={{ width: '40px', height: '40px', border: '3px solid rgba(6,182,212,0.2)', borderTopColor: '#06b6d4', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }}></div>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </div>
-  )
+  if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#080b14' }}><div style={{ width: 40, height: 40, border: '3px solid rgba(6,182,212,0.2)', borderTopColor: '#06b6d4', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} /><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div>
   if (!user) return <Navigate to="/login" />
   return children
 }
@@ -152,7 +84,9 @@ export default function App() {
           <Route path="quotations/:id" element={<QuotationDetail />} />
           <Route path="quotations/:id/edit" element={<QuotationForm />} />
           <Route path="customers" element={<Customers />} />
+          <Route path="customers/new" element={<CustomerNew />} />
           <Route path="customers/:id" element={<CustomerDetail />} />
+          <Route path="customers/:id/edit" element={<CustomerEdit />} />
           <Route path="purchases" element={<Purchases />} />
           <Route path="purchases/new" element={<PurchaseNew />} />
           <Route path="purchases/:id" element={<PurchaseDetail />} />
