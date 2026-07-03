@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Download, Trash2, User, Calendar, Printer, Send, Edit, AlertCircle, Eye } from 'lucide-react'
+import { ArrowLeft, Download, Trash2, User, Calendar, Printer, Edit, AlertCircle, Eye, Share2, MessageCircle, Mail } from 'lucide-react'
 import api from '../api/client'
-import { generateInvoicePDF, printInvoice, previewInvoicePDF } from '../utils/invoicePDF'
-import ShareModal from '../components/ShareModal'
 import TemplateSelector from '../components/TemplateSelector'
 import BoldToggle from '../components/BoldToggle'
 
@@ -14,7 +12,8 @@ export default function InvoiceDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [actionLoading, setActionLoading] = useState('')
-  const [showShare, setShowShare] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
+  const [sharing, setSharing] = useState(false)
 
   useEffect(() => {
     const numId = parseInt(id)
@@ -52,11 +51,68 @@ export default function InvoiceDetail() {
   const handleAction = async (action) => {
     setActionLoading(action)
     try {
-      if (action === 'download') await generateInvoicePDF(data.invoice, data.items)
-      else if (action === 'print') await printInvoice(data.invoice, data.items)
-      else if (action === 'preview') await previewInvoicePDF(data.invoice, data.items)
+      if (action === 'download') {
+        const token = localStorage.getItem('token')
+        window.open(`${api.defaults.baseURL}/invoices/${id}/pdf?token=${token}`, '_blank')
+      } else if (action === 'print') {
+        const token = localStorage.getItem('token')
+        const printWin = window.open(`${api.defaults.baseURL}/invoices/${id}/pdf?token=${token}`, '_blank')
+        if (printWin) printWin.onload = () => printWin.print()
+      } else if (action === 'preview') {
+        const token = localStorage.getItem('token')
+        window.open(`${api.defaults.baseURL}/invoices/${id}/pdf?token=${token}`, '_blank')
+      }
     } catch (e) { alert('Failed: ' + e.message) }
     setActionLoading('')
+  }
+
+  const handleWhatsApp = async () => {
+    setSharing(true)
+    try {
+      const inv = data.invoice
+      const token = localStorage.getItem('token')
+      const pdfUrl = `${api.defaults.baseURL}/invoices/${id}/pdf?token=${token}`
+      const invNum = inv.invoice_number || ''
+      const custName = inv.customer_name || ''
+      const total = new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(inv.total_amount)
+      try {
+        const response = await fetch(pdfUrl)
+        const htmlBlob = await response.blob()
+        const file = new File([htmlBlob], `Invoice_${invNum.replace(/\//g, '-')}.html`, { type: 'text/html' })
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({ text: `*TAX INVOICE ${invNum}*\nCustomer: ${custName}\nTotal: ₹${total}`, files: [file] })
+          setShareOpen(false); setSharing(false); return
+        }
+      } catch (shareErr) { }
+      const viewUrl = `${window.location.origin}/app/invoices/${id}`
+      const msg = `*TAX INVOICE ${invNum}*\nCustomer: ${custName}\nTotal: ₹${total}\n\n📄 View & Print: ${viewUrl}\n📥 Direct PDF: ${pdfUrl}`
+      window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
+    } catch (err) { alert('Share failed: ' + err.message) }
+    setShareOpen(false); setSharing(false)
+  }
+
+  const handleEmail = async () => {
+    setSharing(true)
+    try {
+      const inv = data.invoice
+      const token = localStorage.getItem('token')
+      const pdfUrl = `${api.defaults.baseURL}/invoices/${id}/pdf?token=${token}`
+      const invNum = inv.invoice_number || ''
+      const custName = inv.customer_name || ''
+      const total = new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(inv.total_amount)
+      const emailTo = prompt('Enter email address to send invoice:')
+      if (!emailTo) { setSharing(false); return }
+      try {
+        await api.post(`/invoices/${id}/share-email`, { to: emailTo })
+        alert('Invoice sent via email!')
+      } catch (backendErr) {
+        const org = data.organization
+        const subject = `Tax Invoice ${invNum} - ${org?.name || 'Our Company'}`
+        const body = `Dear ${custName},\n\nPlease find your tax invoice below:\n\nInvoice No: ${invNum}\nTotal Amount: ₹${total}\n\n📄 View: ${window.location.origin}/app/invoices/${id}\n📥 PDF: ${pdfUrl}\n\nBest regards,\n${org?.name || 'Our Company'}`
+        window.open(`mailto:${emailTo}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank')
+      }
+    } catch (err) { alert('Email share failed: ' + err.message) }
+    setShareOpen(false); setSharing(false)
   }
 
   if (loading) return <div className="flex items-center justify-center h-96"><div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
@@ -106,7 +162,21 @@ export default function InvoiceDetail() {
             <button onClick={() => handleAction('preview')} disabled={actionLoading === 'preview'} className="px-4 py-2 bg-white/20 text-white rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-white/30"><Eye size={14} />{actionLoading === 'preview' ? '...' : 'Preview'}</button>
             <button onClick={() => handleAction('download')} disabled={actionLoading === 'download'} className="px-4 py-2 bg-white text-blue-600 rounded-xl text-sm font-bold flex items-center gap-2 hover:shadow-lg"><Download size={14} />{actionLoading === 'download' ? '...' : 'Download'}</button>
             <button onClick={() => handleAction('print')} disabled={actionLoading === 'print'} className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-bold flex items-center gap-2"><Printer size={14} />{actionLoading === 'print' ? '...' : 'Print'}</button>
-            <button onClick={() => setShowShare(true)} className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-bold flex items-center gap-2"><Send size={14} />Share</button>
+
+            <div className="relative">
+              <button onClick={() => setShareOpen(!shareOpen)} className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-bold flex items-center gap-2"><Share2 size={14} />Share</button>
+              {shareOpen && (
+                <div className="absolute right-0 top-full mt-1 rounded-xl shadow-2xl z-50 min-w-[180px] overflow-hidden" style={{ background: 'rgba(14,18,36,0.97)', border: '1px solid rgba(255,255,255,0.10)' }}>
+                  <button onClick={handleWhatsApp} disabled={sharing} className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 text-green-400 text-sm font-medium">
+                    <MessageCircle size={18} /> {sharing ? 'Sharing...' : 'WhatsApp'}
+                  </button>
+                  <button onClick={handleEmail} disabled={sharing} className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 text-blue-400 text-sm font-medium border-t border-white/5">
+                    <Mail size={18} /> {sharing ? 'Sending...' : 'Email'}
+                  </button>
+                </div>
+              )}
+            </div>
+
             <button onClick={del} className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-bold flex items-center gap-2"><Trash2 size={14} />Delete</button>
           </div>
         </div>
@@ -115,7 +185,7 @@ export default function InvoiceDetail() {
       <div className="glass rounded-2xl p-4">
         <div className="flex items-center gap-3">
           <span className="text-sm text-slate-400">Payment Status:</span>
-          <select value={inv.payment_status || 'Unpaid'} onChange={e => updateStatus(e.target.value)} className={"px-4 py-2 rounded-xl text-sm font-bold border-2 " + (inv.payment_status === 'Paid' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : inv.payment_status === 'Partial' ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30')}>
+          <select value={inv.payment_status || 'Unpaid'} onChange={e => updateStatus(e.target.value)} className={"px-4 py-2 rounded-xl text-sm font-bold border-2 bg-slate-800/80 " + (inv.payment_status === 'Paid' ? 'text-emerald-400 border-emerald-500/30' : inv.payment_status === 'Partial' ? 'text-amber-400 border-amber-500/30' : 'text-red-400 border-red-500/30')}>
             <option>Unpaid</option>
             <option>Partial</option>
             <option>Paid</option>
@@ -198,14 +268,6 @@ export default function InvoiceDetail() {
           </div>
         )}
       </div>
-
-      <ShareModal
-        open={showShare}
-        onClose={() => setShowShare(false)}
-        invoice={inv}
-        items={items}
-        onConfigureEmail={() => { setShowShare(false); navigate('/app/settings') }}
-      />
     </div>
   )
 }
