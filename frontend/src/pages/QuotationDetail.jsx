@@ -126,6 +126,7 @@ export default function QuotationDetail() {
   }
 
   return (
+
     <div className="space-y-4">
       {/* Action buttons */}
       <div className="flex flex-wrap items-center gap-2 no-print">
@@ -232,17 +233,17 @@ export default function QuotationDetail() {
                 )}
                 <tr>
                   <td colSpan={2} style={{ border: '1.5px solid #000', padding: '8px 10px', background: '#e8e8e8' }}>
-                    <div style={{ fontSize: '10pt', fontWeight: 'bold', textAlign: 'center', letterSpacing: '0.5px' }}>
-                      Total : {numberToWordsCaps(quotation.total_amount)}
+                    <div style={{ fontSize: '10pt', fontWeight: 'bold', textAlign: 'center', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+                      TOTAL : {numberToWordsCaps(quotation.total_amount)}
                     </div>
                   </td>
                 </tr>
                 <tr>
-                  <td style={{ border: '1.5px solid #000', padding: '8px 10px', textAlign: 'right', background: '#d4d4d4', width: '55%' }}>
-                    <span style={{ fontSize: '14pt', fontWeight: 'bold' }}>₹{fmt(quotation.total_amount)}</span>
-                  </td>
-                  <td style={{ border: '1.5px solid #000', padding: '8px 10px', textAlign: 'center', background: '#d4d4d4', width: '45%' }}>
+                  <td style={{ border: '1.5px solid #000', padding: '8px 10px', textAlign: 'left', background: '#d4d4d4', width: '55%' }}>
                     <span style={{ fontSize: '10pt', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>Total Amount</span>
+                  </td>
+                  <td style={{ border: '1.5px solid #000', padding: '8px 10px', textAlign: 'right', background: '#d4d4d4', width: '45%' }}>
+                    <span style={{ fontSize: '14pt', fontWeight: 'bold' }}>₹{fmt(quotation.total_amount)}</span>
                   </td>
                 </tr>
               </tbody>
@@ -254,6 +255,6 @@ export default function QuotationDetail() {
         <div style={{ height: `${footerMm}mm`, flexShrink: 0 }}></div>
       </div>
     </div>
-  )
+  
+)
 }
-
