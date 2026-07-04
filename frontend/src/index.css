@@ -532,3 +532,37 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }
+
+/* ===== FIX: Dark theme input/select/textarea ===== */
+/* Prevents white background making text disappear */
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]),
+select,
+textarea {
+  background-color: rgba(30, 41, 59, 0.8) !important;
+  border: 1px solid rgba(100, 116, 139, 0.5) !important;
+  color: #ffffff !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgba(148, 163, 184, 0.6) !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--accent, #06b6d4) !important;
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.15) !important;
+}
+
+/* Date inputs dark mode */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(0.7);
+}
+
+/* Select dropdown dark */
+select option {
+  background-color: #1e293b !important;
+  color: #ffffff !important;
+}
