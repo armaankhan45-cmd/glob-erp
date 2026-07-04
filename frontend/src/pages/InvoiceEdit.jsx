@@ -150,7 +150,11 @@ export default function InvoiceEdit() {
           return itemData
         }),
         subtotal: t.sub, cgst_amount: t.cgst, sgst_amount: t.sgst, igst_amount: t.igst, total_amount: t.total,
-        discount: parseFloat(discount) || 0, round_off: parseFloat(roundOff) || 0, notes: notes
+        discount: parseFloat(discount) || 0, round_off: parseFloat(roundOff) || 0, notes: notes,
+        manual_cgst: manualCgst !== '' ? parseFloat(manualCgst) : null,
+        manual_sgst: manualSgst !== '' ? parseFloat(manualSgst) : null,
+        manual_igst: manualIgst !== '' ? parseFloat(manualIgst) : null,
+        manual_total: manualTotal !== '' ? parseFloat(manualTotal) : null
       })
       setMessage({ type: 'success', text: 'Invoice updated!' })
       setTimeout(function () { navigate('/app/invoices/' + id) }, 800)
@@ -177,11 +181,11 @@ export default function InvoiceEdit() {
           <h3 className="text-sm font-bold text-white mb-4">Invoice Information</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div><label className="block text-xs font-semibold text-slate-400 mb-1.5">Invoice Number *</label><input type="text" value={invoiceNumber} onChange={function (e) { setInvoiceNumber(e.target.value) }} required className="w-full px-3 py-2.5 rounded-xl text-sm font-mono font-bold bg-slate-800/80 border border-slate-600 text-white placeholder-slate-500" autoComplete="off" /></div>
-            <div><label className="block text-xs font-semibold text-slate-400 mb-1.5">Customer *</label><select value={customerId} onChange={function (e) { setCustomerId(e.target.value) }} required className="w-full px-3 py-2.5 rounded-xl text-sm bg-slate-800/80 border border-slate-600 text-white"><option value="">Select Customer</option>{customers.map(function (c) { return <option key={c.id} value={c.id}>{c.name}</option> })}</select></div>
-            <div><label className="block text-xs font-semibold text-slate-400 mb-1.5">Invoice Date *</label><input type="date" value={invoiceDate} onChange={function (e) { setInvoiceDate(e.target.value) }} required className="w-full px-3 py-2.5 rounded-xl text-sm bg-slate-800/80 border border-slate-600 text-white [color-scheme:dark]" /></div>
-            <div><label className="block text-xs font-semibold text-slate-400 mb-1.5">Due Date</label><input type="date" value={dueDate} onChange={function (e) { setDueDate(e.target.value) }} className="w-full px-3 py-2.5 rounded-xl text-sm bg-slate-800/80 border border-slate-600 text-white [color-scheme:dark]" /></div>
-            <div><label className="block text-xs font-semibold text-slate-400 mb-1.5">Status</label><select value={status} onChange={function (e) { setStatus(e.target.value) }} className="w-full px-3 py-2.5 rounded-xl text-sm bg-slate-800/80 border border-slate-600 text-white"><option>Pending</option><option>Completed</option><option>Cancelled</option></select></div>
-            <div><label className="block text-xs font-semibold text-slate-400 mb-1.5">Payment Status</label><select value={paymentStatus} onChange={function (e) { setPaymentStatus(e.target.value) }} className="w-full px-3 py-2.5 rounded-xl text-sm bg-slate-800/80 border border-slate-600 text-white"><option>Unpaid</option><option>Partial</option><option>Paid</option></select></div>
+            <div><label className="block text-xs font-semibold text-slate-400 mb-1.5">Customer *</label><select value={customerId} onChange={function (e) { setCustomerId(e.target.value) }} required className="w-full px-3 py-2.5 rounded-xl text-sm"><option value="">Select Customer</option>{customers.map(function (c) { return <option key={c.id} value={c.id}>{c.name}</option> })}</select></div>
+            <div><label className="block text-xs font-semibold text-slate-400 mb-1.5">Invoice Date *</label><input type="date" value={invoiceDate} onChange={function (e) { setInvoiceDate(e.target.value) }} required className="w-full px-3 py-2.5 rounded-xl text-sm" /></div>
+            <div><label className="block text-xs font-semibold text-slate-400 mb-1.5">Due Date</label><input type="date" value={dueDate} onChange={function (e) { setDueDate(e.target.value) }} className="w-full px-3 py-2.5 rounded-xl text-sm" /></div>
+            <div><label className="block text-xs font-semibold text-slate-400 mb-1.5">Status</label><select value={status} onChange={function (e) { setStatus(e.target.value) }} className="w-full px-3 py-2.5 rounded-xl text-sm"><option>Pending</option><option>Completed</option><option>Cancelled</option></select></div>
+            <div><label className="block text-xs font-semibold text-slate-400 mb-1.5">Payment Status</label><select value={paymentStatus} onChange={function (e) { setPaymentStatus(e.target.value) }} className="w-full px-3 py-2.5 rounded-xl text-sm"><option>Unpaid</option><option>Partial</option><option>Paid</option></select></div>
           </div>
           {selectedCust && (<div className={"mt-4 p-3 rounded-xl flex items-center gap-2 text-sm " + (isIntraState ? 'bg-blue-500/10 border border-blue-500/30 text-blue-400' : 'bg-purple-500/10 border border-purple-500/30 text-purple-400')}><Info size={16} />{isIntraState ? <span><strong>Intra-State:</strong> CGST + SGST</span> : <span><strong>Inter-State:</strong> IGST</span>}</div>)}
         </div>
@@ -197,8 +201,8 @@ export default function InvoiceEdit() {
                   <div className="grid grid-cols-12 gap-2">
                     <div className="col-span-12 md:col-span-3"><label className="block text-xs text-slate-400 mb-1">Description *</label><input type="text" value={item.description} onChange={function (e) { updateItem(idx, 'description', e.target.value) }} className="w-full px-3 py-2 rounded-lg text-sm bg-slate-800/80 border border-slate-600 text-white placeholder-slate-500" autoComplete="off" /></div>
                     <div className="col-span-6 md:col-span-2"><label className="block text-xs text-slate-400 mb-1">HSN</label><input type="text" value={item.hsn_code} onChange={function (e) { updateItem(idx, 'hsn_code', e.target.value) }} className="w-full px-2 py-2 rounded-lg text-sm font-mono bg-slate-800/80 border border-slate-600 text-white" autoComplete="off" /></div>
-                    <div className="col-span-3 md:col-span-1"><label className="block text-xs text-slate-400 mb-1">Qty *</label><input type="text" inputMode="decimal" value={item.quantity} onChange={function (e) { updateItem(idx, 'quantity', e.target.value) }} className="w-full px-2 py-2 rounded-lg text-sm bg-slate-800/80 border border-slate-600 text-white" autoComplete="off" /></div>
-                    <div className="col-span-3 md:col-span-1"><label className="block text-xs text-slate-400 mb-1">Unit</label><select value={item.unit} onChange={function (e) { updateItem(idx, 'unit', e.target.value) }} className="w-full px-2 py-2 rounded-lg text-sm bg-slate-800/80 border border-slate-600 text-white">{UNITS.map(function (u) { return <option key={u}>{u}</option> })}</select></div>
+                    <div className="col-span-3 md:col-span-1"><label className="block text-xs text-slate-400 mb-1">Qty *</label><input type="text" inputMode="decimal" value={item.quantity} onChange={function (e) { updateItem(idx, 'quantity', e.target.value) }} className="w-full px-2 py-2 rounded-lg text-sm" autoComplete="off" /></div>
+                    <div className="col-span-3 md:col-span-1"><label className="block text-xs text-slate-400 mb-1">Unit</label><select value={item.unit} onChange={function (e) { updateItem(idx, 'unit', e.target.value) }} className="w-full px-2 py-2 rounded-lg text-sm">{UNITS.map(function (u) { return <option key={u}>{u}</option> })}</select></div>
                     <div className="col-span-6 md:col-span-2"><label className="block text-xs text-slate-400 mb-1">Rate *</label><input type="text" inputMode="decimal" value={item.rate} onChange={function (e) { updateItem(idx, 'rate', e.target.value) }} className="w-full px-3 py-2 rounded-lg text-sm bg-slate-800/80 border border-slate-600 text-white placeholder-slate-500" autoComplete="off" /></div>
                     <div className="col-span-6 md:col-span-1"><label className="block text-xs text-slate-400 mb-1">GST %</label><select value={item.tax_rate} onChange={function (e) { updateItem(idx, 'tax_rate', e.target.value) }} className="w-full px-2 py-2 rounded-lg text-sm font-bold bg-slate-800/80 border border-slate-600 text-white">{GST_SLABS.map(function (s) { return <option key={s.value} value={s.value}>{s.value}%</option> })}</select></div>
                     <div className="col-span-12 md:col-span-2"><label className="block text-xs text-slate-400 mb-1">Total (incl.GST)</label><div className="px-3 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-sm font-bold text-emerald-400 text-right">Rs.{total.toFixed(2)}</div></div>
@@ -212,14 +216,14 @@ export default function InvoiceEdit() {
         <div className="glass rounded-2xl p-5">
           <h3 className="text-sm font-bold text-white mb-1">Adjustments</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div><label className="block text-xs font-semibold text-slate-400 mb-1.5">Discount (Rs.) - subtracted</label><input type="text" inputMode="decimal" value={discount} onChange={function (e) { setDiscount(e.target.value) }} placeholder="0" className="w-full px-3 py-2.5 rounded-xl text-sm bg-slate-800/80 border border-slate-600 text-white" autoComplete="off" /></div>
-            <div><label className="block text-xs font-semibold text-slate-400 mb-1.5">Round Off (Rs.) - use negative to reduce</label><input type="text" inputMode="decimal" value={roundOff} onChange={function (e) { setRoundOff(e.target.value) }} placeholder="e.g. 0.50 or -0.50" className="w-full px-3 py-2.5 rounded-xl text-sm bg-slate-800/80 border border-slate-600 text-white" autoComplete="off" /></div>
+            <div><label className="block text-xs font-semibold text-slate-400 mb-1.5">Discount (Rs.) - subtracted</label><input type="text" inputMode="decimal" value={discount} onChange={function (e) { setDiscount(e.target.value) }} placeholder="0" className="w-full px-3 py-2.5 rounded-xl text-sm" autoComplete="off" /></div>
+            <div><label className="block text-xs font-semibold text-slate-400 mb-1.5">Round Off (Rs.) - use negative to reduce</label><input type="text" inputMode="decimal" value={roundOff} onChange={function (e) { setRoundOff(e.target.value) }} placeholder="e.g. 0.50 or -0.50" className="w-full px-3 py-2.5 rounded-xl text-sm" autoComplete="off" /></div>
           </div>
         </div>
 
         <div className="glass rounded-2xl p-5">
           <h3 className="text-sm font-bold text-white mb-4">Notes & Terms</h3>
-          <textarea value={notes} onChange={function (e) { setNotes(e.target.value) }} rows="4" className="w-full px-3 py-2.5 rounded-xl text-sm bg-slate-800/80 border border-slate-600 text-white" placeholder="Type notes and terms here..." />
+          <textarea value={notes} onChange={function (e) { setNotes(e.target.value) }} rows="4" className="w-full px-3 py-2.5 rounded-xl text-sm" placeholder="Type notes and terms here..." />
         </div>
 
         <div className="bg-gradient-to-r from-amber-600/20 via-orange-500/20 to-red-500/20 border-2 border-amber-500/30 rounded-2xl p-6">
