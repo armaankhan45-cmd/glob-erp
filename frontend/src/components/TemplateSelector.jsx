@@ -2,14 +2,13 @@ import { useState } from 'react'
 import { LayoutTemplate } from 'lucide-react'
 
 const TEMPLATES = [
-  { id: 'standard', name: 'Standard', desc: 'Default GST invoice format' },
-  { id: 'compact', name: 'Compact', desc: 'Reduced spacing, more items per page' },
-  { id: 'detailed', name: 'Detailed', desc: 'Full details with bank info' },
+  { id: 'itc', name: 'ITC Format', desc: 'Exact ITC Limited GST Tax Invoice layout' },
+  { id: 'tata', name: 'Tata Format', desc: 'Exact Tata Motors GST Invoice layout' },
 ]
 
 export default function TemplateSelector() {
   const [selected, setSelected] = useState(() => {
-    return localStorage.getItem('invoice_template') || 'standard'
+    return localStorage.getItem('invoice_template') || 'itc'
   })
   const [open, setOpen] = useState(false)
 
@@ -26,7 +25,7 @@ export default function TemplateSelector() {
         className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-sm text-white transition"
       >
         <LayoutTemplate size={14} className="text-blue-400" />
-        {TEMPLATES.find(t => t.id === selected)?.name || 'Standard'}
+        {TEMPLATES.find(t => t.id === selected)?.name || 'ITC Format'}
       </button>
       {open && (
         <>
