@@ -21,7 +21,6 @@ function formatDate(d) {
   return `${dd}/${mm}/${yyyy}`;
 }
 
-// Sanitize empty date strings to null (PostgreSQL rejects "" for date columns)
 function sanitizeDates(data) {
   const dateFields = ['invoice_date', 'due_date'];
   const clean = { ...data };
@@ -31,12 +30,7 @@ function sanitizeDates(data) {
   return clean;
 }
 
-// ═══ SAFE ITEM SANITIZER ═══
-// Only allows valid invoice_items columns.
-// Converts tax_rate → cgst_rate/sgst_rate/igst_rate if needed.
-// Strips invalid fields like tax_rate, id, etc.
 function sanitizeItem(item, invoiceId) {
-  // Detect if we need to convert tax_rate
   const hasTaxRate = item.tax_rate !== undefined && item.tax_rate !== null;
   const hasCgstRate = item.cgst_rate !== undefined && item.cgst_rate !== null;
   const hasSgstRate = item.sgst_rate !== undefined && item.sgst_rate !== null;
@@ -46,23 +40,12 @@ function sanitizeItem(item, invoiceId) {
   let sgstRate = parseFloat(item.sgst_rate) || 0;
   let igstRate = parseFloat(item.igst_rate) || 0;
 
-  // If only tax_rate is provided (frontend not yet updated), convert it
   if (hasTaxRate && !hasCgstRate && !hasSgstRate && !hasIgstRate) {
     const tr = parseFloat(item.tax_rate) || 0;
-    // Determine intra vs inter state from organization state code
-    // Default to intra-state (Maharashtra = 27) for GLOB FABRICATION
-    // The frontend should send the proper split, but as fallback:
-    // If any existing items have igst_rate > 0, it's inter-state
     if (igstRate > 0) {
-      // Inter-state: all tax goes to IGST
-      igstRate = tr;
-      cgstRate = 0;
-      sgstRate = 0;
+      igstRate = tr; cgstRate = 0; sgstRate = 0;
     } else {
-      // Intra-state: split equally CGST + SGST
-      cgstRate = tr / 2;
-      sgstRate = tr / 2;
-      igstRate = 0;
+      cgstRate = tr / 2; sgstRate = tr / 2; igstRate = 0;
     }
   }
 
@@ -83,9 +66,6 @@ function sanitizeItem(item, invoiceId) {
   };
 }
 
-// ═══ SAFE INVOICE DATA SANITIZER ═══
-// Only allows valid invoices table columns.
-// Strips invalid fields like manual_cgst, manual_sgst, etc.
 const VALID_INVOICE_COLUMNS = [
   'organization_id', 'invoice_number', 'customer_id',
   'invoice_date', 'due_date',
@@ -105,37 +85,43 @@ function sanitizeInvoiceData(data) {
   return clean;
 }
 
-// Get next invoice number for auto-suggest
+// ═══ GET NEXT INVOICE NUMBER — ROBUST, NO DUPLICATES ═══
 router.get('/next-number', auth, async (req, res) => {
   try {
     const db = getDb();
     const orgId = req.user.organization_id;
     const org = await db('organizations').where({ id: orgId }).first();
     const prefix = org.invoice_prefix || 'GST-';
-    
-    // Find the highest invoice number for this org
-    const lastInvoice = await db('invoices')
+
+    // Find ALL invoice numbers for this org and find the max numeric part
+    const allInvoices = await db('invoices')
       .where({ organization_id: orgId })
-      .orderBy('id', 'desc')
-      .first('invoice_number', 'id');
-    
-    let nextNum = 1;
-    if (lastInvoice?.invoice_number) {
-      // Extract number from format like "GST-0001/26-27" or "26270001"
-      const numPart = lastInvoice.invoice_number.split('/')[0];
+      .select('invoice_number', 'id');
+
+    let maxNum = 0;
+    allInvoices.forEach(inv => {
+      if (!inv.invoice_number) return;
+      const numPart = inv.invoice_number.split('/')[0];
       const digits = numPart.replace(/^[A-Za-z\-]+/, '');
-      if (digits && !isNaN(parseInt(digits))) {
-        nextNum = parseInt(digits) + 1;
-      } else {
-        nextNum = (lastInvoice.id || 0) + 1;
-      }
-    }
-    
+      const parsed = parseInt(digits);
+      if (!isNaN(parsed) && parsed > maxNum) maxNum = parsed;
+    });
+
+    let nextNum = maxNum + 1;
+
+    // Double-check: make sure the next number doesn't already exist
     const fy = getFY(new Date());
-    const suggestedNumber = `${prefix}${String(nextNum).padStart(4, '0')}/${fy}`;
-    
-    res.json({ 
-      success: true, 
+    let suggestedNumber = `${prefix}${String(nextNum).padStart(4, '0')}/${fy}`;
+    const existingNumbers = allInvoices.map(i => i.invoice_number);
+    let attempts = 0;
+    while (existingNumbers.includes(suggestedNumber) && attempts < 100) {
+      nextNum++;
+      suggestedNumber = `${prefix}${String(nextNum).padStart(4, '0')}/${fy}`;
+      attempts++;
+    }
+
+    res.json({
+      success: true,
       nextNumber: suggestedNumber,
       nextNumeric: nextNum,
       prefix,
@@ -165,7 +151,7 @@ router.get('/', auth, async (req, res) => {
     if (to) query = query.where('invoices.invoice_date', '<=', to);
 
     const invoices = await query.orderBy('invoices.created_at', 'desc');
-    
+
     const stats = await db('invoices')
       .where({ organization_id: req.user.organization_id })
       .select(
@@ -189,17 +175,17 @@ router.get('/:id', auth, async (req, res) => {
     const invoice = await db('invoices')
       .where({ 'invoices.id': req.params.id, 'invoices.organization_id': req.user.organization_id })
       .leftJoin('customers', 'invoices.customer_id', 'customers.id')
-      .select('invoices.*', 'customers.name as customer_name', 'customers.gstin as customer_gstin', 
+      .select('invoices.*', 'customers.name as customer_name', 'customers.gstin as customer_gstin',
         'customers.address as customer_address', 'customers.city as customer_city',
         'customers.state as customer_state', 'customers.state_code as customer_state_code',
         'customers.pincode as customer_pincode', 'customers.phone as customer_phone')
       .first();
-    
+
     if (!invoice) return res.status(404).json({ success: false, msg: 'Invoice not found' });
-    
+
     const items = await db('invoice_items').where({ invoice_id: invoice.id });
     const org = await db('organizations').where({ id: req.user.organization_id }).first();
-    
+
     res.json({ success: true, invoice, items, organization: org });
   } catch (err) {
     console.error('Get invoice error:', err);
@@ -207,7 +193,7 @@ router.get('/:id', auth, async (req, res) => {
   }
 });
 
-// Create invoice
+// Create invoice — with DUPLICATE CHECK and AUTO-INCREMENT
 router.post('/', auth, async (req, res) => {
   try {
     const db = getDb();
@@ -215,9 +201,7 @@ router.post('/', auth, async (req, res) => {
     const orgId = req.user.organization_id;
 
     const org = await db('organizations').where({ id: orgId }).first();
-    
-    // Manual invoice number support: if user provides invoice_number, use it
-    // Otherwise auto-generate
+
     let invoiceNumber;
     if (invoiceData.invoice_number && invoiceData.invoice_number.trim()) {
       invoiceNumber = invoiceData.invoice_number.trim();
@@ -229,7 +213,41 @@ router.post('/', auth, async (req, res) => {
       invoiceNumber = `${prefix}${String(nextNo).padStart(4, '0')}/${fy}`;
     }
 
-    // ═══ SANITIZE: strip invalid columns, convert tax_rate ═══
+    // ═══ CHECK FOR DUPLICATE invoice_number ═══
+    const existing = await db('invoices')
+      .where({ organization_id: orgId, invoice_number: invoiceNumber })
+      .first('id');
+
+    if (existing) {
+      // Auto-increment to find next available number
+      const prefix = org.invoice_prefix || 'GST-';
+      const fy = getFY(new Date(invoiceData.invoice_date));
+      const allInvoices = await db('invoices')
+        .where({ organization_id: orgId })
+        .select('invoice_number');
+      const existingNumbers = new Set(allInvoices.map(i => i.invoice_number));
+
+      // Extract max number from existing
+      let maxNum = 0;
+      allInvoices.forEach(inv => {
+        if (!inv.invoice_number) return;
+        const numPart = inv.invoice_number.split('/')[0];
+        const digits = numPart.replace(/^[A-Za-z\-]+/, '');
+        const parsed = parseInt(digits);
+        if (!isNaN(parsed) && parsed > maxNum) maxNum = parsed;
+      });
+
+      let nextNum = maxNum + 1;
+      let newNumber = `${prefix}${String(nextNum).padStart(4, '0')}/${fy}`;
+      let attempts = 0;
+      while (existingNumbers.has(newNumber) && attempts < 100) {
+        nextNum++;
+        newNumber = `${prefix}${String(nextNum).padStart(4, '0')}/${fy}`;
+        attempts++;
+      }
+      invoiceNumber = newNumber;
+    }
+
     const data = sanitizeDates(sanitizeInvoiceData({
       ...invoiceData,
       organization_id: orgId,
@@ -240,7 +258,6 @@ router.post('/', auth, async (req, res) => {
     const invoiceId = invoice.id || invoice;
 
     if (items && items.length > 0) {
-      // ═══ SANITIZE: each item — strip tax_rate, only valid columns ═══
       const itemRows = items.map(item => sanitizeItem(item, invoiceId));
       await db('invoice_items').insert(itemRows);
     }
@@ -264,13 +281,11 @@ router.put('/:id/full', auth, async (req, res) => {
     const old = await db('invoices').where({ id: req.params.id, organization_id: orgId }).first();
     if (!old) return res.status(404).json({ success: false, msg: 'Invoice not found' });
 
-    // ═══ SANITIZE: strip invalid columns from invoice data ═══
     const cleanData = sanitizeInvoiceData(invoiceData);
     await db('invoices').where({ id: req.params.id }).update(cleanData);
 
     await db('invoice_items').where({ invoice_id: req.params.id }).del();
     if (items && items.length > 0) {
-      // ═══ SANITIZE: each item — strip tax_rate, only valid columns ═══
       const itemRows = items.map(item => sanitizeItem(item, req.params.id));
       await db('invoice_items').insert(itemRows);
     }
@@ -291,7 +306,6 @@ router.put('/:id', auth, async (req, res) => {
     const old = await db('invoices').where({ id: req.params.id, organization_id: req.user.organization_id }).first();
     if (!old) return res.status(404).json({ success: false, msg: 'Invoice not found' });
 
-    // ═══ SANITIZE: only allow valid columns ═══
     const cleanData = sanitizeInvoiceData(req.body);
     await db('invoices').where({ id: req.params.id }).update(cleanData);
     await auditLog(req.user.id, req.user.organization_id, 'UPDATE', 'invoices', req.params.id, old, cleanData, req.ip);
@@ -321,11 +335,9 @@ router.delete('/:id', auth, async (req, res) => {
   }
 });
 
-// Auth middleware that also accepts ?token= in query string (for PDF new-tab access)
 function pdfAuth(req, res, next) {
   const jwt = require('jsonwebtoken');
   const config = require('../config/env');
-  // Try header first, then query param
   let token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) token = req.query.token;
   if (!token) return res.status(401).json({ success: false, msg: 'Login required' });
@@ -335,29 +347,27 @@ function pdfAuth(req, res, next) {
   } catch { return res.status(401).json({ success: false, msg: 'Invalid token' }); }
 }
 
-// Generate PDF / HTML — supports token in query string for new-tab access
 router.get('/:id/pdf', pdfAuth, async (req, res) => {
   try {
     const db = getDb();
     const invoice = await db('invoices')
       .where({ 'invoices.id': req.params.id, 'invoices.organization_id': req.user.organization_id })
       .leftJoin('customers', 'invoices.customer_id', 'customers.id')
-      .select('invoices.*', 
+      .select('invoices.*',
         db.raw("COALESCE(customers.name, '(No Customer)') as customer_name"),
         'customers.gstin as customer_gstin',
         'customers.address as customer_address', 'customers.city as customer_city',
         'customers.state as customer_state', 'customers.state_code as customer_state_code',
         'customers.pincode as customer_pincode', 'customers.phone as customer_phone')
       .first();
-    
+
     if (!invoice) return res.status(404).json({ success: false, msg: 'Invoice not found' });
-    
+
     const items = await db('invoice_items').where({ invoice_id: invoice.id });
     const org = await db('organizations').where({ id: req.user.organization_id }).first();
 
     const html = generateInvoiceHTML(invoice, items, org);
 
-    // Try puppeteer PDF first, fallback to HTML
     try {
       const puppeteer = require('puppeteer');
       const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
@@ -369,7 +379,6 @@ router.get('/:id/pdf', pdfAuth, async (req, res) => {
       res.setHeader('Content-Disposition', `inline; filename="${invoice.invoice_number}.pdf"`);
       res.send(pdf);
     } catch (puppeteerErr) {
-      // Puppeteer not available — return HTML for browser print-to-PDF
       res.setHeader('Content-Type', 'text/html');
       res.setHeader('Content-Disposition', `inline; filename="${invoice.invoice_number}.html"`);
       res.send(html);
@@ -380,12 +389,11 @@ router.get('/:id/pdf', pdfAuth, async (req, res) => {
   }
 });
 
-// Email sharing endpoint — sends invoice PDF as attachment
 router.post('/:id/share-email', pdfAuth, async (req, res) => {
   try {
     const { to } = req.body;
     if (!to) return res.status(400).json({ success: false, msg: 'Email address required' });
-    
+
     const db = getDb();
     const invoice = await db('invoices')
       .where({ 'invoices.id': req.params.id, 'invoices.organization_id': req.user.organization_id })
@@ -404,20 +412,14 @@ router.post('/:id/share-email', pdfAuth, async (req, res) => {
     const invNum = (invoice.invoice_number || '').split('/')[0];
     const total = formatIndian(invoice.total_amount);
 
-    // Try sending via nodemailer if configured
     try {
       const nodemailer = require('nodemailer');
       const smtpHost = process.env.SMTP_HOST;
       if (!smtpHost) throw new Error('SMTP not configured');
-      
+
       const transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: parseInt(process.env.SMTP_PORT) || 587,
-        secure: false,
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS
-        }
+        host: smtpHost, port: parseInt(process.env.SMTP_PORT) || 587, secure: false,
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
       });
 
       const html = generateInvoiceHTML(invoice, items, org);
@@ -427,11 +429,7 @@ router.post('/:id/share-email', pdfAuth, async (req, res) => {
         to,
         subject: `Tax Invoice ${invNum} - ${org.name || 'Our Company'}`,
         html: `<p>Dear ${invoice.customer_name || 'Customer'},</p><p>Please find your tax invoice attached:</p><p>Invoice No: ${invNum}<br>Total Amount: ₹${total}</p><p>Thank you for your business.</p><p>Best regards,<br>${org.name || 'Our Company'}</p>`,
-        attachments: [{
-          filename: `Invoice_${invNum.replace(/\//g, '-')}.html`,
-          content: html,
-          contentType: 'text/html'
-        }]
+        attachments: [{ filename: `Invoice_${invNum.replace(/\//g, '-')}.html`, content: html, contentType: 'text/html' }]
       });
 
       return res.json({ success: true, msg: 'Invoice sent via email!' });
@@ -447,10 +445,7 @@ router.post('/:id/share-email', pdfAuth, async (req, res) => {
 function formatIndian(num) {
   if (num === null || num === undefined || isNaN(num)) return '0.00';
   const n = parseFloat(num);
-  return new Intl.NumberFormat('en-IN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(n);
+  return new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 }
 
 const STATE_NAMES = {
@@ -467,32 +462,25 @@ const STATE_NAMES = {
 
 function generateInvoiceHTML(invoice, items, org) {
   function numberToWords(num) {
-    const a = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten',
-      'Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+    const a = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
     const b = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
     function inW(n) {
-      if (n < 20) return a[n];
-      if (n < 100) return b[Math.floor(n/10)] + (n%10 ? ' '+a[n%10] : '');
+      if (n < 20) return a[n]; if (n < 100) return b[Math.floor(n/10)] + (n%10 ? ' '+a[n%10] : '');
       if (n < 1000) return a[Math.floor(n/100)] + ' Hundred' + (n%100 ? ' '+inW(n%100) : '');
       if (n < 100000) return inW(Math.floor(n/1000)) + ' Thousand' + (n%1000 ? ' '+inW(n%1000) : '');
       if (n < 10000000) return inW(Math.floor(n/100000)) + ' Lakh' + (n%100000 ? ' '+inW(n%100000) : '');
       return inW(Math.floor(n/10000000)) + ' Crore' + (n%10000000 ? ' '+inW(n%10000000) : '');
     }
-    const rupees = Math.round(Math.floor(num));
-    const paise = Math.round((num - Math.floor(num)) * 100);
-    let result = inW(rupees) + ' Rupees';
-    if (paise > 0) result += ' and ' + inW(paise) + ' Paise';
-    return result + ' Only';
+    const rupees = Math.round(Math.floor(num)); const paise = Math.round((num - Math.floor(num)) * 100);
+    let result = inW(rupees) + ' Rupees'; if (paise > 0) result += ' and ' + inW(paise) + ' Paise'; return result + ' Only';
   }
 
   const invNum = (invoice.invoice_number || '').split('/')[0];
-  // GST state determination
   const orgStateCode = org.state_code || (org.gstin ? org.gstin.substring(0, 2) : '27');
   const custGstin = invoice.customer_gstin || '';
   const custStateCode = invoice.customer_state_code || (custGstin ? custGstin.substring(0, 2) : '');
   const isIntraState = custStateCode && custStateCode === orgStateCode;
   const hasCGST = isIntraState || parseFloat(invoice.cgst_amount) > 0;
-  const hasIGST = !isIntraState && custGstin ? true : (parseFloat(invoice.igst_amount) > 0 && !hasCGST);
   const totalTax = parseFloat(invoice.cgst_amount || 0) + parseFloat(invoice.sgst_amount || 0) + parseFloat(invoice.igst_amount || 0);
   const cgstAmount = parseFloat(invoice.cgst_amount || 0);
   const sgstAmount = parseFloat(invoice.sgst_amount || 0);
@@ -502,19 +490,14 @@ function generateInvoiceHTML(invoice, items, org) {
   const igstRate = !isIntraState ? (parseFloat(items[0]?.igst_rate || 18)) : 0;
   const isPaid = (invoice.payment_status || '').toLowerCase() === 'paid';
   const custStateName = invoice.customer_state || (custStateCode ? (STATE_NAMES[custStateCode] || '') : '');
-  const placeOfSupply = custStateCode
-    ? custStateCode + ' - ' + custStateName
-    : orgStateCode + ' - ' + (org.state || '');
+  const placeOfSupply = custStateCode ? custStateCode + ' - ' + custStateName : orgStateCode + ' - ' + (org.state || '');
   const invoiceDate = formatDate(invoice.invoice_date);
-  const hasShipping = invoice.shipping_name || invoice.shipping_address;
 
-  // Font settings from org
   const fontFamily = org.invoice_font_family || "'Segoe UI', Arial, Helvetica, sans-serif";
   const fontSize = org.invoice_font_size || '9pt';
   const descSize = org.invoice_desc_size || '8pt';
   const itemBold = (org.invoice_item_bold === 'true' || org.invoice_item_bold === '1') ? 'font-weight:bold;' : '';
 
-  // UPI QR URL (using Google Charts API for server-side HTML)
   const upiId = org.upi_id || '';
   const upiName = encodeURIComponent((org.name || 'GLOB FABRICATION AND ENTERPRISES').replace(/&/g, 'and'));
   const upiAmount = parseFloat(invoice.total_amount || 0).toFixed(2);
@@ -525,41 +508,33 @@ function generateInvoiceHTML(invoice, items, org) {
   items.forEach(item => {
     const hsn = item.hsn_code || 'Others';
     if (!hsnMap[hsn]) hsnMap[hsn] = { taxable: 0, cgstRate: 0, sgstRate: 0, igstRate: 0, cgstAmt: 0, sgstAmt: 0, igstAmt: 0 };
-    const qty = parseFloat(item.quantity) || 0;
-    const rate = parseFloat(item.rate) || 0;
-    const taxable = qty * rate;
+    const qty = parseFloat(item.quantity) || 0; const rate = parseFloat(item.rate) || 0; const taxable = qty * rate;
     hsnMap[hsn].taxable += taxable;
-    hsnMap[hsn].cgstRate = parseFloat(item.cgst_rate) || 0;
-    hsnMap[hsn].sgstRate = parseFloat(item.sgst_rate) || 0;
-    hsnMap[hsn].igstRate = parseFloat(item.igst_rate) || 0;
+    hsnMap[hsn].cgstRate = parseFloat(item.cgst_rate) || 0; hsnMap[hsn].sgstRate = parseFloat(item.sgst_rate) || 0; hsnMap[hsn].igstRate = parseFloat(item.igst_rate) || 0;
     hsnMap[hsn].cgstAmt += taxable * (parseFloat(item.cgst_rate) || 0) / 100;
     hsnMap[hsn].sgstAmt += taxable * (parseFloat(item.sgst_rate) || 0) / 100;
     hsnMap[hsn].igstAmt += taxable * (parseFloat(item.igst_rate) || 0) / 100;
   });
 
   const itemsHTML = items.map((item, i) => {
-    const qty = parseFloat(item.quantity) || 0;
-    const rate = parseFloat(item.rate) || 0;
-    const taxable = qty * rate;
+    const qty = parseFloat(item.quantity) || 0; const rate = parseFloat(item.rate) || 0; const taxable = qty * rate;
     const taxRate = (parseFloat(item.igst_rate) || 0) > 0 ? parseFloat(item.igst_rate) : (parseFloat(item.cgst_rate) + parseFloat(item.sgst_rate));
-    const taxAmt = taxable * taxRate / 100;
-    const total = taxable + taxAmt;
+    const taxAmt = taxable * taxRate / 100; const total = taxable + taxAmt;
     return `<tr>
-      <td style="border:1px solid #000;padding:3px 4px;text-align:center;vertical-align:top">${i+1}</td>
+      <td style="border:1px solid #000;padding:3px 4px;text-align:center">${i+1}</td>
       <td style="border:1px solid #000;padding:3px 4px;line-height:1.3;white-space:pre-line;font-size:${descSize};${itemBold}">${item.description || ''}</td>
-      <td style="border:1px solid #000;padding:3px 4px;text-align:center;vertical-align:top">${item.hsn_code || '—'}</td>
-      <td style="border:1px solid #000;padding:3px 4px;text-align:right;vertical-align:top">${formatIndian(rate)}</td>
-      <td style="border:1px solid #000;padding:3px 4px;text-align:center;vertical-align:top">${qty}</td>
-      <td style="border:1px solid #000;padding:3px 4px;text-align:center;vertical-align:top">${item.unit || 'NOS'}</td>
-      <td style="border:1px solid #000;padding:3px 4px;text-align:right;vertical-align:top">${formatIndian(taxable)}</td>
-      <td style="border:1px solid #000;padding:3px 4px;text-align:center;vertical-align:top">${taxRate > 0 ? taxRate + '%' : '—'}</td>
-      <td style="border:1px solid #000;padding:3px 4px;text-align:right;vertical-align:top">${formatIndian(taxAmt)}</td>
-      <td style="border:1px solid #000;padding:3px 4px;text-align:right;font-weight:bold;vertical-align:top">${formatIndian(total)}</td>
+      <td style="border:1px solid #000;padding:3px 4px;text-align:center">${item.hsn_code || '—'}</td>
+      <td style="border:1px solid #000;padding:3px 4px;text-align:right">${formatIndian(rate)}</td>
+      <td style="border:1px solid #000;padding:3px 4px;text-align:center">${qty} ${item.unit || 'NOS'}</td>
+      <td style="border:1px solid #000;padding:3px 4px;text-align:right">${formatIndian(taxable)}</td>
+      <td style="border:1px solid #000;padding:3px 4px;text-align:center">${taxRate > 0 ? taxRate + '%' : '—'}</td>
+      <td style="border:1px solid #000;padding:3px 4px;text-align:right">${formatIndian(taxAmt)}</td>
+      <td style="border:1px solid #000;padding:3px 4px;text-align:right;font-weight:bold">${formatIndian(total)}</td>
     </tr>`;
   }).join('');
 
   const emptyRows = items.length < 12 ? Array.from({length: 12 - items.length}).map(() =>
-    `<tr style="height:20px"><td style="border:1px solid #000;padding:2px">&nbsp;</td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td></tr>`
+    `<tr style="height:20px"><td style="border:1px solid #000;padding:2px">&nbsp;</td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td><td style="border:1px solid #000;padding:2px"></td></tr>`
   ).join('') : '';
 
   let hsnRows = '';
@@ -567,15 +542,7 @@ function generateInvoiceHTML(invoice, items, org) {
     hsnRows += `<tr>
       <td style="border:1px solid #000;padding:1px 2px;text-align:center;font-size:7pt">${hsn}</td>
       <td style="border:1px solid #000;padding:1px 2px;text-align:right;font-size:7pt">${formatIndian(data.taxable)}</td>
-      ${hasCGST ? `
-        <td style="border:1px solid #000;padding:1px 2px;text-align:center;font-size:7pt">${data.cgstRate}%</td>
-        <td style="border:1px solid #000;padding:1px 2px;text-align:right;font-size:7pt">${formatIndian(data.cgstAmt)}</td>
-        <td style="border:1px solid #000;padding:1px 2px;text-align:center;font-size:7pt">${data.sgstRate}%</td>
-        <td style="border:1px solid #000;padding:1px 2px;text-align:right;font-size:7pt">${formatIndian(data.sgstAmt)}</td>
-      ` : `
-        <td style="border:1px solid #000;padding:1px 2px;text-align:center;font-size:7pt">${data.igstRate}%</td>
-        <td style="border:1px solid #000;padding:1px 2px;text-align:right;font-size:7pt">${formatIndian(data.igstAmt)}</td>
-      `}
+      ${hasCGST ? `<td style="border:1px solid #000;padding:1px 2px;text-align:center;font-size:7pt">${data.cgstRate}%</td><td style="border:1px solid #000;padding:1px 2px;text-align:right;font-size:7pt">${formatIndian(data.cgstAmt)}</td><td style="border:1px solid #000;padding:1px 2px;text-align:center;font-size:7pt">${data.sgstRate}%</td><td style="border:1px solid #000;padding:1px 2px;text-align:right;font-size:7pt">${formatIndian(data.sgstAmt)}</td>` : `<td style="border:1px solid #000;padding:1px 2px;text-align:center;font-size:7pt">${data.igstRate}%</td><td style="border:1px solid #000;padding:1px 2px;text-align:right;font-size:7pt">${formatIndian(data.igstAmt)}</td>`}
       <td style="border:1px solid #000;padding:1px 2px;text-align:right;font-size:7pt;font-weight:bold">${formatIndian(data.cgstAmt + data.sgstAmt + data.igstAmt)}</td>
     </tr>`;
   });
@@ -587,11 +554,8 @@ function generateInvoiceHTML(invoice, items, org) {
     .page { width: 210mm; min-height: 297mm; display: flex; flex-direction: column; overflow: hidden; }
     table { width: 100%; border-collapse: collapse; }
     th { border: 1px solid #000; padding: 4px 3px; background: #e8e8e8; text-align: center; font-size: 7.5pt; font-weight: 700; }
-    .section-title { font-size: 7.5pt; font-weight: 700; color: #333; border-bottom: 1px solid #ccc; padding-bottom: 1px; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.3px; }
   </style></head><body>
     <div class="page">
-
-      <!-- HEADER -->
       <div style="display:flex;border-bottom:2.5px solid #000;padding:8px 12px 6px;flex-shrink:0">
         <div style="width:68px;height:68px;border:1.5px solid #bbb;border-radius:4px;display:flex;align-items:center;justify-content:center;margin-right:14px;flex-shrink:0;background:#fafafa">
           ${org.logo_url ? `<img src="${org.logo_url}" style="max-width:60px;max-height:60px;object-fit:contain">` : '<span style="font-size:6px;color:#aaa">LOGO</span>'}
@@ -606,112 +570,54 @@ function generateInvoiceHTML(invoice, items, org) {
           </div>
         </div>
       </div>
-
-      <!-- TITLE BAR -->
       <div style="text-align:center;padding:4px 0;border-bottom:2.5px solid #000;flex-shrink:0;background:linear-gradient(to right,#f8f8f8,#fff,#f8f8f8)">
         <div style="font-size:13pt;font-weight:800;letter-spacing:2.5px;color:#111">TAX INVOICE</div>
-        <div style="font-size:7pt;font-weight:700;color:#555;letter-spacing:0.5px">ORIGINAL FOR RECIPIENT</div>
       </div>
-
-      <!-- INVOICE INFO + BILLING/SHIPPING -->
       <div style="display:flex;border-bottom:1px solid #000;flex-shrink:0">
-        <div style="width:36%;border-right:1px solid #000;padding:5px 10px;font-size:8pt;line-height:1.4">
+        <div style="flex:1;padding:5px 10px;font-size:8pt;line-height:1.4;border-right:1px solid #000">
           <div style="margin-bottom:2px"><b>Invoice No:</b> ${invNum}</div>
           <div style="margin-bottom:2px"><b>Date:</b> ${invoiceDate}</div>
           <div style="margin-bottom:2px"><b>Place of Supply:</b> ${placeOfSupply}</div>
           <div><b>Reverse Charge:</b> No</div>
         </div>
-        <div style="width:${hasShipping ? '32' : '64'}%;padding:8px 12px;font-size:8.5pt">
+        <div style="width:60%;padding:8px 12px;font-size:8.5pt">
           <div style="font-size:8pt;font-weight:700;color:#0a3d6b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #ddd;padding-bottom:3px;margin-bottom:5px">Bill To</div>
-          <div style="font-size:11pt;font-weight:700;text-transform:uppercase;margin-bottom:3px;line-height:1.3">${(invoice.customer_name || '').toUpperCase()}</div>
+          <div style="font-size:11pt;font-weight:700;text-transform:uppercase;margin-bottom:3px">${(invoice.customer_name || '').toUpperCase()}</div>
           ${invoice.customer_gstin ? `<div style="font-size:8pt;margin-bottom:2px"><span style="color:#555">GSTIN:</span> <b>${invoice.customer_gstin}</b></div>` : ''}
-          <div style="font-size:8.5pt;color:#333;line-height:1.4;margin-bottom:2px">${[invoice.customer_address, invoice.customer_city, invoice.customer_state, invoice.customer_pincode].filter(Boolean).join(', ')}</div>
-          ${invoice.customer_phone ? `<div style="font-size:8pt;color:#333"><span style="color:#555">Ph:</span> ${invoice.customer_phone}</div>` : ''}
+          <div style="font-size:8.5pt;color:#333;line-height:1.4">${[invoice.customer_address, invoice.customer_city, invoice.customer_state, invoice.customer_pincode].filter(Boolean).join(', ')}</div>
         </div>
-        ${hasShipping ? `
-        <div style="width:32%;border-left:1px solid #000;padding:8px 12px;font-size:8.5pt">
-          <div style="font-size:8pt;font-weight:700;color:#0a3d6b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #ddd;padding-bottom:3px;margin-bottom:5px">Ship To</div>
-          <div style="font-size:9pt;font-weight:600;margin-bottom:2px">${(invoice.shipping_name || '').toUpperCase()}</div>
-          <div style="font-size:8.5pt;color:#333;line-height:1.4">${[invoice.shipping_address, invoice.shipping_city, invoice.shipping_state, invoice.shipping_pincode].filter(Boolean).join(', ')}</div>
-        </div>
-        ` : ''}
       </div>
-
-      <!-- ITEMS TABLE -->
       <div style="flex:1;display:flex;flex-direction:column">
         <table style="font-size:8pt;flex:1">
           <thead><tr>
-            <th style="width:4%">Sr<br>No</th>
-            <th style="width:24%">Item Description</th>
-            <th style="width:8%">HSN/<br>SAC</th>
-            <th style="width:9%">Rate<br>(&#8377;)</th>
-            <th style="width:6%">Qty</th>
-            <th style="width:5%">Unit</th>
-            <th style="width:13%">Taxable<br>Value (&#8377;)</th>
-            <th style="width:7%">GST<br>%</th>
-            <th style="width:10%">Tax<br>Amount (&#8377;)</th>
-            <th style="width:14%">Total<br>Amount (&#8377;)</th>
+            <th style="width:4%">#</th><th style="width:24%">Description</th><th style="width:8%">HSN</th><th style="width:10%">Rate</th><th style="width:7%">Qty</th><th style="width:13%">Taxable</th><th style="width:7%">GST%</th><th style="width:10%">Tax Amt</th><th style="width:14%">Total</th>
           </tr></thead>
           <tbody>${itemsHTML}${emptyRows}</tbody>
         </table>
-
-        <!-- TOTALS — Segregated CGST/SGST/IGST -->
         <table style="font-size:8.5pt;flex-shrink:0">
           <tr><td style="border:1px solid #000;padding:3px 6px;text-align:right;width:74%;background:#fafafa">Taxable Amount</td><td style="border:1px solid #000;padding:3px 6px;text-align:right">&#8377;${formatIndian(invoice.subtotal)}</td></tr>
-          ${cgstAmount > 0 ? `
-            <tr style="background:#f8f4ff"><td style="border:1px solid #000;padding:3px 6px;text-align:right">CGST @ ${cgstRate.toFixed(1)}% on &#8377;${formatIndian(invoice.subtotal)}</td><td style="border:1px solid #000;padding:3px 6px;text-align:right">&#8377;${formatIndian(cgstAmount)}</td></tr>
-            <tr style="background:#f8f4ff"><td style="border:1px solid #000;padding:3px 6px;text-align:right">SGST @ ${sgstRate.toFixed(1)}% on &#8377;${formatIndian(invoice.subtotal)}</td><td style="border:1px solid #000;padding:3px 6px;text-align:right">&#8377;${formatIndian(sgstAmount)}</td></tr>
-          ` : ''}
-          ${igstAmount > 0 ? `<tr style="background:#fff8f0"><td style="border:1px solid #000;padding:3px 6px;text-align:right">IGST @ ${igstRate.toFixed(1)}% on &#8377;${formatIndian(invoice.subtotal)}</td><td style="border:1px solid #000;padding:3px 6px;text-align:right">&#8377;${formatIndian(igstAmount)}</td></tr>` : ''}
+          ${cgstAmount > 0 ? `<tr style="background:#f8f4ff"><td style="border:1px solid #000;padding:3px 6px;text-align:right">CGST @ ${cgstRate.toFixed(1)}%</td><td style="border:1px solid #000;padding:3px 6px;text-align:right">&#8377;${formatIndian(cgstAmount)}</td></tr><tr style="background:#f8f4ff"><td style="border:1px solid #000;padding:3px 6px;text-align:right">SGST @ ${sgstRate.toFixed(1)}%</td><td style="border:1px solid #000;padding:3px 6px;text-align:right">&#8377;${formatIndian(sgstAmount)}</td></tr>` : ''}
+          ${igstAmount > 0 ? `<tr style="background:#fff8f0"><td style="border:1px solid #000;padding:3px 6px;text-align:right">IGST @ ${igstRate.toFixed(1)}%</td><td style="border:1px solid #000;padding:3px 6px;text-align:right">&#8377;${formatIndian(igstAmount)}</td></tr>` : ''}
           ${parseFloat(invoice.round_off) !== 0 ? `<tr><td style="border:1px solid #000;padding:3px 6px;text-align:right">Round Off</td><td style="border:1px solid #000;padding:3px 6px;text-align:right">${parseFloat(invoice.round_off) > 0 ? '+' : ''} &#8377;${formatIndian(invoice.round_off)}</td></tr>` : ''}
           <tr style="background:#e8e8e8"><td style="border:2px solid #000;padding:5px 6px;text-align:right;font-size:10.5pt"><b>GRAND TOTAL</b></td><td style="border:2px solid #000;padding:5px 6px;text-align:right;font-size:10.5pt;font-weight:800">&#8377;${formatIndian(invoice.total_amount)}</td></tr>
         </table>
       </div>
-
-      <!-- AMOUNT IN WORDS -->
       <div style="padding:4px 8px;font-size:8pt;border-top:1.5px solid #000;flex-shrink:0;display:flex;justify-content:space-between">
-        <div><b>Amount Chargeable (in words):</b> INR ${numberToWords(invoice.total_amount)}</div>
+        <div><b>Amount (in words):</b> INR ${numberToWords(invoice.total_amount)}</div>
         <div style="font-size:7pt;color:#666">E & O.E</div>
       </div>
-
-      <!-- HSN-WISE TAX SUMMARY -->
       <div style="flex-shrink:0">
-        <div style="font-size:7.5pt;font-weight:700;padding:3px 4px 0;color:#333;letter-spacing:0.3px">HSN-WISE TAX SUMMARY</div>
+        <div style="font-size:7.5pt;font-weight:700;padding:3px 4px 0;color:#333">HSN-WISE TAX SUMMARY</div>
         <table style="font-size:7pt">
-          <thead>
-            <tr><th style="font-size:6.5pt">HSN/SAC</th><th style="font-size:6.5pt">Taxable Value</th>
-              ${hasCGST ? '<th style="font-size:6.5pt" colspan="2">Central Tax</th><th style="font-size:6.5pt" colspan="2">State/UT Tax</th>' : '<th style="font-size:6.5pt" colspan="2">Integrated Tax</th>'}
-              <th style="font-size:6.5pt">Total Tax Amt</th>
-            </tr>
-            <tr><th style="font-size:6pt;padding:1px"></th><th style="font-size:6pt;padding:1px"></th>
-              ${hasCGST ? '<th style="font-size:6pt;padding:1px">Rate</th><th style="font-size:6pt;padding:1px">Amount</th><th style="font-size:6pt;padding:1px">Rate</th><th style="font-size:6pt;padding:1px">Amount</th>' : '<th style="font-size:6pt;padding:1px">Rate</th><th style="font-size:6pt;padding:1px">Amount</th>'}
-              <th style="font-size:6pt;padding:1px"></th>
-            </tr>
-          </thead>
-          <tbody>
-            ${hsnRows}
-            <tr style="font-weight:700;background:#f0f0f0">
-              <td style="border:1px solid #000;padding:1px 2px;text-align:center;font-size:7pt">TOTAL</td>
-              <td style="border:1px solid #000;padding:1px 2px;text-align:right;font-size:7pt">&#8377;${formatIndian(invoice.subtotal)}</td>
-              ${hasCGST ? `
-                <td style="border:1px solid #000;padding:1px 2px;font-size:7pt"></td>
-                <td style="border:1px solid #000;padding:1px 2px;text-align:right;font-size:7pt">&#8377;${formatIndian(invoice.cgst_amount)}</td>
-                <td style="border:1px solid #000;padding:1px 2px;font-size:7pt"></td>
-                <td style="border:1px solid #000;padding:1px 2px;text-align:right;font-size:7pt">&#8377;${formatIndian(invoice.sgst_amount)}</td>
-              ` : `
-                <td style="border:1px solid #000;padding:1px 2px;font-size:7pt"></td>
-                <td style="border:1px solid #000;padding:1px 2px;text-align:right;font-size:7pt">&#8377;${formatIndian(invoice.igst_amount)}</td>
-              `}
-              <td style="border:1px solid #000;padding:1px 2px;text-align:right;font-size:7pt">&#8377;${formatIndian(totalTax)}</td>
-            </tr>
+          <thead><tr><th>HSN</th><th>Taxable</th>${hasCGST ? '<th colspan="2">Central Tax</th><th colspan="2">State Tax</th>' : '<th colspan="2">Integrated Tax</th>'}<th>Total Tax</th></tr></thead>
+          <tbody>${hsnRows}
+            <tr style="font-weight:700;background:#f0f0f0"><td style="border:1px solid #000;padding:1px 2px;text-align:center;font-size:7pt">TOTAL</td><td style="border:1px solid #000;padding:1px 2px;text-align:right;font-size:7pt">&#8377;${formatIndian(invoice.subtotal)}</td>${hasCGST ? `<td style="border:1px solid #000;padding:1px 2px;font-size:7pt"></td><td style="border:1px solid #000;padding:1px 2px;text-align:right;font-size:7pt">&#8377;${formatIndian(invoice.cgst_amount)}</td><td style="border:1px solid #000;padding:1px 2px;font-size:7pt"></td><td style="border:1px solid #000;padding:1px 2px;text-align:right;font-size:7pt">&#8377;${formatIndian(invoice.sgst_amount)}</td>` : `<td style="border:1px solid #000;padding:1px 2px;font-size:7pt"></td><td style="border:1px solid #000;padding:1px 2px;text-align:right;font-size:7pt">&#8377;${formatIndian(invoice.igst_amount)}</td>`}<td style="border:1px solid #000;padding:1px 2px;text-align:right;font-size:7pt">&#8377;${formatIndian(totalTax)}</td></tr>
           </tbody>
         </table>
       </div>
-
-      <!-- BANK DETAILS + QR + SIGNATURE -->
       <div style="display:flex;border-top:1.5px solid #000;margin-top:auto;flex-shrink:0">
         <div style="width:42%;padding:5px 10px;font-size:7.5pt;line-height:1.5">
-          <div class="section-title">Bank Details</div>
+          <div style="font-weight:700;border-bottom:1px solid #ccc;padding-bottom:1px;margin-bottom:3px;font-size:7.5pt">Bank Details</div>
           ${org.bank_name ? `<div><b>Bank:</b> ${org.bank_name}</div>` : ''}
           ${org.account_no ? `<div><b>A/C No:</b> ${org.account_no}</div>` : ''}
           ${org.ifsc ? `<div><b>IFSC:</b> ${org.ifsc}</div>` : ''}
@@ -719,15 +625,11 @@ function generateInvoiceHTML(invoice, items, org) {
           ${org.upi_id ? `<div><b>UPI:</b> ${org.upi_id}</div>` : ''}
         </div>
         <div style="width:18%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px;border-left:1px solid #000;border-right:1px solid #000">
-          ${qrUrl ? `<img src="${qrUrl}" style="width:72px;height:72px"><div style="font-size:5.5pt;color:#666;margin-top:2px;text-align:center">Scan to Pay</div>` : '<div style="font-size:7pt;color:#aaa;text-align:center">QR Code</div>'}
+          ${qrUrl ? `<img src="${qrUrl}" style="width:72px;height:72px"><div style="font-size:5.5pt;color:#666;margin-top:2px;text-align:center">Scan to Pay</div>` : '<div style="font-size:7pt;color:#aaa">QR</div>'}
         </div>
-        <div style="width:40%;padding:5px 10px;font-size:7.5pt;display:flex;flex-direction:column;justify-content:space-between">
-          <div style="margin-bottom:4px">
-            <span style="font-weight:700">Payment Status: </span>
-            <span style="display:inline-block;padding:1px 8px;border-radius:3px;font-size:7pt;font-weight:700;letter-spacing:0.3px;${isPaid ? 'background:#d4edda;color:#155724;border:1px solid #c3e6cb' : 'background:#fff3cd;color:#856404;border:1px solid #ffeaa7'}">${isPaid ? '✓ PAID' : '● UNPAID'}</span>
-          </div>
-          <div style="text-align:right;margin-top:auto">
-            <div style="font-size:7.5pt;margin-bottom:4px">For <b>${(org.name || '').toUpperCase()}</b></div>
+        <div style="width:40%;padding:5px 10px;font-size:7.5pt;display:flex;flex-direction:column;justify-content:space-between;text-align:right">
+          <div style="margin-bottom:4px"><span style="font-weight:700">Payment: </span><span style="display:inline-block;padding:1px 8px;border-radius:3px;font-size:7pt;font-weight:700;${isPaid ? 'background:#d4edda;color:#155724' : 'background:#fff3cd;color:#856404'}">${isPaid ? '✓ PAID' : '● UNPAID'}</span></div>
+          <div style="margin-top:auto"><div style="margin-bottom:4px">For <b>${(org.name || '').toUpperCase()}</b></div>
             <div style="width:100px;height:80px;position:relative;display:inline-block;margin-bottom:4px">
               ${org.stamp_url ? `<img src="${org.stamp_url}" style="position:absolute;width:100px;height:80px;object-fit:contain;opacity:0.85">` : ''}
               ${org.signature_url ? `<img src="${org.signature_url}" style="position:relative;z-index:1;max-height:50px;max-width:90px;object-fit:contain">` : ''}
@@ -736,20 +638,9 @@ function generateInvoiceHTML(invoice, items, org) {
           </div>
         </div>
       </div>
-
-      <!-- NOTES -->
-      ${invoice.notes ? `<div style="padding:4px 10px;font-size:7pt;border-top:1px solid #000;flex-shrink:0;color:#444;line-height:1.5"><b>Notes:</b> ${invoice.notes}</div>` : ''}
-
-      <!-- TERMS -->
-      <div style="padding:3px 10px;font-size:6.5pt;border-top:1px solid #ccc;flex-shrink:0;color:#777">
-        <b>Terms & Conditions:</b> 1. Goods once sold will not be taken back. 2. Interest @ 18% p.a. will be charged on delayed payments. 3. Subject to Maharashtra jurisdiction only.
-      </div>
-
-      <!-- FOOTER -->
-      <div style="text-align:center;font-size:6.5pt;color:#999;padding:3px 0;border-top:1px solid #ddd;flex-shrink:0">
-        Computer Generated Invoice | ${(org.name || 'GLOB FABRICATION AND ENTERPRISES').toUpperCase()} | Page 1 of 1
-      </div>
-
+      ${invoice.notes ? `<div style="padding:4px 10px;font-size:7pt;border-top:1px solid #000;flex-shrink:0;color:#444"><b>Notes:</b> ${invoice.notes}</div>` : ''}
+      <div style="padding:3px 10px;font-size:6.5pt;border-top:1px solid #ccc;flex-shrink:0;color:#777"><b>Terms:</b> 1. Goods once sold will not be taken back. 2. Interest @ 18% p.a. on delayed payments. 3. Subject to Maharashtra jurisdiction.</div>
+      <div style="text-align:center;font-size:6.5pt;color:#999;padding:3px 0;border-top:1px solid #ddd;flex-shrink:0">Computer Generated Invoice | ${(org.name || 'GLOB FABRICATION AND ENTERPRISES').toUpperCase()} | Page 1 of 1</div>
     </div>
   </body></html>`;
 }
