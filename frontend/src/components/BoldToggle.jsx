@@ -1,14 +1,22 @@
 import { useState } from 'react'
 import { Bold } from 'lucide-react'
 
-export default function BoldToggle() {
+// Shared event so InvoiceDetail re-renders when bold toggles
+export function useBoldState() {
   const [bold, setBold] = useState(() => localStorage.getItem('invBold') === 'true')
 
   const toggle = () => {
     const val = !bold
     setBold(val)
     localStorage.setItem('invBold', String(val))
+    window.dispatchEvent(new Event('invBoldChanged'))
   }
+
+  return { bold, toggle }
+}
+
+export default function BoldToggle() {
+  const { bold, toggle } = useBoldState()
 
   return (
     <button
