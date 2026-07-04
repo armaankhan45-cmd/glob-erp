@@ -138,6 +138,7 @@ export default function InvoiceNew() {
 
     setLoading(true)
     try {
+      // Convert tax_rate to cgst_rate/sgst_rate/igst_rate for database
       const dbItems = valid.map(it => {
         const tr = parseFloat(it.tax_rate) || 0
         const itemData = {
