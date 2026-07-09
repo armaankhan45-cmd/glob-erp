@@ -5,8 +5,8 @@ const API_URL = import.meta.env.VITE_API_URL || '/api'
 const api = axios.create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
-  // High refresh rate: shorter timeout for snappy feel
-  timeout: 10000,
+  // 30s timeout — handles Render cold starts (can take 10-20s)
+  timeout: 30000,
 })
 
 // ═══════════════════════════════════════════
@@ -14,7 +14,7 @@ const api = axios.create({
 // Shows cached data immediately, fetches fresh in background
 // ═══════════════════════════════════════════
 const cache = new Map()
-const CACHE_TTL = 10000 // 10 seconds — high refresh rate
+const CACHE_TTL = 30000 // 30 seconds — high refresh rate
 
 api.getCached = async (url, forceFresh = false) => {
   const now = Date.now()
@@ -22,8 +22,8 @@ api.getCached = async (url, forceFresh = false) => {
 
   // Return cached data instantly if fresh enough
   if (!forceFresh && entry && (now - entry.time) < CACHE_TTL) {
-    // Background refresh if cache is > 5s old
-    if ((now - entry.time) > 5000) {
+    // Background refresh if cache is > 15s old
+    if ((now - entry.time) > 15000) {
       api.get(url).then(res => {
         cache.set(url, { data: res.data, time: Date.now() })
       }).catch(() => {})
