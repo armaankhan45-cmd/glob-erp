@@ -184,13 +184,14 @@ export default function QuotationDetail() {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   PRO LAYOUT — Aligned, Clean, Professional
+   PRO LAYOUT — FIXED: No bottom cutoff, content flows naturally
+   Uses minHeight instead of fixed height, no overflow hidden
    ═══════════════════════════════════════════════════════════════ */
 function ProQuotationLayout({ quotation, items, org, qNum, boldOn, customerSize, letterheadMm, footerMm, hasCGST, hasIGST, gstRate, totalGST, fmt }) {
   const NAVY = '#0d1b2a'
 
   return (
-    <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily: "'Segoe UI', Arial, sans-serif", fontSize: '10pt', width: '210mm', height: '297mm', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'white' }}>
+    <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily: "'Segoe UI', Arial, sans-serif", fontSize: '10pt', width: '210mm', minHeight: '297mm', display: 'flex', flexDirection: 'column', background: 'white' }}>
 
       {/* Letterhead space */}
       <div style={{ height: `${letterheadMm}mm`, flexShrink: 0 }}></div>
@@ -202,7 +203,7 @@ function ProQuotationLayout({ quotation, items, org, qNum, boldOn, customerSize,
       </div>
 
       {/* Main Bordered Box */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', border: `2px solid ${NAVY}`, margin: '5mm 10mm 0', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', border: `2px solid ${NAVY}`, margin: '5mm 10mm 0' }}>
 
         {/* Customer Name — aligned left with M/s prefix */}
         <div style={{ padding: '8px 14px 6px', borderBottom: `1.5px solid ${NAVY}`, background: 'linear-gradient(90deg, #f8fafc 0%, #fff 100%)', display: 'flex', alignItems: 'baseline', gap: 8 }}>
@@ -211,7 +212,7 @@ function ProQuotationLayout({ quotation, items, org, qNum, boldOn, customerSize,
         </div>
 
         {/* Items Table — properly aligned columns */}
-        <div style={{ flex: 1, overflow: 'hidden' }}>
+        <div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9.5pt', tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: '6%' }} />
@@ -247,8 +248,8 @@ function ProQuotationLayout({ quotation, items, org, qNum, boldOn, customerSize,
           </table>
         </div>
 
-        {/* Total Section — aligned */}
-        <div style={{ borderTop: `1.5px solid ${NAVY}`, flexShrink: 0 }}>
+        {/* Total Section — INSIDE the bordered box, no cutoff */}
+        <div style={{ borderTop: `1.5px solid ${NAVY}` }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9.5pt', tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: '56%' }} />
@@ -282,11 +283,11 @@ function ProQuotationLayout({ quotation, items, org, qNum, boldOn, customerSize,
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   CLASSIC LAYOUT — Original bordered box style, aligned
+   CLASSIC LAYOUT — FIXED: No bottom cutoff
    ═══════════════════════════════════════════════════════════════ */
 function ClassicQuotationLayout({ quotation, items, org, qNum, boldOn, customerSize, letterheadMm, footerMm, hasCGST, hasIGST, gstRate, totalGST, fmt }) {
   return (
-    <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily: 'Georgia, serif', fontSize: '10pt', width: '210mm', height: '297mm', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'white' }}>
+    <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily: 'Georgia, serif', fontSize: '10pt', width: '210mm', minHeight: '297mm', display: 'flex', flexDirection: 'column', background: 'white' }}>
 
       <div style={{ height: `${letterheadMm}mm`, flexShrink: 0 }}></div>
 
@@ -294,7 +295,7 @@ function ClassicQuotationLayout({ quotation, items, org, qNum, boldOn, customerS
         Quotation <u>No</u> :- {qNum}
       </div>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', border: '2px solid #000', margin: '0 10mm', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', border: '2px solid #000', margin: '0 10mm' }}>
 
         <div style={{ padding: '6px 8px 4px', textAlign: 'left', borderBottom: '1px solid #000' }}>
           <div style={{ fontSize: `${customerSize}pt`, fontWeight: 'bold', textTransform: 'uppercase', lineHeight: 1.2, textAlign: 'left' }}>
@@ -305,7 +306,7 @@ function ClassicQuotationLayout({ quotation, items, org, qNum, boldOn, customerS
           )}
         </div>
 
-        <div style={{ flex: 1, padding: '4px 5px 0', overflow: 'hidden' }}>
+        <div style={{ padding: '4px 5px 0' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt', tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: '6%' }} />
@@ -340,7 +341,7 @@ function ClassicQuotationLayout({ quotation, items, org, qNum, boldOn, customerS
           </table>
         </div>
 
-        <div style={{ padding: '0 5px 6px', flexShrink: 0 }}>
+        <div style={{ padding: '0 5px 6px' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt', tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: '55%' }} />
