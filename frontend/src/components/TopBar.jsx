@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { Bell, ChevronDown, Search, X } from 'lucide-react'
+import { useTheme } from '../main'
+import { Bell, ChevronDown, Search, X, Sun, Moon } from 'lucide-react'
 
 export default function TopBar() {
   const { user } = useAuth()
+  const { mode, toggleMode } = useTheme()
   const [searchFocus, setSearchFocus] = useState(false)
   const [searchVal, setSearchVal] = useState('')
 
@@ -49,7 +51,33 @@ export default function TopBar() {
             </button>
           )}
         </div>
-        
+
+        {/* ☀️ Day / 🌙 Night Toggle */}
+        <button
+          onClick={toggleMode}
+          className="w-9 h-9 rounded-xl flex items-center justify-center relative transition-all duration-300 hover:scale-105 active:scale-95"
+          style={{
+            background: mode === 'light'
+              ? 'rgba(245,158,11,0.12)'
+              : 'rgba(var(--accent-rgb),0.08)',
+            border: mode === 'light'
+              ? '1px solid rgba(245,158,11,0.25)'
+              : '1px solid rgba(255,255,255,0.10)',
+            color: mode === 'light' ? '#f59e0b' : 'rgba(255,255,255,0.6)'
+          }}
+          title={mode === 'dark' ? 'Switch to Light Mode ☀️' : 'Switch to Dark Mode 🌙'}
+        >
+          {mode === 'dark' ? <Moon size={16} /> : <Sun size={16} />}
+          {/* Glow ring in light mode */}
+          {mode === 'light' && (
+            <div style={{
+              position: 'absolute', inset: -2, borderRadius: '14px',
+              border: '2px solid rgba(245,158,11,0.15)',
+              animation: 'pulseGlow 3s ease-in-out infinite'
+            }}></div>
+          )}
+        </button>
+
         {/* Notification */}
         <button className="w-9 h-9 rounded-xl flex items-center justify-center relative transition-all duration-200 hover:scale-105 active:scale-95"
           style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}>
