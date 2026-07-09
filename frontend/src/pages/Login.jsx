@@ -9,6 +9,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [retrying, setRetrying] = useState(false)
   const { login } = useAuth()
   const navigate = useNavigate()
 
@@ -16,11 +17,28 @@ export default function Login() {
     e.preventDefault()
     setError('')
     setLoading(true)
+    setRetrying(false)
     try {
       await login(email, password)
       navigate('/app/dashboard')
     } catch (err) {
-      setError(err.response?.data?.msg || 'Login failed')
+      // Show friendly message for cold start / timeout
+      if (err.code === 'COLD_START' || err.message?.includes('waking up')) {
+        setError('Server is waking up from sleep. Please try again in 30 seconds.')
+        setRetrying(true)
+      } else if (err.message?.includes('timeout') || err.code === 'ECONNABORTED') {
+        setError('Connection timed out. The server may be starting up — please try again.')
+        setRetrying(true)
+      } else if (!err.response) {
+        setError('Network error. Please check your internet connection and try again.')
+      } else if (err.response?.status === 401) {
+        setError('Invalid email or password.')
+      } else if (err.response?.status >= 500) {
+        setError('Server error. Please try again in a moment.')
+        setRetrying(true)
+      } else {
+        setError(err.response?.data?.msg || 'Login failed. Please try again.')
+      }
     } finally {
       setLoading(false)
     }
@@ -83,7 +101,17 @@ export default function Login() {
             <span className="px-4 text-xs font-medium uppercase tracking-widest" style={{ background: '#06080f', color: 'rgba(255,255,255,0.2)' }}>or</span>
             <div className="flex-1" style={{ height: '1px', background: 'rgba(255,255,255,0.06)' }}></div>
           </div>
-          {error && <div className="p-3 rounded-xl text-sm" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', animation: 'slideUp 0.3s ease-out' }}>{error}</div>}
+          {error && (
+            <div className="p-3 rounded-xl text-sm" style={{
+              background: retrying ? 'rgba(245,158,11,0.1)' : 'rgba(239,68,68,0.1)',
+              border: retrying ? '1px solid rgba(245,158,11,0.2)' : '1px solid rgba(239,68,68,0.2)',
+              color: retrying ? '#fbbf24' : '#f87171',
+              animation: 'slideUp 0.3s ease-out'
+            }}>
+              {retrying && <span style={{ marginRight: 6 }}>⏳</span>}
+              {error}
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div><label className="block text-sm font-medium text-white mb-1.5">Email</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="admin@globfabrication.com" className="input-field" required /></div>
             <div><label className="block text-sm font-medium text-white mb-1.5">Password</label><div className="relative"><input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" className="input-field" style={{ paddingRight: '2.75rem' }} required /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 transition-all duration-200 hover:scale-110" style={{ color: 'rgba(255,255,255,0.3)' }}>{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button></div><p className="text-xs mt-1.5" style={{ color: 'rgba(255,255,255,0.2)' }}>Requires at least 8 symbols.</p></div>
