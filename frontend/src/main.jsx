@@ -24,6 +24,13 @@ export function ThemeProvider({ children }) {
   const [themeKey, setThemeKey] = useState(() => {
     return localStorage.getItem('glob-theme') || 'cyan'
   })
+  // ═══════════════════════════════════════════
+  // DAY / NIGHT MODE — stored in localStorage
+  // 'dark' = Nebula dark, 'light' = clean light
+  // ═══════════════════════════════════════════
+  const [mode, setMode] = useState(() => {
+    return localStorage.getItem('glob-mode') || 'dark'
+  })
 
   useEffect(() => {
     const theme = THEMES[themeKey]
@@ -37,8 +44,27 @@ export function ThemeProvider({ children }) {
     }
   }, [themeKey])
 
+  // Apply mode class to HTML root
+  useEffect(() => {
+    const root = document.documentElement
+    if (mode === 'light') {
+      root.setAttribute('data-mode', 'light')
+      root.classList.add('theme-light-mode')
+      root.classList.remove('theme-dark-mode')
+    } else {
+      root.removeAttribute('data-mode')
+      root.classList.remove('theme-light-mode')
+      root.classList.add('theme-dark-mode')
+    }
+    localStorage.setItem('glob-mode', mode)
+  }, [mode])
+
+  const toggleMode = () => {
+    setMode(prev => prev === 'dark' ? 'light' : 'dark')
+  }
+
   return (
-    <ThemeContext.Provider value={{ themeKey, setThemeKey, themes: THEMES, currentTheme: THEMES[themeKey] }}>
+    <ThemeContext.Provider value={{ themeKey, setThemeKey, themes: THEMES, currentTheme: THEMES[themeKey], mode, setMode, toggleMode }}>
       {children}
     </ThemeContext.Provider>
   )
