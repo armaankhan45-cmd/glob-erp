@@ -58,6 +58,96 @@ function TiltCard({ children, className, style, onMouseMove, onMouseLeave }) {
   )
 }
 
+// ═══════════════════════════════════════════
+// SKELETON COMPONENTS — shimmer loading effect
+// Shows structure before data loads
+// ═══════════════════════════════════════════
+function SkeletonBlock({ w, h, radius = '12px', className = '' }) {
+  return (
+    <div className={className} style={{
+      width: w, height: h, borderRadius: radius,
+      background: 'linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%)',
+      backgroundSize: '200% 100%',
+      animation: 'shimmer 1.5s ease-in-out infinite'
+    }} />
+  )
+}
+
+function SkeletonMetricCard() {
+  return (
+    <div className="stat-card" style={{ animation: 'slideUp 0.5s ease-out both' }}>
+      <div className="shimmer"></div>
+      <div className="flex items-center justify-between mb-3">
+        <SkeletonBlock w="80px" h="14px" radius="6px" />
+        <SkeletonBlock w="40px" h="40px" radius="10px" />
+      </div>
+      <SkeletonBlock w="120px" h="28px" radius="6px" />
+      <SkeletonBlock w="100px" h="12px" radius="4px" className="mt-2" />
+    </div>
+  )
+}
+
+function SkeletonChart() {
+  return (
+    <div className="card">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <SkeletonBlock w="160px" h="18px" radius="6px" />
+          <SkeletonBlock w="120px" h="12px" radius="4px" className="mt-2" />
+        </div>
+        <SkeletonBlock w="120px" h="32px" radius="8px" />
+      </div>
+      <div style={{ height: 256, display: 'flex', alignItems: 'flex-end', gap: 8, padding: '0 10px' }}>
+        {Array.from({length: 12}).map((_, i) => (
+          <div key={i} style={{
+            flex: 1,
+            height: `${30 + Math.random() * 70}%`,
+            borderRadius: '4px 4px 0 0',
+            background: 'linear-gradient(180deg, rgba(var(--accent-rgb),0.2), rgba(var(--accent-rgb),0.05))',
+            animation: `slideUp 0.5s ease-out ${i * 0.05}s both`
+          }} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function SkeletonList() {
+  return (
+    <div className="card">
+      <div className="flex items-center justify-between mb-4">
+        <SkeletonBlock w="140px" h="18px" radius="6px" />
+        <SkeletonBlock w="70px" h="14px" radius="4px" />
+      </div>
+      <div className="space-y-3">
+        {Array.from({length: 4}).map((_, i) => (
+          <div key={i} className="flex items-center justify-between p-3">
+            <div className="flex items-center gap-3">
+              <SkeletonBlock w="36px" h="36px" radius="8px" />
+              <div>
+                <SkeletonBlock w="100px" h="14px" radius="4px" />
+                <SkeletonBlock w="140px" h="10px" radius="3px" className="mt-1" />
+              </div>
+            </div>
+            <div className="text-right">
+              <SkeletonBlock w="80px" h="14px" radius="4px" />
+              <SkeletonBlock w="50px" h="10px" radius="3px" className="mt-1" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Add shimmer keyframes
+const shimmerStyle = document.createElement('style')
+shimmerStyle.textContent = `@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }`
+if (!document.querySelector('style[data-shimmer]')) {
+  shimmerStyle.setAttribute('data-shimmer', 'true')
+  document.head.appendChild(shimmerStyle)
+}
+
 export default function Dashboard() {
   const { user } = useAuth()
   const [stats, setStats] = useState({})
@@ -69,22 +159,47 @@ export default function Dashboard() {
 
   useEffect(() => { loadDashboard() }, [])
 
+  // ═══════════════════════════════════════════
+  // PARALLEL API CALLS — loads everything at once
+  // Instead of sequential: stats → customers → detail
+  // Now: stats + customers fetch simultaneously
+  // ═══════════════════════════════════════════
   const loadDashboard = async () => {
     try {
-      const res = await api.get('/dashboard/stats')
-      setStats(res.data.stats || {})
-      setRecentInvoices(res.data.recentInvoices || [])
-      setMonthlySales(res.data.monthlySales || [])
-      try {
-        const custRes = await api.get('/customers')
-        const allCusts = custRes.data.customers || []
-        const custWithBiz = await Promise.all(allCusts.slice(0, 20).map(async c => {
-          try { const cRes = await api.get(`/customers/${c.id}`); return { ...c, totalBusiness: cRes.data.totalBusiness || 0 } }
-          catch { return { ...c, totalBusiness: 0 } }
-        }))
-        setTopCustomers(custWithBiz.sort((a, b) => b.totalBusiness - a.totalBusiness).slice(0, 5))
-      } catch {}
-    } catch (err) { console.error('Dashboard error:', err) }
+      // Fetch stats and customers in parallel
+      const [statsRes, custRes] = await Promise.all([
+        api.get('/dashboard/stats').catch(err => ({ data: { stats: {}, recentInvoices: [], monthlySales: [] } })),
+        api.get('/customers').catch(err => ({ data: { customers: [] } }))
+      ])
+
+      setStats(statsRes.data.stats || {})
+      setRecentInvoices(statsRes.data.recentInvoices || [])
+      setMonthlySales(statsRes.data.monthlySales || [])
+
+      // Get top customers — batch the detail calls in parallel
+      const allCusts = custRes.data.customers || []
+      if (allCusts.length > 0) {
+        // Use Promise.allSettled for fault tolerance
+        const custDetails = await Promise.allSettled(
+          allCusts.slice(0, 20).map(async c => {
+            try {
+              const cRes = await api.get(`/customers/${c.id}`)
+              return { ...c, totalBusiness: cRes.data.totalBusiness || 0 }
+            } catch {
+              return { ...c, totalBusiness: 0 }
+            }
+          })
+        )
+        const successful = custDetails
+          .filter(r => r.status === 'fulfilled')
+          .map(r => r.value)
+          .sort((a, b) => b.totalBusiness - a.totalBusiness)
+          .slice(0, 5)
+        setTopCustomers(successful)
+      }
+    } catch (err) {
+      console.error('Dashboard error:', err)
+    }
     finally { setLoading(false) }
   }
 
@@ -120,16 +235,82 @@ export default function Dashboard() {
   const lastMonth = monthlySales.length > 1 ? parseFloat(monthlySales[monthlySales.length - 2]?.total || 0) : 0
   const monthGrowth = lastMonth > 0 ? ((thisMonth - lastMonth) / lastMonth * 100).toFixed(1) : null
 
+  // ═══════════════════════════════════════════
+  // SKELETON LOADING — shows structure before data
+  // No more blank spinner — users see the layout immediately
+  // ═══════════════════════════════════════════
   if (loading) return (
-    <div className="flex justify-center py-20">
-      <div className="animate-spin h-10 w-10 border-4 rounded-full" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}></div>
+    <div className="space-y-6">
+      {/* Welcome Banner Skeleton */}
+      <div className="rounded-2xl p-6 text-white relative overflow-hidden" style={{ background: 'linear-gradient(135deg, var(--accent-dark), var(--accent), var(--accent-light))' }}>
+        <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 80% 50%, rgba(255,255,255,0.3), transparent 50%)' }}></div>
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <SkeletonBlock w="200px" h="28px" radius="6px" />
+            <SkeletonBlock w="280px" h="16px" radius="4px" className="mt-2" />
+            <SkeletonBlock w="180px" h="12px" radius="3px" className="mt-1" />
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Actions Skeleton */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+        {Array.from({length: 5}).map((_, i) => (
+          <div key={i} className="action-card" style={{ padding: '16px', animationDelay: `${i * 0.05}s` }}>
+            <SkeletonBlock w="40px" h="40px" radius="8px" />
+            <SkeletonBlock w="70px" h="14px" radius="4px" className="mt-2" />
+          </div>
+        ))}
+      </div>
+
+      {/* Metric Cards Skeleton */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 stagger">
+        <SkeletonMetricCard />
+        <SkeletonMetricCard />
+        <SkeletonMetricCard />
+        <SkeletonMetricCard />
+      </div>
+
+      {/* Charts + GST Skeleton */}
+      <div className="grid lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <SkeletonChart />
+        </div>
+        <div className="space-y-4">
+          <div className="card">
+            <SkeletonBlock w="120px" h="18px" radius="6px" className="mb-4" />
+            <div className="space-y-3">
+              <div style={{ background: 'rgba(79,143,255,0.06)', border: '1px solid rgba(79,143,255,0.12)', borderRadius: '12px', padding: '12px' }}>
+                <SkeletonBlock w="120px" h="14px" radius="4px" />
+                <SkeletonBlock w="100px" h="22px" radius="4px" className="mt-2" />
+              </div>
+              <div style={{ background: 'rgba(6,182,212,0.06)', border: '1px solid rgba(6,182,212,0.12)', borderRadius: '12px', padding: '12px' }}>
+                <SkeletonBlock w="120px" h="14px" radius="4px" />
+                <SkeletonBlock w="100px" h="22px" radius="4px" className="mt-2" />
+              </div>
+              <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.12)', borderRadius: '12px', padding: '12px' }}>
+                <SkeletonBlock w="120px" h="14px" radius="4px" />
+                <SkeletonBlock w="100px" h="22px" radius="4px" className="mt-2" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom Row Skeleton */}
+      <div className="grid lg:grid-cols-2 gap-6">
+        <SkeletonList />
+        <SkeletonList />
+      </div>
+
+      <GSTCalcModal />
     </div>
   )
 
   const fmtTooltip = (val) => formatCurrency(val)
 
   return (
-    <div className="space-y-6">
+      <div className="space-y-6">
       {/* Welcome Banner - Enhanced */}
       <div className="rounded-2xl p-6 text-white relative overflow-hidden" style={{ background: 'linear-gradient(135deg, var(--accent-dark), var(--accent), var(--accent-light))' }}>
         <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 80% 50%, rgba(255,255,255,0.3), transparent 50%)' }}></div>
@@ -375,6 +556,6 @@ export default function Dashboard() {
       </div>
 
       <GSTCalcModal />
-    </div>
+      </div>
   )
 }
