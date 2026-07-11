@@ -2,14 +2,16 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import api from '../api/client'
-import { Plus, Users, CreditCard, FileText, Calculator, TrendingUp, IndianRupee, AlertCircle, UserPlus, ArrowUpRight, ArrowDownRight, Clock, Target } from 'lucide-react'
+import { Plus, Users, CreditCard, FileText, Calculator, TrendingUp, IndianRupee, AlertCircle, UserPlus, ArrowUpRight, ArrowDownRight } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell } from 'recharts'
 import GSTCalcModal from '../components/GSTCalcModal'
 import { formatCurrency, formatDate } from '../utils'
 
 const CHART_COLORS = ['#06b6d4', '#4f8fff', '#a855f7', '#22c55e', '#ef4444', '#f59e0b', '#ec4899']
 
-// Animated counter hook
+// ═══════════════════════════════════════════
+// ANIMATED COUNTER — counts up on mount
+// ═══════════════════════════════════════════
 function useAnimatedCounter(target, duration = 1500) {
   const [value, setValue] = useState(0)
   const prevTarget = useRef(0)
@@ -21,7 +23,7 @@ function useAnimatedCounter(target, duration = 1500) {
     function update(now) {
       const elapsed = now - start
       const progress = Math.min(elapsed / duration, 1)
-      const eased = 1 - Math.pow(1 - progress, 3)
+      const eased = 1 - Math.pow(1 - progress, 4) // quartic ease-out
       setValue(Math.floor(startVal + (target - startVal) * eased))
       if (progress < 1) requestAnimationFrame(update)
     }
@@ -30,8 +32,10 @@ function useAnimatedCounter(target, duration = 1500) {
   return value
 }
 
-// 3D Tilt Card component
-function TiltCard({ children, className, style, onMouseMove, onMouseLeave }) {
+// ═══════════════════════════════════════════
+// 3D TILT CARD — premium hover effect
+// ═══════════════════════════════════════════
+function TiltCard({ children, className, style }) {
   const cardRef = useRef(null)
   const handleMouseMove = useCallback((e) => {
     const card = cardRef.current
@@ -39,9 +43,9 @@ function TiltCard({ children, className, style, onMouseMove, onMouseLeave }) {
     const rect = card.getBoundingClientRect()
     const x = (e.clientX - rect.left) / rect.width
     const y = (e.clientY - rect.top) / rect.height
-    const tiltX = (y - 0.5) * 6
-    const tiltY = (x - 0.5) * -6
-    card.style.transform = `perspective(800px) rotateX(${tiltX}deg) rotateY(${tiltY}deg) translate3d(0,-4px,0)`
+    const tiltX = (y - 0.5) * 10
+    const tiltY = (x - 0.5) * -10
+    card.style.transform = `perspective(800px) rotateX(${tiltX}deg) rotateY(${tiltY}deg) translate3d(0,-6px,0) scale(1.02)`
     card.style.setProperty('--mx', `${x * 100}%`)
     card.style.setProperty('--my', `${y * 100}%`)
   }, [])
@@ -51,7 +55,7 @@ function TiltCard({ children, className, style, onMouseMove, onMouseLeave }) {
     card.style.transform = ''
   }, [])
   return (
-    <div ref={cardRef} className={className} style={{ ...style, transition: 'transform 0.15s ease-out', willChange: 'transform' }}
+    <div ref={cardRef} className={className} style={{ ...style, transition: 'transform 0.2s cubic-bezier(0.16,1,0.3,1), box-shadow 0.3s ease, border-color 0.3s ease', willChange: 'transform' }}
       onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
       {children}
     </div>
@@ -59,8 +63,7 @@ function TiltCard({ children, className, style, onMouseMove, onMouseLeave }) {
 }
 
 // ═══════════════════════════════════════════
-// SKELETON COMPONENTS — shimmer loading effect
-// Shows structure before data loads
+// SKELETON LOADING — shimmer effect
 // ═══════════════════════════════════════════
 function SkeletonBlock({ w, h, radius = '12px', className = '' }) {
   return (
@@ -75,7 +78,7 @@ function SkeletonBlock({ w, h, radius = '12px', className = '' }) {
 
 function SkeletonMetricCard() {
   return (
-    <div className="stat-card" style={{ animation: 'slideUp 0.5s ease-out both' }}>
+    <div className="stat-card" style={{ animation: 'entranceScale 0.6s cubic-bezier(0.16,1,0.3,1) both' }}>
       <div className="shimmer"></div>
       <div className="flex items-center justify-between mb-3">
         <SkeletonBlock w="80px" h="14px" radius="6px" />
@@ -102,9 +105,9 @@ function SkeletonChart() {
           <div key={i} style={{
             flex: 1,
             height: `${30 + Math.random() * 70}%`,
-            borderRadius: '4px 4px 0 0',
-            background: 'linear-gradient(180deg, rgba(var(--accent-rgb),0.2), rgba(var(--accent-rgb),0.05))',
-            animation: `slideUp 0.5s ease-out ${i * 0.05}s both`
+            borderRadius: '6px 6px 0 0',
+            background: 'linear-gradient(180deg, rgba(var(--accent-rgb),0.15), rgba(var(--accent-rgb),0.03))',
+            animation: `entranceScale 0.5s cubic-bezier(0.16,1,0.3,1) ${i * 0.04}s both`
           }} />
         ))}
       </div>
@@ -140,14 +143,6 @@ function SkeletonList() {
   )
 }
 
-// Add shimmer keyframes
-const shimmerStyle = document.createElement('style')
-shimmerStyle.textContent = `@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }`
-if (!document.querySelector('style[data-shimmer]')) {
-  shimmerStyle.setAttribute('data-shimmer', 'true')
-  document.head.appendChild(shimmerStyle)
-}
-
 export default function Dashboard() {
   const { user } = useAuth()
   const [stats, setStats] = useState({})
@@ -159,47 +154,31 @@ export default function Dashboard() {
 
   useEffect(() => { loadDashboard() }, [])
 
-  // ═══════════════════════════════════════════
-  // PARALLEL API CALLS — loads everything at once
-  // Instead of sequential: stats → customers → detail
-  // Now: stats + customers fetch simultaneously
-  // ═══════════════════════════════════════════
   const loadDashboard = async () => {
     try {
-      // Fetch stats and customers in parallel
       const [statsRes, custRes] = await Promise.all([
-        api.get('/dashboard/stats').catch(err => ({ data: { stats: {}, recentInvoices: [], monthlySales: [] } })),
-        api.get('/customers').catch(err => ({ data: { customers: [] } }))
+        api.get('/dashboard/stats').catch(() => ({ data: { stats: {}, recentInvoices: [], monthlySales: [] } })),
+        api.get('/customers').catch(() => ({ data: { customers: [] } }))
       ])
-
       setStats(statsRes.data.stats || {})
       setRecentInvoices(statsRes.data.recentInvoices || [])
       setMonthlySales(statsRes.data.monthlySales || [])
 
-      // Get top customers — batch the detail calls in parallel
       const allCusts = custRes.data.customers || []
       if (allCusts.length > 0) {
-        // Use Promise.allSettled for fault tolerance
         const custDetails = await Promise.allSettled(
           allCusts.slice(0, 20).map(async c => {
             try {
               const cRes = await api.get(`/customers/${c.id}`)
               return { ...c, totalBusiness: cRes.data.totalBusiness || 0 }
-            } catch {
-              return { ...c, totalBusiness: 0 }
-            }
+            } catch { return { ...c, totalBusiness: 0 } }
           })
         )
-        const successful = custDetails
-          .filter(r => r.status === 'fulfilled')
-          .map(r => r.value)
-          .sort((a, b) => b.totalBusiness - a.totalBusiness)
-          .slice(0, 5)
+        const successful = custDetails.filter(r => r.status === 'fulfilled').map(r => r.value)
+          .sort((a, b) => b.totalBusiness - a.totalBusiness).slice(0, 5)
         setTopCustomers(successful)
       }
-    } catch (err) {
-      console.error('Dashboard error:', err)
-    }
+    } catch (err) { console.error('Dashboard error:', err) }
     finally { setLoading(false) }
   }
 
@@ -235,74 +214,42 @@ export default function Dashboard() {
   const lastMonth = monthlySales.length > 1 ? parseFloat(monthlySales[monthlySales.length - 2]?.total || 0) : 0
   const monthGrowth = lastMonth > 0 ? ((thisMonth - lastMonth) / lastMonth * 100).toFixed(1) : null
 
-  // ═══════════════════════════════════════════
-  // SKELETON LOADING — shows structure before data
-  // No more blank spinner — users see the layout immediately
-  // ═══════════════════════════════════════════
+  // ═══ SKELETON LOADING ═══
   if (loading) return (
     <div className="space-y-6">
-      {/* Welcome Banner Skeleton */}
-      <div className="rounded-2xl p-6 text-white relative overflow-hidden" style={{ background: 'linear-gradient(135deg, var(--accent-dark), var(--accent), var(--accent-light))' }}>
+      <div className="rounded-2xl p-8 relative overflow-hidden" style={{ background: 'linear-gradient(135deg, var(--accent-dark), var(--accent), var(--accent-light))', height: 120, animation: 'entranceScale 0.6s cubic-bezier(0.16,1,0.3,1) both' }}>
         <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 80% 50%, rgba(255,255,255,0.3), transparent 50%)' }}></div>
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <SkeletonBlock w="200px" h="28px" radius="6px" />
-            <SkeletonBlock w="280px" h="16px" radius="4px" className="mt-2" />
-            <SkeletonBlock w="180px" h="12px" radius="3px" className="mt-1" />
-          </div>
-        </div>
+        <SkeletonBlock w="220px" h="28px" radius="6px" style={{ background: 'rgba(255,255,255,0.2)' }} />
+        <SkeletonBlock w="300px" h="16px" radius="4px" className="mt-3" />
       </div>
-
-      {/* Quick Actions Skeleton */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
         {Array.from({length: 5}).map((_, i) => (
-          <div key={i} className="action-card" style={{ padding: '16px', animationDelay: `${i * 0.05}s` }}>
+          <div key={i} className="action-card" style={{ padding: '16px', animation: `entranceScale 0.5s cubic-bezier(0.16,1,0.3,1) ${i * 0.06}s both` }}>
             <SkeletonBlock w="40px" h="40px" radius="8px" />
             <SkeletonBlock w="70px" h="14px" radius="4px" className="mt-2" />
           </div>
         ))}
       </div>
-
-      {/* Metric Cards Skeleton */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 stagger">
-        <SkeletonMetricCard />
-        <SkeletonMetricCard />
-        <SkeletonMetricCard />
-        <SkeletonMetricCard />
+        <SkeletonMetricCard /><SkeletonMetricCard /><SkeletonMetricCard /><SkeletonMetricCard />
       </div>
-
-      {/* Charts + GST Skeleton */}
       <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <SkeletonChart />
-        </div>
+        <div className="lg:col-span-2"><SkeletonChart /></div>
         <div className="space-y-4">
           <div className="card">
             <SkeletonBlock w="120px" h="18px" radius="6px" className="mb-4" />
             <div className="space-y-3">
-              <div style={{ background: 'rgba(79,143,255,0.06)', border: '1px solid rgba(79,143,255,0.12)', borderRadius: '12px', padding: '12px' }}>
-                <SkeletonBlock w="120px" h="14px" radius="4px" />
-                <SkeletonBlock w="100px" h="22px" radius="4px" className="mt-2" />
-              </div>
-              <div style={{ background: 'rgba(6,182,212,0.06)', border: '1px solid rgba(6,182,212,0.12)', borderRadius: '12px', padding: '12px' }}>
-                <SkeletonBlock w="120px" h="14px" radius="4px" />
-                <SkeletonBlock w="100px" h="22px" radius="4px" className="mt-2" />
-              </div>
-              <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.12)', borderRadius: '12px', padding: '12px' }}>
-                <SkeletonBlock w="120px" h="14px" radius="4px" />
-                <SkeletonBlock w="100px" h="22px" radius="4px" className="mt-2" />
-              </div>
+              {[1,2,3].map(i => (
+                <div key={i} style={{ background: 'rgba(var(--accent-rgb),0.04)', border: '1px solid rgba(var(--accent-rgb),0.08)', borderRadius: 12, padding: 12 }}>
+                  <SkeletonBlock w="120px" h="14px" radius="4px" />
+                  <SkeletonBlock w="100px" h="22px" radius="4px" className="mt-2" />
+                </div>
+              ))}
             </div>
           </div>
         </div>
       </div>
-
-      {/* Bottom Row Skeleton */}
-      <div className="grid lg:grid-cols-2 gap-6">
-        <SkeletonList />
-        <SkeletonList />
-      </div>
-
+      <div className="grid lg:grid-cols-2 gap-6"><SkeletonList /><SkeletonList /></div>
       <GSTCalcModal />
     </div>
   )
@@ -310,74 +257,91 @@ export default function Dashboard() {
   const fmtTooltip = (val) => formatCurrency(val)
 
   return (
-      <div className="space-y-6">
-      {/* Welcome Banner - Enhanced */}
-      <div className="rounded-2xl p-6 text-white relative overflow-hidden" style={{ background: 'linear-gradient(135deg, var(--accent-dark), var(--accent), var(--accent-light))' }}>
+    <div className="space-y-6">
+
+      {/* ═══════════════════════════════════════════
+          WELCOME BANNER — Cinematic gradient with dot pattern
+          ═══════════════════════════════════════════ */}
+      <div className="rounded-2xl p-7 text-white relative overflow-hidden"
+        style={{ background: 'linear-gradient(135deg, var(--accent-dark), var(--accent), var(--accent-light))', animation: 'entranceScale 0.7s cubic-bezier(0.16,1,0.3,1) both' }}>
         <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 80% 50%, rgba(255,255,255,0.3), transparent 50%)' }}></div>
-        {/* Animated dots pattern */}
-        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.3) 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.2) 1px, transparent 1px)', backgroundSize: '28px 28px' }}></div>
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-5">
           <div>
-            <h1 className="text-2xl font-bold mb-1">Welcome, {user?.name || 'User'}! 👋</h1>
+            <h1 className="text-2xl font-extrabold mb-1" style={{ letterSpacing: '-0.5px' }}>Welcome, {user?.name || 'User'}! 👋</h1>
             <p className="text-sm" style={{ color: 'rgba(255,255,255,0.8)' }}>{user?.organization?.name} • GSTIN: {user?.organization?.gstin || 'N/A'}</p>
-            <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.6)' }}>{today}</p>
+            <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.55)' }}>{today}</p>
           </div>
           {monthGrowth !== null && (
-            <div className="flex items-center gap-2 px-4 py-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)' }}>
-              {parseFloat(monthGrowth) >= 0 ? <ArrowUpRight size={20} /> : <ArrowDownRight size={20} />}
+            <div className="flex items-center gap-3 px-5 py-3 rounded-2xl" style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(12px)' }}>
+              {parseFloat(monthGrowth) >= 0 ? <ArrowUpRight size={22} /> : <ArrowDownRight size={22} />}
               <div>
-                <p className="text-xs" style={{ color: 'rgba(255,255,255,0.7)' }}>vs Last Month</p>
-                <p className="font-bold text-lg">{parseFloat(monthGrowth) >= 0 ? '+' : ''}{monthGrowth}%</p>
+                <p className="text-[10px] font-medium" style={{ color: 'rgba(255,255,255,0.65)' }}>vs Last Month</p>
+                <p className="font-extrabold text-xl">{parseFloat(monthGrowth) >= 0 ? '+' : ''}{monthGrowth}%</p>
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Quick Actions - Enhanced with action-card style */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 stagger">
+      {/* ═══════════════════════════════════════════
+          QUICK ACTIONS — Staggered entrance + magnetic hover
+          ═══════════════════════════════════════════ */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
         {quickActions.map((a, i) => (
-          <Link key={i} to={a.path} className="action-card" style={{ padding: '16px', animationDelay: `${i * 0.05}s` }}>
-            <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white flex-shrink-0"
+          <Link key={i} to={a.path} className="action-card card-premium"
+            style={{ padding: '16px', animation: `entranceScale 0.5s cubic-bezier(0.16,1,0.3,1) ${0.08 + i * 0.06}s both` }}>
+            <div className="action-icon w-10 h-10 rounded-lg flex items-center justify-center text-white flex-shrink-0"
               style={{ background: a.bg, color: a.color }}>
               <a.icon size={20} />
             </div>
-            <span className="text-sm font-medium text-white/70">{a.label}</span>
+            <span className="text-sm font-semibold text-white/70">{a.label}</span>
           </Link>
         ))}
       </div>
 
-      {/* Metric Cards - 3D Tilt + Shimmer + Counter Animation */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 stagger">
+      {/* ═══════════════════════════════════════════
+          STAT CARDS — 3D Tilt + Holographic + Counter
+          ═══════════════════════════════════════════ */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {metricCards.map((m, i) => (
-          <TiltCard key={i} className="stat-card" style={{ animation: `slideUp 0.5s ease-out ${i * 0.1}s both` }}>
+          <TiltCard key={i} className="stat-card card-premium"
+            style={{ animation: `entranceScale 0.6s cubic-bezier(0.16,1,0.3,1) ${0.15 + i * 0.1}s both` }}>
             <div className="shimmer"></div>
             <div className="flex items-center justify-between mb-3">
-              <span className="text-sm text-white/40">{m.label}</span>
-              <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: m.bg, color: m.color }}>
+              <span className="text-xs font-semibold uppercase tracking-wider text-white/35">{m.label}</span>
+              <div className="stat-icon w-11 h-11 rounded-xl flex items-center justify-center relative"
+                style={{ background: m.bg, color: m.color }}>
                 <m.icon size={20} />
+                <div className="stat-pulse-ring" style={{ color: m.color }}></div>
               </div>
             </div>
-            <p className="text-2xl font-bold text-white" style={{ fontFamily: '"Space Grotesk", sans-serif' }}>
+            <p className="text-[26px] font-extrabold text-white" style={{ fontFamily: '"Space Grotesk", sans-serif', letterSpacing: '-0.5px' }}>
               {m.isCurrency ? formatCurrency(m.value) : m.value}
             </p>
-            <p className="text-xs text-white/30 mt-1">{m.sub}</p>
+            <p className="text-[11px] text-white/25 mt-1.5">{m.sub}</p>
           </TiltCard>
         ))}
       </div>
 
-      {/* Main Charts + GST Summary */}
+      {/* ═══ Glow Line Separator ═══ */}
+      <div className="glow-line"></div>
+
+      {/* ═══════════════════════════════════════════
+          CHARTS + GST SUMMARY
+          ═══════════════════════════════════════════ */}
       <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 card">
-          <div className="flex items-center justify-between mb-4">
+        <div className="lg:col-span-2 card card-premium" style={{ animation: 'entranceUp 0.7s cubic-bezier(0.16,1,0.3,1) 0.4s both' }}>
+          <div className="shimmer"></div>
+          <div className="flex items-center justify-between mb-5">
             <div>
-              <h3 className="font-bold text-white">Sales Performance</h3>
-              <p className="text-xs text-white/30">Current Financial Year</p>
+              <h3 className="font-bold text-white text-[15px]">Sales Performance</h3>
+              <p className="text-xs text-white/25 mt-0.5">Current Financial Year</p>
             </div>
-            <div className="flex gap-1">
+            <div className="flex gap-1.5">
               {[['bar','Bar'],['line','Line'],['area','Area']].map(([val, label]) => (
                 <button key={val} onClick={() => setChartType(val)}
-                  className={`chip ${chartType === val ? 'active' : ''}`}>
+                  className={`chip btn-shine ${chartType === val ? 'active' : ''}`}>
                   {label}
                 </button>
               ))}
@@ -391,7 +355,7 @@ export default function Dashboard() {
                   <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} />
                   <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} />
                   <Tooltip formatter={fmtTooltip} contentStyle={{ background: 'rgba(12,16,32,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff', backdropFilter: 'blur(20px)' }} />
-                  <Bar dataKey="revenue" fill="var(--accent)" radius={[4,4,0,0]} name="Revenue" />
+                  <Bar dataKey="revenue" fill="var(--accent)" radius={[6,6,0,0]} name="Revenue" />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -402,7 +366,7 @@ export default function Dashboard() {
                   <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} />
                   <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} />
                   <Tooltip formatter={fmtTooltip} contentStyle={{ background: 'rgba(12,16,32,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} />
-                  <Line type="monotone" dataKey="revenue" stroke="#4f8fff" strokeWidth={2} name="Revenue" dot={{ r: 4, fill: '#4f8fff' }} />
+                  <Line type="monotone" dataKey="revenue" stroke="#4f8fff" strokeWidth={2.5} name="Revenue" dot={{ r: 4, fill: '#4f8fff', strokeWidth: 2 }} />
                 </LineChart>
               </ResponsiveContainer>
             )}
@@ -419,40 +383,40 @@ export default function Dashboard() {
                       <stop offset="95%" stopColor="var(--accent)" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <Area type="monotone" dataKey="revenue" stroke="var(--accent)" strokeWidth={2} fill="url(#colorRevenue)" name="Revenue" />
+                  <Area type="monotone" dataKey="revenue" stroke="var(--accent)" strokeWidth={2.5} fill="url(#colorRevenue)" name="Revenue" />
                 </AreaChart>
               </ResponsiveContainer>
             )}
           </div>
         </div>
 
-        <div className="space-y-4">
-          {/* GST Summary - Card style */}
-          <div className="card">
-            <h3 className="font-bold text-white mb-4">GST Summary</h3>
+        <div className="space-y-4" style={{ animation: 'entranceUp 0.7s cubic-bezier(0.16,1,0.3,1) 0.5s both' }}>
+          {/* GST Summary */}
+          <div className="card card-premium">
+            <h3 className="font-bold text-white mb-4 text-[15px]">GST Summary</h3>
             <div className="space-y-3">
-              <div className="gst-card cgst" style={{ background: 'rgba(79,143,255,0.06)', border: '1px solid rgba(79,143,255,0.12)' }}>
-                <p className="text-sm font-medium text-blue-400">Output GST (Sales)</p>
-                <p className="text-xl font-bold text-blue-300">{formatCurrency(stats.outputGST?.total || 0)}</p>
-                <div className="flex gap-3 mt-1 text-xs text-white/30">
+              <div className="gst-card cgst rounded-xl p-4 relative overflow-hidden">
+                <p className="text-sm font-semibold text-blue-400 mb-1">Output GST (Sales)</p>
+                <p className="text-xl font-extrabold text-blue-300" style={{ fontFamily: '"Space Grotesk", sans-serif' }}>{formatCurrency(stats.outputGST?.total || 0)}</p>
+                <div className="flex gap-3 mt-2 text-[10px] text-white/30">
                   <span>CGST: {formatCurrency(stats.outputGST?.cgst || 0)}</span>
                   <span>SGST: {formatCurrency(stats.outputGST?.sgst || 0)}</span>
                   <span>IGST: {formatCurrency(stats.outputGST?.igst || 0)}</span>
                 </div>
               </div>
-              <div className="gst-card sgst" style={{ background: 'rgba(6,182,212,0.06)', border: '1px solid rgba(6,182,212,0.12)' }}>
-                <p className="text-sm font-medium text-cyan-400">Input GST (Purchases)</p>
-                <p className="text-xl font-bold text-cyan-300">{formatCurrency(stats.inputGST?.total || 0)}</p>
-                <div className="flex gap-3 mt-1 text-xs text-white/30">
+              <div className="gst-card sgst rounded-xl p-4 relative overflow-hidden">
+                <p className="text-sm font-semibold text-cyan-400 mb-1">Input GST (Purchases)</p>
+                <p className="text-xl font-extrabold text-cyan-300" style={{ fontFamily: '"Space Grotesk", sans-serif' }}>{formatCurrency(stats.inputGST?.total || 0)}</p>
+                <div className="flex gap-3 mt-2 text-[10px] text-white/30">
                   <span>CGST: {formatCurrency(stats.inputGST?.cgst || 0)}</span>
                   <span>SGST: {formatCurrency(stats.inputGST?.sgst || 0)}</span>
                   <span>IGST: {formatCurrency(stats.inputGST?.igst || 0)}</span>
                 </div>
               </div>
-              <div className="gst-card igst" style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.12)' }}>
-                <p className="text-sm font-medium text-red-400">Net Payable</p>
-                <p className="text-xl font-bold text-red-300">{formatCurrency(netPayable)}</p>
-                <div className="flex gap-3 mt-1 text-xs text-white/30">
+              <div className="gst-card igst rounded-xl p-4 relative overflow-hidden">
+                <p className="text-sm font-semibold text-red-400 mb-1">Net Payable</p>
+                <p className="text-xl font-extrabold text-red-300" style={{ fontFamily: '"Space Grotesk", sans-serif' }}>{formatCurrency(netPayable)}</p>
+                <div className="flex gap-3 mt-2 text-[10px] text-white/30">
                   <span>CGST: {formatCurrency(stats.netPayable?.cgst || 0)}</span>
                   <span>SGST: {formatCurrency(stats.netPayable?.sgst || 0)}</span>
                   <span>IGST: {formatCurrency(stats.netPayable?.igst || 0)}</span>
@@ -463,12 +427,12 @@ export default function Dashboard() {
 
           {/* GST Pie */}
           {gstPie.length > 0 && (
-            <div className="card">
-              <h3 className="font-bold text-white mb-2">GST Split</h3>
+            <div className="card card-premium">
+              <h3 className="font-bold text-white mb-2 text-[15px]">GST Split</h3>
               <div style={{ height: 120 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={gstPie} cx="50%" cy="50%" outerRadius={50} innerRadius={25} dataKey="value">
+                    <Pie data={gstPie} cx="50%" cy="50%" outerRadius={50} innerRadius={25} dataKey="value" strokeWidth={0}>
                       {gstPie.map((_, idx) => <Cell key={idx} fill={CHART_COLORS[idx % CHART_COLORS.length]} />)}
                     </Pie>
                     <Tooltip formatter={fmtTooltip} contentStyle={{ background: 'rgba(12,16,32,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} />
@@ -476,34 +440,38 @@ export default function Dashboard() {
                 </ResponsiveContainer>
               </div>
               <div className="flex justify-center gap-3 mt-1">
-                {gstPie.map((d, i) => <span key={i} className="text-xs flex items-center gap-1 text-white/40"><span style={{ width: 8, height: 8, borderRadius: '50%', background: CHART_COLORS[i], display: 'inline-block' }}></span>{d.name}</span>)}
+                {gstPie.map((d, i) => <span key={i} className="text-xs flex items-center gap-1.5 text-white/40"><span style={{ width: 8, height: 8, borderRadius: '50%', background: CHART_COLORS[i], display: 'inline-block' }}></span>{d.name}</span>)}
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Bottom Row: Recent Invoices + Top Customers */}
+      {/* ═══════════════════════════════════════════
+          RECENT INVOICES + TOP CUSTOMERS
+          ═══════════════════════════════════════════ */}
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* Recent Invoices */}
-        <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-white">Recent Invoices</h3>
-            <Link to="/app/invoices" className="text-sm font-medium accent-text">View All →</Link>
+        <div className="card card-premium" style={{ animation: 'entranceUp 0.6s cubic-bezier(0.16,1,0.3,1) 0.5s both' }}>
+          <div className="shimmer"></div>
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="font-bold text-white text-[15px]">Recent Invoices</h3>
+            <Link to="/app/invoices" className="text-sm font-semibold accent-text btn-shine" style={{ padding: '4px 10px', borderRadius: 8 }}>View All →</Link>
           </div>
           {recentInvoices.length === 0 ? (
             <p className="text-center py-8 text-white/25">No invoices yet. Create your first invoice!</p>
           ) : (
-            <div className="space-y-2 stagger">
-              {recentInvoices.slice(0, 6).map(inv => (
-                <Link key={inv.id} to={`/app/invoices/${inv.id}`} className="flex items-center justify-between p-3 rounded-xl hover:bg-white/[0.03] transition-all duration-200 group">
+            <div className="space-y-1.5 stagger">
+              {recentInvoices.slice(0, 6).map((inv, i) => (
+                <Link key={inv.id} to={`/app/invoices/${inv.id}`}
+                  className="flex items-center justify-between p-3 rounded-xl hover:bg-white/[0.03] transition-all duration-200 group"
+                  style={{ animation: `entranceLeft 0.35s cubic-bezier(0.16,1,0.3,1) ${i * 0.06}s both` }}>
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg flex items-center justify-center transition-transform duration-200 group-hover:scale-110" style={{ background: 'rgba(var(--accent-rgb),0.1)' }}>
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center transition-transform duration-200 group-hover:scale-110" style={{ background: 'rgba(var(--accent-rgb),0.08)' }}>
                       <FileText size={16} className="accent-text" />
                     </div>
                     <div>
-                      <p className="font-medium text-white text-sm">{inv.invoice_number}</p>
-                      <p className="text-xs text-white/40">{inv.customer_name || 'N/A'} • {formatDate(inv.invoice_date)}</p>
+                      <p className="font-semibold text-white text-sm">{inv.invoice_number}</p>
+                      <p className="text-[11px] text-white/35">{inv.customer_name || 'N/A'} • {formatDate(inv.invoice_date)}</p>
                     </div>
                   </div>
                   <div className="text-right">
@@ -519,26 +487,28 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Top Customers */}
-        <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-white">Top Customers</h3>
-            <Link to="/app/customers" className="text-sm font-medium accent-text">View All →</Link>
+        <div className="card card-premium" style={{ animation: 'entranceUp 0.6s cubic-bezier(0.16,1,0.3,1) 0.6s both' }}>
+          <div className="shimmer"></div>
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="font-bold text-white text-[15px]">Top Customers</h3>
+            <Link to="/app/customers" className="text-sm font-semibold accent-text btn-shine" style={{ padding: '4px 10px', borderRadius: 8 }}>View All →</Link>
           </div>
           {topCustomers.length === 0 ? (
             <p className="text-center py-8 text-white/25">No customer data yet</p>
           ) : (
-            <div className="space-y-2 stagger">
+            <div className="space-y-1.5 stagger">
               {topCustomers.map((c, i) => (
-                <Link key={c.id} to={`/app/customers/${c.id}`} className="flex items-center justify-between p-3 rounded-xl hover:bg-white/[0.03] transition-all duration-200 group">
+                <Link key={c.id} to={`/app/customers/${c.id}`}
+                  className="flex items-center justify-between p-3 rounded-xl hover:bg-white/[0.03] transition-all duration-200 group"
+                  style={{ animation: `entranceLeft 0.35s cubic-bezier(0.16,1,0.3,1) ${i * 0.06}s both` }}>
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-sm transition-transform duration-200 group-hover:scale-110"
-                      style={{ background: `${CHART_COLORS[i % CHART_COLORS.length]}20`, color: CHART_COLORS[i % CHART_COLORS.length] }}>
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center font-extrabold text-sm transition-transform duration-200 group-hover:scale-110 group-hover:rotate-[-3deg]"
+                      style={{ background: `${CHART_COLORS[i % CHART_COLORS.length]}18`, color: CHART_COLORS[i % CHART_COLORS.length] }}>
                       #{i + 1}
                     </div>
                     <div>
-                      <p className="font-medium text-white text-sm">{c.name}</p>
-                      <p className="text-xs text-white/40">{c.gstin ? `${c.gstin.substring(0,2)}...` : 'No GSTIN'} • {c.city || c.state || '—'}</p>
+                      <p className="font-semibold text-white text-sm">{c.name}</p>
+                      <p className="text-[11px] text-white/35">{c.gstin ? `${c.gstin.substring(0,2)}...` : 'No GSTIN'} • {c.city || c.state || '—'}</p>
                     </div>
                   </div>
                   <div className="text-right">
@@ -556,6 +526,6 @@ export default function Dashboard() {
       </div>
 
       <GSTCalcModal />
-      </div>
+    </div>
   )
 }
