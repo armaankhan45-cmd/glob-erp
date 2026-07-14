@@ -187,7 +187,7 @@ export default function QuotationDetail() {
         </div>
 
         {/* ══ Bordered box — main content ══ */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', border: '2px solid #000', margin: '0 10mm', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', border: '2px solid #000', margin: '0 10mm', overflow: 'hidden' }}>
 
           {/* Customer name — INSIDE box, LEFT, BIGGER */}
           <div style={{ padding: '8px 10px 6px', textAlign: 'left', borderBottom: '1.5px solid #000', background: '#f8f9fa' }}>
@@ -200,7 +200,7 @@ export default function QuotationDetail() {
           </div>
 
           {/* Items table — PROPERLY ALIGNED */}
-          <div style={{ flex: 1, padding: '2px 4px 0', overflow: 'hidden' }}>
+          <div style={{ padding: '2px 4px 0', overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10.5pt', tableLayout: 'fixed' }}>
               <colgroup>
                 <col style={{ width: '6%' }} />
@@ -270,8 +270,15 @@ export default function QuotationDetail() {
           </div>
         </div>
 
-        {/* Sign space — BLANK */}
-        <div style={{ height: '30mm', flexShrink: 0 }}></div>
+        {/* Sign space — guaranteed at bottom */}
+        <div style={{ height: '35mm', flexShrink: 0, margin: '0 10mm', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+          <div style={{ borderTop: '1.5px solid #000', paddingTop: '4mm', display: 'flex', justifyContent: 'flex-end' }}>
+            <div style={{ textAlign: 'center', width: '60mm' }}>
+              <div style={{ minHeight: '15mm' }}></div>
+              <div style={{ borderTop: '1.5px solid #000', fontSize: '10pt', fontWeight: 'bold', color: '#000', paddingTop: '2mm' }}>Authorised Signatory</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )
