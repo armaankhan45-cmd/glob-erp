@@ -405,19 +405,19 @@ function generateProInvoiceHTML(invoice, items, org) {
   @media print { body { background: #fff; padding: 0; } .invoice { border: none; } }
   </style></head><body>
 <div class="invoice">
-  <div style="background:linear-gradient(135deg,${NAVY} 0%,#1b2a4a 100%);padding:16px 24px;display:flex;align-items:center;gap:16px">
-    <div style="width:68px;height:68px;flex-shrink:0;border-radius:6px;background:#fff;display:flex;align-items:center;justify-content:center;border:2px solid rgba(255,255,255,0.3)">
+  <div style="padding:16px 24px;display:flex;align-items:center;gap:16px;background:#f5f7fa;border-top:4px solid ${NAVY};border-bottom:2px solid ${NAVY}">
+    <div style="width:68px;height:68px;flex-shrink:0;border-radius:6px;background:#fff;display:flex;align-items:center;justify-content:center;border:2px solid ${NAVY}">
       ${org.logo_url ? `<img src="${org.logo_url}" style="width:60px;height:60px;object-fit:contain;border-radius:4px">` : `<span style="font-size:9px;color:${NAVY};font-weight:800">LOGO</span>`}
     </div>
     <div style="flex:1">
-      <h1 style="font-size:20px;font-weight:900;color:#fff;letter-spacing:2px;line-height:1.2;margin:0 0 3px">${(org.name || 'GLOB FABRICATION AND ENTERPRISES').toUpperCase()}</h1>
-      ${org.gstin ? `<span style="display:inline-block;background:rgba(255,255,255,0.15);color:#fff;padding:2px 10px;border-radius:3px;font-size:11px;font-weight:700;letter-spacing:0.5px">GSTIN: ${org.gstin}</span>` : ''}
-      <div style="font-size:11.5px;color:rgba(255,255,255,0.8);margin-top:2px;line-height:1.4">${[org.address, org.city, org.state, org.pincode ? 'PIN: ' + org.pincode : ''].filter(Boolean).join(', ')}</div>
-      <div style="font-size:11.5px;color:rgba(255,255,255,0.8);margin-top:1px;line-height:1.4">${org.phone ? '&#128222; ' + org.phone : ''}${org.email ? ' &#9993; ' + org.email : ''}</div>
+      <h1 style="font-size:20px;font-weight:900;color:#1a1a2e;letter-spacing:2px;line-height:1.2;margin:0 0 3px">${(org.name || 'GLOB FABRICATION AND ENTERPRISES').toUpperCase()}</h1>
+      ${org.gstin ? `<span style="display:inline-block;background:${NAVY};color:#fff;padding:2px 10px;border-radius:3px;font-size:11px;font-weight:700;letter-spacing:0.5px">GSTIN: ${org.gstin}</span>` : ''}
+      <div style="font-size:11.5px;color:#333;margin-top:2px;line-height:1.4;font-weight:600">${[org.address, org.city, org.state, org.pincode ? 'PIN: ' + org.pincode : ''].filter(Boolean).join(', ')}</div>
+      <div style="font-size:11.5px;color:#333;margin-top:1px;line-height:1.4;font-weight:600">${org.phone ? '&#128222; ' + org.phone : ''}${org.email ? ' &#9993; ' + org.email : ''}</div>
     </div>
     <div style="text-align:right">
-      <div style="font-size:20px;font-weight:900;color:#fff;letter-spacing:4px">TAX INVOICE</div>
-      <div style="font-size:10px;color:rgba(255,255,255,0.7);letter-spacing:1px;font-weight:600;margin-top:2px">ORIGINAL FOR RECIPIENT</div>
+      <div style="font-size:20px;font-weight:900;color:${NAVY};letter-spacing:4px">TAX INVOICE</div>
+      <div style="font-size:10px;color:#555;letter-spacing:1px;font-weight:600;margin-top:2px">ORIGINAL FOR RECIPIENT</div>
     </div>
   </div>
   <div style="height:3px;background:linear-gradient(90deg,#06b6d4,#3b82f6,#8b5cf6,#06b6d4)"></div>
@@ -453,14 +453,14 @@ function generateProInvoiceHTML(invoice, items, org) {
   <div style="border-bottom:${bdr}">
     <table style="font-size:12.5px;color:#000">
       <thead><tr>
-        <th style="padding:10px 10px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#fff;background:${NAVY}">#</th>
-        <th style="padding:10px 10px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#fff;background:${NAVY}">Item Description</th>
-        <th style="padding:10px 10px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#fff;background:${NAVY}">HSN/SAC</th>
-        <th style="padding:10px 10px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#fff;background:${NAVY};text-align:right">Tax</th>
-        <th style="padding:10px 10px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#fff;background:${NAVY};text-align:right">Qty</th>
-        <th style="padding:10px 10px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#fff;background:${NAVY};text-align:center">Rate/Item</th>
-        <th style="padding:10px 10px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#fff;background:${NAVY};text-align:center">Per</th>
-        <th style="padding:10px 10px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#fff;background:${NAVY};text-align:right">Amount</th>
+        <th style="padding:10px 10px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#1a1a2e;background:#d5dae0">#</th>
+        <th style="padding:10px 10px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#1a1a2e;background:#d5dae0">Item Description</th>
+        <th style="padding:10px 10px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#1a1a2e;background:#d5dae0">HSN/SAC</th>
+        <th style="padding:10px 10px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#1a1a2e;background:#d5dae0;text-align:right">Tax</th>
+        <th style="padding:10px 10px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#1a1a2e;background:#d5dae0;text-align:right">Qty</th>
+        <th style="padding:10px 10px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#1a1a2e;background:#d5dae0;text-align:center">Rate/Item</th>
+        <th style="padding:10px 10px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#1a1a2e;background:#d5dae0;text-align:center">Per</th>
+        <th style="padding:10px 10px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#1a1a2e;background:#d5dae0;text-align:right">Amount</th>
       </tr></thead>
       <tbody>${itemsHTML}${summaryRows}</tbody>
     </table>
