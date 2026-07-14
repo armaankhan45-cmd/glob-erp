@@ -169,7 +169,7 @@ export default function QuotationDetail() {
           ═══════════════════════════════════════════ */}
       <div className="bg-white shadow-lg mx-auto print-area" style={{
         fontFamily: (org?.quotation_font_family || 'Georgia, serif'),
-        fontSize: (org?.quotation_font_size || '9') + 'pt',
+        fontSize: (org?.quotation_font_size || '10') + 'pt',
         width: '210mm',
         minHeight: '297mm',
         display: 'flex',
@@ -182,7 +182,7 @@ export default function QuotationDetail() {
         <div style={{ height: `${letterheadMm}mm`, flexShrink: 0 }}></div>
 
         {/* Quotation number — OUTSIDE the box, CENTERED */}
-        <div style={{ margin: '0 10mm', textAlign: 'center', padding: '8px 0 6px', fontSize: '16pt', fontWeight: 'bold', letterSpacing: '1px' }}>
+        <div style={{ margin: '0 10mm', textAlign: 'center', padding: '8px 0 6px', fontSize: '18pt', fontWeight: 'bold', letterSpacing: '1px' }}>
           QUOTATION <u>No</u> :- {qNum}
         </div>
 
@@ -195,73 +195,73 @@ export default function QuotationDetail() {
               {(quotation.customer_name || '').toUpperCase()}
             </div>
             {quotation.additional_info && (
-              <div style={{ fontSize: '8.5pt', marginTop: '3px', color: '#444', fontWeight: '600' }}>{quotation.additional_info}</div>
+              <div style={{ fontSize: '10pt', marginTop: '3px', color: '#333', fontWeight: '600' }}>{quotation.additional_info}</div>
             )}
           </div>
 
           {/* Items table — PROPERLY ALIGNED */}
           <div style={{ flex: 1, padding: '2px 4px 0', overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt', tableLayout: 'fixed' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10.5pt', tableLayout: 'fixed' }}>
               <colgroup>
                 <col style={{ width: '6%' }} />
-                <col style={{ width: '50%' }} />
+                <col style={{ width: '44%' }} />
                 <col style={{ width: '10%' }} />
-                <col style={{ width: '17%' }} />
-                <col style={{ width: '17%' }} />
+                <col style={{ width: '20%' }} />
+                <col style={{ width: '20%' }} />
               </colgroup>
               <thead>
                 <tr>
-                  <th style={{ border: '1.5px solid #000', padding: '5px 3px', background: '#e8e8e8', textAlign: 'center', fontWeight: 'bold', verticalAlign: 'top' }}>SR No.</th>
-                  <th style={{ border: '1.5px solid #000', padding: '5px 3px', background: '#e8e8e8', textAlign: 'left', fontWeight: 'bold', verticalAlign: 'top' }}>Particulars</th>
-                  <th style={{ border: '1.5px solid #000', padding: '5px 3px', background: '#e8e8e8', textAlign: 'center', fontWeight: 'bold', verticalAlign: 'top' }}>Qty</th>
-                  <th style={{ border: '1.5px solid #000', padding: '5px 3px', background: '#e8e8e8', textAlign: 'right', fontWeight: 'bold', verticalAlign: 'top' }}>Rate (INR)</th>
-                  <th style={{ border: '1.5px solid #000', padding: '5px 3px', background: '#e8e8e8', textAlign: 'right', fontWeight: 'bold', verticalAlign: 'top' }}>Amount (INR)</th>
+                  <th style={{ border: '1.5px solid #000', padding: '6px 4px', background: '#e8e8e8', textAlign: 'center', fontWeight: 'bold', verticalAlign: 'top', fontSize: '10pt' }}>SR No.</th>
+                  <th style={{ border: '1.5px solid #000', padding: '6px 4px', background: '#e8e8e8', textAlign: 'left', fontWeight: 'bold', verticalAlign: 'top', fontSize: '10pt' }}>Particulars</th>
+                  <th style={{ border: '1.5px solid #000', padding: '6px 4px', background: '#e8e8e8', textAlign: 'center', fontWeight: 'bold', verticalAlign: 'top', fontSize: '10pt' }}>Qty</th>
+                  <th style={{ border: '1.5px solid #000', padding: '6px 4px', background: '#e8e8e8', textAlign: 'right', fontWeight: 'bold', verticalAlign: 'top', fontSize: '10pt' }}>Rate (INR)</th>
+                  <th style={{ border: '1.5px solid #000', padding: '6px 4px', background: '#e8e8e8', textAlign: 'right', fontWeight: 'bold', verticalAlign: 'top', fontSize: '10pt' }}>Amount (INR)</th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((item, i) => (
                   <tr key={i}>
-                    <td style={{ border: '1.5px solid #000', padding: '4px 3px', textAlign: 'center', verticalAlign: 'top', fontWeight: '700', color: '#000' }}>{i + 1}</td>
-                    <td style={{ border: '1.5px solid #000', padding: '4px 3px', fontSize: '8.5pt', lineHeight: '1.3', fontWeight: boldOn ? 'bold' : 'normal', whiteSpace: 'pre-line', verticalAlign: 'top', color: '#000' }}>{item.description || ''}</td>
-                    <td style={{ border: '1.5px solid #000', padding: '4px 3px', textAlign: 'center', verticalAlign: 'top', fontWeight: '700', color: '#000' }}>{item.quantity}{item.unit && item.unit !== 'Unit' ? ` ${item.unit}` : ''}</td>
-                    <td style={{ border: '1.5px solid #000', padding: '4px 3px', textAlign: 'right', verticalAlign: 'top', fontWeight: '700', color: '#000' }}>₹{fmt(item.rate)}</td>
-                    <td style={{ border: '1.5px solid #000', padding: '4px 3px', textAlign: 'right', verticalAlign: 'top', fontWeight: 'bold', color: '#000' }}>₹{fmt(item.amount)}</td>
+                    <td style={{ border: '1.5px solid #000', padding: '5px 4px', textAlign: 'center', verticalAlign: 'top', fontWeight: '700', color: '#000' }}>{i + 1}</td>
+                    <td style={{ border: '1.5px solid #000', padding: '5px 4px', fontSize: '10pt', lineHeight: '1.3', fontWeight: boldOn ? 'bold' : 'normal', whiteSpace: 'pre-line', verticalAlign: 'top', color: '#000' }}>{item.description || ''}</td>
+                    <td style={{ border: '1.5px solid #000', padding: '5px 4px', textAlign: 'center', verticalAlign: 'top', fontWeight: '700', color: '#000' }}>{item.quantity}{item.unit && item.unit !== 'Unit' ? ` ${item.unit}` : ''}</td>
+                    <td style={{ border: '1.5px solid #000', padding: '5px 4px', textAlign: 'right', verticalAlign: 'top', fontWeight: '700', color: '#000' }}>₹{fmt(item.rate)}</td>
+                    <td style={{ border: '1.5px solid #000', padding: '5px 4px', textAlign: 'right', verticalAlign: 'top', fontWeight: 'bold', color: '#000' }}>₹{fmt(item.amount)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          {/* ══ Totals — INSIDE the box ══ */}
+          {/* ══ Totals — INSIDE the box, NO GAP ══ */}
           <div style={{ padding: '0 4px 6px', flexShrink: 0 }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10.5pt' }}>
               <tbody>
                 <tr>
-                  <td style={{ border: '1.5px solid #000', padding: '4px 6px', textAlign: 'right', width: '60%', fontWeight: '700', color: '#000' }}>Subtotal</td>
-                  <td style={{ border: '1.5px solid #000', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold', width: '40%', color: '#000' }}>₹{fmt(subtotal)}</td>
+                  <td style={{ border: '1.5px solid #000', padding: '5px 8px', textAlign: 'left', fontWeight: '700', color: '#000' }}>Subtotal</td>
+                  <td style={{ border: '1.5px solid #000', padding: '5px 8px', textAlign: 'right', fontWeight: 'bold', color: '#000' }}>₹{fmt(subtotal)}</td>
                 </tr>
                 {gstRate > 0 && (
                   <tr>
-                    <td style={{ border: '1.5px solid #000', padding: '4px 6px', textAlign: 'right', fontWeight: '700', color: '#000' }}>
+                    <td style={{ border: '1.5px solid #000', padding: '5px 8px', textAlign: 'left', fontWeight: '700', color: '#000' }}>
                       GST: {gstRate}%
                     </td>
-                    <td style={{ border: '1.5px solid #000', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold', color: '#000' }}>
+                    <td style={{ border: '1.5px solid #000', padding: '5px 8px', textAlign: 'right', fontWeight: 'bold', color: '#000' }}>
                       ₹{fmt(totalGST)}
                     </td>
                   </tr>
                 )}
-                {/* Amount in words — INSIDE the box, full width */}
+                {/* Amount in words — INSIDE the box, full width, BIGGER */}
                 <tr style={{ background: '#f5f5f5' }}>
-                  <td colSpan={2} style={{ border: '1.5px solid #000', padding: '6px 8px', fontSize: '9.5pt', fontWeight: 'bold', color: '#000' }}>
+                  <td colSpan={2} style={{ border: '1.5px solid #000', padding: '6px 8px', fontSize: '11pt', fontWeight: 'bold', color: '#000' }}>
                     Total : {amountWords} ONLY
                   </td>
                 </tr>
-                {/* Total Amount row — LEFT label, RIGHT number */}
+                {/* Total Amount row — LEFT label, RIGHT number, BIGGER */}
                 <tr style={{ background: '#e8e8e8' }}>
-                  <td style={{ border: '1.5px solid #000', padding: '6px 8px', textAlign: 'left', fontSize: '12pt', fontWeight: 'bold', color: '#000' }}>
+                  <td style={{ border: '1.5px solid #000', padding: '7px 8px', textAlign: 'left', fontSize: '13pt', fontWeight: 'bold', color: '#000' }}>
                     Total Amount
                   </td>
-                  <td style={{ border: '1.5px solid #000', padding: '6px 8px', textAlign: 'right', fontSize: '12pt', fontWeight: 'bold', color: '#000' }}>
+                  <td style={{ border: '1.5px solid #000', padding: '7px 8px', textAlign: 'right', fontSize: '13pt', fontWeight: 'bold', color: '#000' }}>
                     ₹{fmt(totalAmount)}
                   </td>
                 </tr>
