@@ -262,25 +262,25 @@ function ProLayout({ inv, items, org, invNum, isPaid, placeOfSupply, invoiceDate
   const DIVIDER = '1.5px solid #ccc'
 
   return (
-    <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily, maxWidth: 900, margin: '0 auto', background: '#fff', border: `2px solid ${NAVY}`, color: '#000', fontWeight: 600, WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+    <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily, maxWidth: 900, margin: '0 auto', background: '#fff', border: `2px solid ${NAVY}`, color: '#000', fontWeight: 600, WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact', padding: '0 8px' }}>
 
-      {/* ═══ HEADER BAR — Navy with high-contrast white text ═══ */}
-      <div style={{ background: `linear-gradient(135deg, #0f2744 0%, #1a3a5c 100%)`, padding: '16px 24px', display: 'flex', alignItems: 'center', gap: 16 }}>
-        <div style={{ width: 68, height: 68, flexShrink: 0, borderRadius: 6, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid rgba(255,255,255,0.4)', boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
+      {/* ═══ HEADER BAR — B&W print-safe: dark text, light bg, navy borders ═══ */}
+      <div style={{ padding: '16px 24px', display: 'flex', alignItems: 'center', gap: 16, background: '#f5f7fa', borderTop: `4px solid ${NAVY}`, borderBottom: `2px solid ${NAVY}` }}>
+        <div style={{ width: 68, height: 68, flexShrink: 0, borderRadius: 6, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${NAVY}`, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
           {org.logo_url
             ? <img src={org.logo_url} style={{ width: 60, height: 60, objectFit: 'contain', borderRadius: 4 }} alt="Logo" />
-            : <span style={{ fontSize: 9, color: '#0f2744', fontWeight: 800 }}>LOGO</span>
+            : <span style={{ fontSize: 9, color: NAVY, fontWeight: 800 }}>LOGO</span>
           }
         </div>
         <div style={{ flex: 1 }}>
-          <h1 style={{ fontSize: 20, fontWeight: 900, color: '#fff', letterSpacing: 2, lineHeight: 1.2, margin: '0 0 3px', textShadow: '0 1px 3px rgba(0,0,0,0.4)' }}>{(org.name || 'GLOB FABRICATION AND ENTERPRISES').toUpperCase()}</h1>
-          {org.gstin && <span style={{ display: 'inline-block', background: 'rgba(255,255,255,0.2)', color: '#fff', padding: '2px 10px', borderRadius: 3, fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>GSTIN: {org.gstin}</span>}
-          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.95)', marginTop: 3, lineHeight: 1.5, textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>{[org.address, org.city, org.state, org.pincode ? 'PIN: ' + org.pincode : ''].filter(Boolean).join(', ')}</div>
-          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.95)', marginTop: 1, lineHeight: 1.5, textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>{org.phone ? `📞 ${org.phone}` : ''}{org.email ? `  ✉ ${org.email}` : ''}</div>
+          <h1 style={{ fontSize: 20, fontWeight: 900, color: '#1a1a2e', letterSpacing: 2, lineHeight: 1.2, margin: '0 0 3px' }}>{(org.name || 'GLOB FABRICATION AND ENTERPRISES').toUpperCase()}</h1>
+          {org.gstin && <span style={{ display: 'inline-block', background: NAVY, color: '#fff', padding: '2px 10px', borderRadius: 3, fontSize: 11, fontWeight: 700, letterSpacing: 0.5 }}>GSTIN: {org.gstin}</span>}
+          <div style={{ fontSize: '12px', color: '#333', marginTop: 3, lineHeight: 1.5, fontWeight: 600 }}>{[org.address, org.city, org.state, org.pincode ? 'PIN: ' + org.pincode : ''].filter(Boolean).join(', ')}</div>
+          <div style={{ fontSize: '12px', color: '#333', marginTop: 1, lineHeight: 1.5, fontWeight: 600 }}>{org.phone ? `📞 ${org.phone}` : ''}{org.email ? `  ✉ ${org.email}` : ''}</div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 20, fontWeight: 900, color: '#fff', letterSpacing: 4, textShadow: '0 2px 4px rgba(0,0,0,0.4)' }}>TAX INVOICE</div>
-          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.9)', letterSpacing: 1, fontWeight: 600, marginTop: 3, textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>ORIGINAL FOR RECIPIENT</div>
+          <div style={{ fontSize: 20, fontWeight: 900, color: NAVY, letterSpacing: 4 }}>TAX INVOICE</div>
+          <div style={{ fontSize: 10, color: '#555', letterSpacing: 1, fontWeight: 600, marginTop: 3 }}>ORIGINAL FOR RECIPIENT</div>
         </div>
       </div>
 
@@ -328,8 +328,8 @@ function ProLayout({ inv, items, org, invNum, isPaid, placeOfSupply, invoiceDate
               {['#','Item Description','HSN/SAC','Tax','Qty','Rate/Item','Per','Amount'].map((h, i) => (
                 <th key={h} style={{
                   padding: '10px 10px', fontSize: '10.5px', fontWeight: 800,
-                  textTransform: 'uppercase', letterSpacing: 0.8, color: '#fff',
-                  background: NAVY, textAlign: i <= 2 ? 'left' : i === 5 || i === 6 ? 'center' : 'right',
+                  textTransform: 'uppercase', letterSpacing: 0.8, color: '#1a1a2e',
+                  background: '#d5dae0', textAlign: i <= 2 ? 'left' : i === 5 || i === 6 ? 'center' : 'right',
                   whiteSpace: i === 0 || i === 3 || i === 4 || i === 5 ? 'nowrap' : 'normal'
                 }}>{h}</th>
               ))}
@@ -556,7 +556,7 @@ function ClassicLayout({ inv, items, org, invNum, isPaid, placeOfSupply, invoice
   const B = '1.5px solid #1a1a1a'
 
   return (
-    <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily, maxWidth: 900, margin: '0 auto', background: '#fff', border: B, color: '#000', fontWeight: 600, WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+    <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily, maxWidth: 900, margin: '0 auto', background: '#fff', border: B, color: '#000', fontWeight: 600, WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact', padding: '0 8px' }}>
 
       {/* TAX INVOICE TITLE */}
       <div style={{ textAlign: 'center', padding: '14px 0 8px', position: 'relative', borderBottom: B }}>
