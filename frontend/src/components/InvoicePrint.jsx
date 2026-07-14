@@ -130,59 +130,59 @@ export default function InvoicePrint({ invoice, items, org }) {
   return (
     <div className="print-area" style={{
       fontFamily, fontSize, color: '#000', background: '#fff',
-      width: '210mm', minHeight: '297mm', margin: '0 auto', padding: '5mm 7mm',
+      width: '210mm', minHeight: '297mm', margin: '0 auto', padding: '8mm 12mm',
       boxSizing: 'border-box',
       WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact',
       lineHeight: 1.4,
     }}>
 
-      {/* ══ PRO HEADER: Navy gradient with CLEAR WHITE TEXT ══ */}
-      <div style={{ background: `linear-gradient(135deg, ${navyBg} 0%, ${navyLight} 100%)`, borderRadius: '4px 4px 0 0', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* ══ PRO HEADER: B&W print-safe — dark text, light bg, navy accents ══ */}
+      <div style={{ borderRadius: '4px 4px 0 0', borderTop: `4px solid ${navyBg}`, borderBottom: `2px solid ${navyBg}`, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8f9fb' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {logoSrc ? (
-            <img src={logoSrc} alt="" style={{ width: '48px', height: '48px', borderRadius: '6px', objectFit: 'cover', border: '2px solid rgba(255,255,255,0.2)', flexShrink: 0 }} />
+            <img src={logoSrc} alt="" style={{ width: '48px', height: '48px', borderRadius: '6px', objectFit: 'cover', border: `2px solid ${navyBg}`, flexShrink: 0 }} />
           ) : (
-            <div style={{ width: '48px', height: '48px', borderRadius: '6px', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: '900', fontSize: '14px', flexShrink: 0 }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '6px', background: navyBg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: '900', fontSize: '14px', flexShrink: 0 }}>
               {companyName.split(' ').map(w => w[0]).join('').substring(0, 3)}
             </div>
           )}
           <div>
-            <div style={{ fontSize: '16px', fontWeight: '900', color: '#fff', letterSpacing: '1.5px', textTransform: 'uppercase' }}>{companyName}</div>
-            {org.gstin && <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.9)', fontWeight: '700', marginTop: '2px' }}>GSTIN: {org.gstin}</div>}
-            <div style={{ fontSize: '9.5px', color: 'rgba(255,255,255,0.85)', marginTop: '1px', fontWeight: '600' }}>
+            <div style={{ fontSize: '17px', fontWeight: '900', color: '#1a1a2e', letterSpacing: '1.5px', textTransform: 'uppercase' }}>{companyName}</div>
+            {org.gstin && <div style={{ fontSize: '10.5px', color: '#1a1a2e', fontWeight: '700', marginTop: '2px' }}>GSTIN: {org.gstin}</div>}
+            <div style={{ fontSize: '10px', color: '#333', marginTop: '1px', fontWeight: '600' }}>
               {[org.address, org.city, org.state, org.pincode].filter(Boolean).join(', ')}
             </div>
-            <div style={{ fontSize: '9.5px', color: 'rgba(255,255,255,0.85)', fontWeight: '600' }}>
+            <div style={{ fontSize: '10px', color: '#333', fontWeight: '600' }}>
               {org.phone && <span>Ph: {org.phone} &nbsp;</span>}
               {org.email && <span>{org.email}</span>}
             </div>
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: '18px', fontWeight: '900', color: '#fff', letterSpacing: '4px' }}>TAX INVOICE</div>
-          <div style={{ fontSize: '8px', color: 'rgba(255,255,255,0.6)', marginTop: '2px', fontWeight: '600' }}>ORIGINAL FOR RECIPIENT</div>
+          <div style={{ fontSize: '18px', fontWeight: '900', color: navyBg, letterSpacing: '4px' }}>TAX INVOICE</div>
+          <div style={{ fontSize: '8px', color: '#555', marginTop: '2px', fontWeight: '600' }}>ORIGINAL FOR RECIPIENT</div>
         </div>
       </div>
 
       {/* ══ INVOICE INFO BAR ══ */}
       <div style={{ display: 'flex', border: bdr, borderTop: 'none', background: '#f5f7fa' }}>
-        <div style={{ flex: 1, padding: '5px 8px', borderRight: bdr }}>
-          <span style={{ fontSize: '8px', color: '#666', fontWeight: '700' }}>Invoice #:</span>
-          <span style={{ fontSize: '10.5px', fontWeight: '800', color: '#000', marginLeft: '4px' }}>{invNum}</span>
+        <div style={{ flex: 1, padding: '6px 10px', borderRight: bdr }}>
+          <span style={{ fontSize: '9px', color: '#666', fontWeight: '700' }}>Invoice #:</span>
+          <span style={{ fontSize: '11px', fontWeight: '800', color: '#000', marginLeft: '4px' }}>{invNum}</span>
         </div>
-        <div style={{ flex: 1, padding: '5px 8px', borderRight: bdr }}>
-          <span style={{ fontSize: '8px', color: '#666', fontWeight: '700' }}>Date:</span>
-          <span style={{ fontSize: '10.5px', fontWeight: '800', color: '#000', marginLeft: '4px' }}>{invoiceDate}</span>
+        <div style={{ flex: 1, padding: '6px 10px', borderRight: bdr }}>
+          <span style={{ fontSize: '9px', color: '#666', fontWeight: '700' }}>Date:</span>
+          <span style={{ fontSize: '11px', fontWeight: '800', color: '#000', marginLeft: '4px' }}>{invoiceDate}</span>
         </div>
-        <div style={{ flex: 1, padding: '5px 8px', borderRight: bdr }}>
-          <span style={{ fontSize: '8px', color: '#666', fontWeight: '700' }}>Place of Supply:</span>
-          <span style={{ fontSize: '9.5px', fontWeight: '700', color: '#000', marginLeft: '4px' }}>{placeOfSupply}</span>
+        <div style={{ flex: 1, padding: '6px 10px', borderRight: bdr }}>
+          <span style={{ fontSize: '9px', color: '#666', fontWeight: '700' }}>Place of Supply:</span>
+          <span style={{ fontSize: '10px', fontWeight: '700', color: '#000', marginLeft: '4px' }}>{placeOfSupply}</span>
         </div>
-        <div style={{ flex: 1, padding: '5px 8px', textAlign: 'right' }}>
+        <div style={{ flex: 1, padding: '6px 10px', textAlign: 'right' }}>
           {isPaid ? (
-            <span style={{ background: '#c8e6c9', border: '1.5px solid #2e7d32', borderRadius: '10px', padding: '1px 8px', color: '#1b5e20', fontWeight: '900', fontSize: '9px' }}>✔ PAID</span>
+            <span style={{ background: '#c8e6c9', border: '1.5px solid #2e7d32', borderRadius: '10px', padding: '1px 8px', color: '#1b5e20', fontWeight: '900', fontSize: '9.5px' }}>✔ PAID</span>
           ) : (
-            <span style={{ background: '#fff9c4', border: '1.5px solid #f9a825', borderRadius: '10px', padding: '1px 8px', color: '#e65100', fontWeight: '900', fontSize: '9px' }}>● UNPAID</span>
+            <span style={{ background: '#fff9c4', border: '1.5px solid #f9a825', borderRadius: '10px', padding: '1px 8px', color: '#e65100', fontWeight: '900', fontSize: '9.5px' }}>● UNPAID</span>
           )}
         </div>
       </div>
@@ -190,37 +190,37 @@ export default function InvoicePrint({ invoice, items, org }) {
       {/* ══ BUYER INFO ══ */}
       <div style={{ border: bdr, borderTop: 'none', padding: '6px 10px', display: 'flex', gap: '12px' }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: '8px', color: '#666', fontWeight: '700', marginBottom: '2px' }}>Buyer (Bill To):</div>
-          <div style={{ fontSize: '11px', fontWeight: '800', color: '#000', textTransform: 'uppercase' }}>{invoice.customer_name || 'N/A'}</div>
-          {custGstin && <div style={{ fontSize: '9px', fontWeight: '700', color: '#000', marginTop: '1px' }}>GSTIN: {custGstin}</div>}
-          {customerFullAddress && <div style={{ fontSize: '9px', color: '#333', marginTop: '1px', fontWeight: '600' }}>{customerFullAddress}</div>}
+          <div style={{ fontSize: '9px', color: '#666', fontWeight: '700', marginBottom: '2px' }}>Buyer (Bill To):</div>
+          <div style={{ fontSize: '12px', fontWeight: '800', color: '#000', textTransform: 'uppercase' }}>{invoice.customer_name || 'N/A'}</div>
+          {custGstin && <div style={{ fontSize: '10px', fontWeight: '700', color: '#000', marginTop: '1px' }}>GSTIN: {custGstin}</div>}
+          {customerFullAddress && <div style={{ fontSize: '10px', color: '#333', marginTop: '1px', fontWeight: '600' }}>{customerFullAddress}</div>}
         </div>
       </div>
 
       {/* ══ ITEMS TABLE ══ */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', border: bdr, borderTop: 'none', fontSize: '9px', tableLayout: 'fixed' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', border: bdr, borderTop: 'none', fontSize: '10.5px', tableLayout: 'fixed' }}>
         <colgroup>
           <col style={{ width: '5%' }} />
-          <col style={{ width: '12%' }} />
+          <col style={{ width: '11%' }} />
           <col style={{ width: '30%' }} />
           <col style={{ width: '7%' }} />
           <col style={{ width: '6%' }} />
-          <col style={{ width: '12%' }} />
-          <col style={{ width: '12%' }} />
-          <col style={{ width: '8%' }} />
+          <col style={{ width: '13%' }} />
+          <col style={{ width: '13%' }} />
+          <col style={{ width: '7%' }} />
           <col style={{ width: '8%' }} />
         </colgroup>
         <thead>
-          <tr style={{ background: navyBg, color: '#fff' }}>
-            <th style={{ padding: '4px 3px', border: bdr, fontWeight: '800', textAlign: 'center' }}>Sr</th>
-            <th style={{ padding: '4px 3px', border: bdr, fontWeight: '800' }}>HSN</th>
-            <th style={{ padding: '4px 3px', border: bdr, fontWeight: '800' }}>Description</th>
-            <th style={{ padding: '4px 3px', border: bdr, fontWeight: '800', textAlign: 'center' }}>Qty</th>
-            <th style={{ padding: '4px 3px', border: bdr, fontWeight: '800', textAlign: 'center' }}>Unit</th>
-            <th style={{ padding: '4px 3px', border: bdr, fontWeight: '800', textAlign: 'right' }}>Rate</th>
-            <th style={{ padding: '4px 3px', border: bdr, fontWeight: '800', textAlign: 'right' }}>Amount</th>
-            <th style={{ padding: '4px 3px', border: bdr, fontWeight: '800', textAlign: 'center' }}>GST%</th>
-            <th style={{ padding: '4px 3px', border: bdr, fontWeight: '800', textAlign: 'right' }}>GST Amt</th>
+          <tr style={{ background: '#e0e4e8', color: '#1a1a2e' }}>
+            <th style={{ padding: '5px 4px', border: bdr, fontWeight: '800', textAlign: 'center', fontSize: '10px', color: '#1a1a2e' }}>Sr</th>
+            <th style={{ padding: '5px 4px', border: bdr, fontWeight: '800', fontSize: '10px', color: '#1a1a2e' }}>HSN</th>
+            <th style={{ padding: '5px 4px', border: bdr, fontWeight: '800', fontSize: '10px', color: '#1a1a2e' }}>Description</th>
+            <th style={{ padding: '5px 4px', border: bdr, fontWeight: '800', textAlign: 'center', fontSize: '10px', color: '#1a1a2e' }}>Qty</th>
+            <th style={{ padding: '5px 4px', border: bdr, fontWeight: '800', textAlign: 'center', fontSize: '10px', color: '#1a1a2e' }}>Unit</th>
+            <th style={{ padding: '5px 4px', border: bdr, fontWeight: '800', textAlign: 'right', fontSize: '10px', color: '#1a1a2e' }}>Rate</th>
+            <th style={{ padding: '5px 4px', border: bdr, fontWeight: '800', textAlign: 'right', fontSize: '10px', color: '#1a1a2e' }}>Amount</th>
+            <th style={{ padding: '5px 4px', border: bdr, fontWeight: '800', textAlign: 'center', fontSize: '10px', color: '#1a1a2e' }}>GST%</th>
+            <th style={{ padding: '5px 4px', border: bdr, fontWeight: '800', textAlign: 'right', fontSize: '10px', color: '#1a1a2e' }}>GST Amt</th>
           </tr>
         </thead>
         <tbody>
@@ -228,144 +228,144 @@ export default function InvoicePrint({ invoice, items, org }) {
             const gstPct = isIntraState ? item.cgstRate + item.sgstRate : item.igstRate
             return (
               <tr key={i}>
-                <td style={{ padding: '3px 3px', border: bdr, textAlign: 'center', fontWeight: '700', color: '#000' }}>{i + 1}</td>
-                <td style={{ padding: '3px 3px', border: bdr, fontWeight: '700', color: '#000', fontSize: '8.5px' }}>{item.hsn_code || '—'}</td>
-                <td style={{ padding: '3px 3px', border: bdr, fontWeight: itemBold ? '700' : '500', color: '#000', fontSize: descSize, lineHeight: 1.3 }}>{item.description || ''}</td>
-                <td style={{ padding: '3px 3px', border: bdr, textAlign: 'center', fontWeight: '700', color: '#000' }}>{item.qty}</td>
-                <td style={{ padding: '3px 3px', border: bdr, textAlign: 'center', fontWeight: '600', color: '#000' }}>{item.unit || 'NOS'}</td>
-                <td style={{ padding: '3px 3px', border: bdr, textAlign: 'right', fontWeight: '700', color: '#000' }}>₹{fmt(item.rate)}</td>
-                <td style={{ padding: '3px 3px', border: bdr, textAlign: 'right', fontWeight: '700', color: '#000' }}>₹{fmt(item.taxable)}</td>
-                <td style={{ padding: '3px 3px', border: bdr, textAlign: 'center', fontWeight: '700', color: '#000' }}>{gstPct}%</td>
-                <td style={{ padding: '3px 3px', border: bdr, textAlign: 'right', fontWeight: '700', color: '#000' }}>₹{fmt(item.totalTax)}</td>
+                <td style={{ padding: '4px 4px', border: bdr, textAlign: 'center', fontWeight: '700', color: '#000' }}>{i + 1}</td>
+                <td style={{ padding: '4px 4px', border: bdr, fontWeight: '700', color: '#000', fontSize: '9.5px' }}>{item.hsn_code || '—'}</td>
+                <td style={{ padding: '4px 4px', border: bdr, fontWeight: itemBold ? '700' : '500', color: '#000', fontSize: descSize, lineHeight: 1.3 }}>{item.description || ''}</td>
+                <td style={{ padding: '4px 4px', border: bdr, textAlign: 'center', fontWeight: '700', color: '#000' }}>{item.qty}</td>
+                <td style={{ padding: '4px 4px', border: bdr, textAlign: 'center', fontWeight: '600', color: '#000' }}>{item.unit || 'NOS'}</td>
+                <td style={{ padding: '4px 4px', border: bdr, textAlign: 'right', fontWeight: '700', color: '#000' }}>₹{fmt(item.rate)}</td>
+                <td style={{ padding: '4px 4px', border: bdr, textAlign: 'right', fontWeight: '700', color: '#000' }}>₹{fmt(item.taxable)}</td>
+                <td style={{ padding: '4px 4px', border: bdr, textAlign: 'center', fontWeight: '700', color: '#000' }}>{gstPct}%</td>
+                <td style={{ padding: '4px 4px', border: bdr, textAlign: 'right', fontWeight: '700', color: '#000' }}>₹{fmt(item.totalTax)}</td>
               </tr>
             )
           })}
         </tbody>
       </table>
 
-      {/* ══ TOTALS ══ */}
-      <div style={{ display: 'flex', border: bdr, borderTop: 'none' }}>
-        <div style={{ flex: 1, padding: '5px 8px', borderRight: bdr }}>
-          <div style={{ fontSize: '8.5px', fontWeight: '700', color: '#000' }}>Amount in Words:</div>
-          <div style={{ fontSize: '9.5px', fontWeight: '800', color: '#000', textTransform: 'uppercase' }}>{amountWords} ONLY</div>
+      {/* ══ TOTALS — Full width, no gap, bigger fonts ══ */}
+      {/* Amount in Words row */}
+      <div style={{ border: bdr, borderTop: 'none', padding: '5px 10px', background: '#f9fafb' }}>
+        <div style={{ fontSize: '11px', fontWeight: '800', color: '#000' }}>Amount in Words:</div>
+        <div style={{ fontSize: '12px', fontWeight: '900', color: '#000', textTransform: 'uppercase', letterSpacing: '0.3px' }}>{amountWords} ONLY</div>
+      </div>
+      {/* Summary rows — full width */}
+      <div style={{ border: bdr, borderTop: 'none' }}>
+        <div style={{ display: 'flex', borderBottom: bdr }}>
+          <div style={{ flex: 1, padding: '4px 10px', fontSize: '10.5px', fontWeight: '700', color: '#000' }}>Subtotal</div>
+          <div style={{ width: '180px', padding: '4px 10px', textAlign: 'right', fontSize: '10.5px', fontWeight: '800', color: '#000' }}>₹{fmt(invoice.subtotal)}</div>
         </div>
-        <div style={{ width: '280px', flexShrink: 0 }}>
+        {hasCGST && (
           <div style={{ display: 'flex', borderBottom: bdr }}>
-            <div style={{ flex: 1, padding: '3px 6px', fontSize: '9px', fontWeight: '700', color: '#000' }}>Subtotal</div>
-            <div style={{ width: '110px', padding: '3px 6px', textAlign: 'right', fontWeight: '800', color: '#000' }}>₹{fmt(invoice.subtotal)}</div>
+            <div style={{ flex: 1, padding: '4px 10px', fontSize: '10.5px', fontWeight: '700', color: '#1565c0' }}>CGST {cgstRate}%</div>
+            <div style={{ width: '180px', padding: '4px 10px', textAlign: 'right', fontSize: '10.5px', fontWeight: '800', color: '#1565c0' }}>₹{fmt(totalCgst)}</div>
           </div>
-          {hasCGST && (
-            <div style={{ display: 'flex', borderBottom: bdr }}>
-              <div style={{ flex: 1, padding: '3px 6px', fontSize: '9px', fontWeight: '700', color: '#1565c0' }}>CGST {cgstRate}%</div>
-              <div style={{ width: '110px', padding: '3px 6px', textAlign: 'right', fontWeight: '800', color: '#1565c0' }}>₹{fmt(totalCgst)}</div>
-            </div>
-          )}
-          {hasCGST && (
-            <div style={{ display: 'flex', borderBottom: bdr }}>
-              <div style={{ flex: 1, padding: '3px 6px', fontSize: '9px', fontWeight: '700', color: '#7b1fa2' }}>SGST {sgstRate}%</div>
-              <div style={{ width: '110px', padding: '3px 6px', textAlign: 'right', fontWeight: '800', color: '#7b1fa2' }}>₹{fmt(totalSgst)}</div>
-            </div>
-          )}
-          {hasIGST && (
-            <div style={{ display: 'flex', borderBottom: bdr }}>
-              <div style={{ flex: 1, padding: '3px 6px', fontSize: '9px', fontWeight: '700', color: '#c62828' }}>IGST {igstRate}%</div>
-              <div style={{ width: '110px', padding: '3px 6px', textAlign: 'right', fontWeight: '800', color: '#c62828' }}>₹{fmt(totalIgst)}</div>
-            </div>
-          )}
-          {parseFloat(invoice.discount) > 0 && (
-            <div style={{ display: 'flex', borderBottom: bdr }}>
-              <div style={{ flex: 1, padding: '3px 6px', fontSize: '9px', fontWeight: '700', color: '#000' }}>Discount</div>
-              <div style={{ width: '110px', padding: '3px 6px', textAlign: 'right', fontWeight: '800', color: '#000' }}>-₹{fmt(invoice.discount)}</div>
-            </div>
-          )}
-          {parseFloat(invoice.round_off) !== 0 && (
-            <div style={{ display: 'flex', borderBottom: bdr }}>
-              <div style={{ flex: 1, padding: '3px 6px', fontSize: '9px', fontWeight: '700', color: '#000' }}>Round Off</div>
-              <div style={{ width: '110px', padding: '3px 6px', textAlign: 'right', fontWeight: '800', color: '#000' }}>₹{fmt(invoice.round_off)}</div>
-            </div>
-          )}
-          <div style={{ display: 'flex', background: navyBg }}>
-            <div style={{ flex: 1, padding: '5px 6px', fontSize: '11px', fontWeight: '900', color: '#fff' }}>Total</div>
-            <div style={{ width: '110px', padding: '5px 6px', textAlign: 'right', fontSize: '11px', fontWeight: '900', color: '#fff' }}>₹{fmt(invoice.total_amount)}</div>
+        )}
+        {hasCGST && (
+          <div style={{ display: 'flex', borderBottom: bdr }}>
+            <div style={{ flex: 1, padding: '4px 10px', fontSize: '10.5px', fontWeight: '700', color: '#7b1fa2' }}>SGST {sgstRate}%</div>
+            <div style={{ width: '180px', padding: '4px 10px', textAlign: 'right', fontSize: '10.5px', fontWeight: '800', color: '#7b1fa2' }}>₹{fmt(totalSgst)}</div>
           </div>
+        )}
+        {hasIGST && (
+          <div style={{ display: 'flex', borderBottom: bdr }}>
+            <div style={{ flex: 1, padding: '4px 10px', fontSize: '10.5px', fontWeight: '700', color: '#c62828' }}>IGST {igstRate}%</div>
+            <div style={{ width: '180px', padding: '4px 10px', textAlign: 'right', fontSize: '10.5px', fontWeight: '800', color: '#c62828' }}>₹{fmt(totalIgst)}</div>
+          </div>
+        )}
+        {parseFloat(invoice.discount) > 0 && (
+          <div style={{ display: 'flex', borderBottom: bdr }}>
+            <div style={{ flex: 1, padding: '4px 10px', fontSize: '10.5px', fontWeight: '700', color: '#000' }}>Discount</div>
+            <div style={{ width: '180px', padding: '4px 10px', textAlign: 'right', fontSize: '10.5px', fontWeight: '800', color: '#000' }}>-₹{fmt(invoice.discount)}</div>
+          </div>
+        )}
+        {parseFloat(invoice.round_off) !== 0 && (
+          <div style={{ display: 'flex', borderBottom: bdr }}>
+            <div style={{ flex: 1, padding: '4px 10px', fontSize: '10.5px', fontWeight: '700', color: '#000' }}>Round Off</div>
+            <div style={{ width: '180px', padding: '4px 10px', textAlign: 'right', fontSize: '10.5px', fontWeight: '800', color: '#000' }}>{parseFloat(invoice.round_off) > 0 ? '+' : ''}₹{fmt(Math.abs(invoice.round_off))}</div>
+          </div>
+        )}
+        <div style={{ display: 'flex', background: '#d5dae0' }}>
+          <div style={{ flex: 1, padding: '6px 10px', fontSize: '13px', fontWeight: '900', color: '#1a1a2e' }}>Total</div>
+          <div style={{ width: '180px', padding: '6px 10px', textAlign: 'right', fontSize: '13px', fontWeight: '900', color: '#1a1a2e' }}>₹{fmt(invoice.total_amount)}</div>
         </div>
       </div>
 
       {/* ══ HSN SUMMARY ══ */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', border: bdr, borderTop: 'none', fontSize: '8px', tableLayout: 'fixed' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', border: bdr, borderTop: 'none', fontSize: '9.5px', tableLayout: 'fixed' }}>
         <thead>
           <tr>
-            <th style={{ background: '#e8ecf0', padding: '3px 4px', border: bdr, fontWeight: '800', textAlign: 'left' }}>HSN</th>
-            <th style={{ background: '#e8ecf0', padding: '3px 4px', border: bdr, fontWeight: '800', textAlign: 'center' }}>Taxable</th>
-            <th style={{ background: '#1565c0', color: '#fff', padding: '3px 4px', border: bdr, fontWeight: '800', textAlign: 'center' }} colSpan={2}>CGST</th>
-            <th style={{ background: '#7b1fa2', color: '#fff', padding: '3px 4px', border: bdr, fontWeight: '800', textAlign: 'center' }} colSpan={2}>SGST</th>
-            <th style={{ background: '#c62828', color: '#fff', padding: '3px 4px', border: bdr, fontWeight: '800', textAlign: 'center' }} colSpan={2}>IGST</th>
-            <th style={{ background: '#e8ecf0', padding: '3px 4px', border: bdr, fontWeight: '800', textAlign: 'center' }}>Total</th>
+            <th style={{ background: '#e8ecf0', padding: '4px 5px', border: bdr, fontWeight: '800', textAlign: 'left', fontSize: '9.5px', color: '#1a1a2e' }}>HSN</th>
+            <th style={{ background: '#e8ecf0', padding: '4px 5px', border: bdr, fontWeight: '800', textAlign: 'center', fontSize: '9.5px', color: '#1a1a2e' }}>Taxable</th>
+            <th style={{ background: '#e8ecf0', padding: '4px 5px', border: bdr, fontWeight: '800', textAlign: 'center', fontSize: '9.5px', color: '#1565c0' }} colSpan={2}>CGST</th>
+            <th style={{ background: '#e8ecf0', padding: '4px 5px', border: bdr, fontWeight: '800', textAlign: 'center', fontSize: '9.5px', color: '#7b1fa2' }} colSpan={2}>SGST</th>
+            <th style={{ background: '#e8ecf0', padding: '4px 5px', border: bdr, fontWeight: '800', textAlign: 'center', fontSize: '9.5px', color: '#c62828' }} colSpan={2}>IGST</th>
+            <th style={{ background: '#e8ecf0', padding: '4px 5px', border: bdr, fontWeight: '800', textAlign: 'center', fontSize: '9.5px', color: '#1a1a2e' }}>Total</th>
           </tr>
         </thead>
         <tbody>
           {Object.entries(hsnMap).map(([hsn, d]) => (
             <tr key={hsn}>
-              <td style={{ padding: '2px 4px', border: bdr, fontWeight: '700', color: '#000' }}>{hsn}</td>
-              <td style={{ padding: '2px 4px', border: bdr, textAlign: 'center', fontWeight: '700', color: '#000' }}>{fmt(d.taxable)}</td>
-              <td style={{ padding: '2px 4px', border: bdr, textAlign: 'center', color: d.cgstAmt > 0 ? '#000' : '#bbb', fontWeight: '700' }}>{d.cgstRate > 0 ? `${d.cgstRate}%` : '—'}</td>
-              <td style={{ padding: '2px 4px', border: bdr, textAlign: 'center', color: d.cgstAmt > 0 ? '#000' : '#bbb', fontWeight: '700' }}>{d.cgstAmt > 0 ? fmt(d.cgstAmt) : '—'}</td>
-              <td style={{ padding: '2px 4px', border: bdr, textAlign: 'center', color: d.sgstAmt > 0 ? '#000' : '#bbb', fontWeight: '700' }}>{d.sgstRate > 0 ? `${d.sgstRate}%` : '—'}</td>
-              <td style={{ padding: '2px 4px', border: bdr, textAlign: 'center', color: d.sgstAmt > 0 ? '#000' : '#bbb', fontWeight: '700' }}>{d.sgstAmt > 0 ? fmt(d.sgstAmt) : '—'}</td>
-              <td style={{ padding: '2px 4px', border: bdr, textAlign: 'center', color: d.igstAmt > 0 ? '#000' : '#bbb', fontWeight: '700' }}>{d.igstRate > 0 ? `${d.igstRate}%` : '—'}</td>
-              <td style={{ padding: '2px 4px', border: bdr, textAlign: 'center', color: d.igstAmt > 0 ? '#000' : '#bbb', fontWeight: '700' }}>{d.igstAmt > 0 ? fmt(d.igstAmt) : '—'}</td>
-              <td style={{ padding: '2px 4px', border: bdr, textAlign: 'center', fontWeight: '800', color: '#000' }}>{fmt(d.cgstAmt + d.sgstAmt + d.igstAmt)}</td>
+              <td style={{ padding: '3px 5px', border: bdr, fontWeight: '700', color: '#000' }}>{hsn}</td>
+              <td style={{ padding: '3px 5px', border: bdr, textAlign: 'center', fontWeight: '700', color: '#000' }}>{fmt(d.taxable)}</td>
+              <td style={{ padding: '3px 5px', border: bdr, textAlign: 'center', color: d.cgstAmt > 0 ? '#000' : '#bbb', fontWeight: '700' }}>{d.cgstRate > 0 ? `${d.cgstRate}%` : '—'}</td>
+              <td style={{ padding: '3px 5px', border: bdr, textAlign: 'center', color: d.cgstAmt > 0 ? '#000' : '#bbb', fontWeight: '700' }}>{d.cgstAmt > 0 ? fmt(d.cgstAmt) : '—'}</td>
+              <td style={{ padding: '3px 5px', border: bdr, textAlign: 'center', color: d.sgstAmt > 0 ? '#000' : '#bbb', fontWeight: '700' }}>{d.sgstRate > 0 ? `${d.sgstRate}%` : '—'}</td>
+              <td style={{ padding: '3px 5px', border: bdr, textAlign: 'center', color: d.sgstAmt > 0 ? '#000' : '#bbb', fontWeight: '700' }}>{d.sgstAmt > 0 ? fmt(d.sgstAmt) : '—'}</td>
+              <td style={{ padding: '3px 5px', border: bdr, textAlign: 'center', color: d.igstAmt > 0 ? '#000' : '#bbb', fontWeight: '700' }}>{d.igstRate > 0 ? `${d.igstRate}%` : '—'}</td>
+              <td style={{ padding: '3px 5px', border: bdr, textAlign: 'center', color: d.igstAmt > 0 ? '#000' : '#bbb', fontWeight: '700' }}>{d.igstAmt > 0 ? fmt(d.igstAmt) : '—'}</td>
+              <td style={{ padding: '3px 5px', border: bdr, textAlign: 'center', fontWeight: '800', color: '#000' }}>{fmt(d.cgstAmt + d.sgstAmt + d.igstAmt)}</td>
             </tr>
           ))}
           <tr style={{ background: '#f0f4f8' }}>
-            <td style={{ padding: '2px 4px', border: bdr, fontWeight: '900', color: '#000' }}>TOTAL</td>
-            <td style={{ padding: '2px 4px', border: bdr, textAlign: 'center', fontWeight: '900', color: '#000' }}>{fmt(invoice.subtotal)}</td>
-            <td style={{ padding: '2px 4px', border: bdr }}></td>
-            <td style={{ padding: '2px 4px', border: bdr, textAlign: 'center', fontWeight: '900', color: totalCgst > 0 ? '#000' : '#bbb' }}>{totalCgst > 0 ? fmt(totalCgst) : '—'}</td>
-            <td style={{ padding: '2px 4px', border: bdr }}></td>
-            <td style={{ padding: '2px 4px', border: bdr, textAlign: 'center', fontWeight: '900', color: totalSgst > 0 ? '#000' : '#bbb' }}>{totalSgst > 0 ? fmt(totalSgst) : '—'}</td>
-            <td style={{ padding: '2px 4px', border: bdr }}></td>
-            <td style={{ padding: '2px 4px', border: bdr, textAlign: 'center', fontWeight: '900', color: totalIgst > 0 ? '#000' : '#bbb' }}>{totalIgst > 0 ? fmt(totalIgst) : '—'}</td>
-            <td style={{ padding: '2px 4px', border: bdr, textAlign: 'center', fontWeight: '900', color: '#000' }}>{fmt(totalTax)}</td>
+            <td style={{ padding: '3px 5px', border: bdr, fontWeight: '900', color: '#000' }}>TOTAL</td>
+            <td style={{ padding: '3px 5px', border: bdr, textAlign: 'center', fontWeight: '900', color: '#000' }}>{fmt(invoice.subtotal)}</td>
+            <td style={{ padding: '3px 5px', border: bdr }}></td>
+            <td style={{ padding: '3px 5px', border: bdr, textAlign: 'center', fontWeight: '900', color: totalCgst > 0 ? '#000' : '#bbb' }}>{totalCgst > 0 ? fmt(totalCgst) : '—'}</td>
+            <td style={{ padding: '3px 5px', border: bdr }}></td>
+            <td style={{ padding: '3px 5px', border: bdr, textAlign: 'center', fontWeight: '900', color: totalSgst > 0 ? '#000' : '#bbb' }}>{totalSgst > 0 ? fmt(totalSgst) : '—'}</td>
+            <td style={{ padding: '3px 5px', border: bdr }}></td>
+            <td style={{ padding: '3px 5px', border: bdr, textAlign: 'center', fontWeight: '900', color: totalIgst > 0 ? '#000' : '#bbb' }}>{totalIgst > 0 ? fmt(totalIgst) : '—'}</td>
+            <td style={{ padding: '3px 5px', border: bdr, textAlign: 'center', fontWeight: '900', color: '#000' }}>{fmt(totalTax)}</td>
           </tr>
         </tbody>
       </table>
 
       {/* ══ BANK + UPI + SIGNATURE ══ */}
       <div style={{ display: 'flex', border: bdr, borderTop: 'none' }}>
-        <div style={{ flex: 1.2, padding: '5px 8px', borderRight: bdr, fontSize: '8.5px', lineHeight: 1.7 }}>
-          <b style={{ display: 'block', marginBottom: '2px', color: '#000', fontSize: '9px' }}>Bank Details:</b>
+        <div style={{ flex: 1.2, padding: '6px 10px', borderRight: bdr, fontSize: '10px', lineHeight: 1.7 }}>
+          <b style={{ display: 'block', marginBottom: '2px', color: '#000', fontSize: '10.5px' }}>Bank Details:</b>
           {org.bank_name && <div style={{ fontWeight: '700', color: '#000' }}>Bank: <b>{org.bank_name}</b></div>}
           {org.account_no && <div style={{ fontWeight: '700', color: '#000' }}>A/C: <b>{org.account_no}</b></div>}
           {org.ifsc && <div style={{ fontWeight: '700', color: '#000' }}>IFSC: <b>{org.ifsc}</b></div>}
           {org.branch && <div style={{ fontWeight: '700', color: '#000' }}>Branch: <b>{org.branch}</b></div>}
         </div>
-        <div style={{ width: '90px', flexShrink: 0, padding: '4px 6px', borderRight: bdr, textAlign: 'center' }}>
-          <div style={{ fontSize: '8px', fontWeight: '700', color: '#000', marginBottom: '2px' }}>UPI:</div>
+        <div style={{ width: '100px', flexShrink: 0, padding: '5px 8px', borderRight: bdr, textAlign: 'center' }}>
+          <div style={{ fontSize: '9.5px', fontWeight: '700', color: '#000', marginBottom: '2px' }}>UPI:</div>
           {qrImgUrl ? (
-            <img src={qrImgUrl} alt="QR" style={{ width: '60px', height: '60px', margin: '0 auto', imageRendering: 'pixelated' }} crossOrigin="anonymous" />
+            <img src={qrImgUrl} alt="QR" style={{ width: '65px', height: '65px', margin: '0 auto', imageRendering: 'pixelated' }} crossOrigin="anonymous" />
           ) : (
-            <div style={{ width: '60px', height: '60px', border: '1.5px solid #333', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '7px', fontWeight: '700' }}>QR</div>
+            <div style={{ width: '65px', height: '65px', border: '1.5px solid #333', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', fontWeight: '700' }}>QR</div>
           )}
         </div>
-        <div style={{ flex: 1, padding: '4px 8px', textAlign: 'center', fontSize: '8.5px' }}>
+        <div style={{ flex: 1, padding: '5px 10px', textAlign: 'center', fontSize: '10px' }}>
           <div style={{ textAlign: 'right', marginBottom: '2px', fontWeight: '700', color: '#000' }}>For <b>{companyName}</b></div>
-          <div style={{ width: '80px', height: '50px', margin: '0 auto 2px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-            {org.stamp_url && <img src={org.stamp_url} alt="" style={{ position: 'absolute', width: '80px', height: '50px', objectFit: 'contain', opacity: 0.85 }} />}
-            {org.signature_url && <img src={org.signature_url} alt="" style={{ position: 'relative', zIndex: 1, maxHeight: '35px', maxWidth: '65px', objectFit: 'contain' }} />}
+          <div style={{ width: '90px', height: '55px', margin: '0 auto 2px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+            {org.stamp_url && <img src={org.stamp_url} alt="" style={{ position: 'absolute', width: '90px', height: '55px', objectFit: 'contain', opacity: 0.85 }} />}
+            {org.signature_url && <img src={org.signature_url} alt="" style={{ position: 'relative', zIndex: 1, maxHeight: '40px', maxWidth: '70px', objectFit: 'contain' }} />}
           </div>
-          <div style={{ fontSize: '8px', color: '#000', fontWeight: '700' }}>Authorized Signatory</div>
+          <div style={{ fontSize: '9.5px', color: '#000', fontWeight: '700' }}>Authorized Signatory</div>
         </div>
       </div>
 
       {/* ══ NOTES + T&C ══ */}
       <div style={{ display: 'flex', border: bdr, borderTop: 'none' }}>
-        <div style={{ flex: 1, padding: '4px 8px', borderRight: bdr, fontSize: '8.5px', fontWeight: '700', color: '#000' }}>
+        <div style={{ flex: 1, padding: '5px 10px', borderRight: bdr, fontSize: '10px', fontWeight: '700', color: '#000' }}>
           <b>Notes:</b> {invoice.notes || 'Thank you for the Business'}
         </div>
-        <div style={{ flex: 2, padding: '4px 8px', fontSize: '8.5px', fontWeight: '700', color: '#000' }}>
+        <div style={{ flex: 2, padding: '5px 10px', fontSize: '10px', fontWeight: '700', color: '#000' }}>
           <b>Terms & Conditions:</b>
-          <ol style={{ paddingLeft: '12px', lineHeight: 1.5, margin: 0 }}>
+          <ol style={{ paddingLeft: '14px', lineHeight: 1.5, margin: 0 }}>
             <li>Goods once sold cannot be taken back or exchanged.</li>
             <li>Interest @18% p.a. will be charged for uncleared bills beyond 30 days.</li>
             <li>Subject to Maharashtra jurisdiction only.</li>
@@ -374,7 +374,7 @@ export default function InvoicePrint({ invoice, items, org }) {
       </div>
 
       {/* ══ FOOTER ══ */}
-      <div style={{ marginTop: '4px', fontSize: '7.5px', color: '#666', display: 'flex', justifyContent: 'space-between', fontWeight: '600' }}>
+      <div style={{ marginTop: '4px', fontSize: '9px', color: '#666', display: 'flex', justifyContent: 'space-between', fontWeight: '600' }}>
         <span>Page 1 / 1</span>
         <span>Computer generated document</span>
       </div>
