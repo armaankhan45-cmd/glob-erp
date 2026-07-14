@@ -135,7 +135,7 @@ export default function Sidebar({ isOpen, onClose }) {
           <div className="relative">
             <button onClick={() => setShowColors(!showColors)}
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 btn-shine"
-              style={{ background: `rgba(${hexToRgb(accentColor)}, 0.08)`, border: `1px solid rgba(${hexToRgb(accentColor)}, 0.15)`, color: '#fff' }}>
+              style={{ background: `rgba(${hexToRgb(accentColor)}, 0.08)`, border: `1px solid rgba(${hexToRgb(accentColor)}, 0.15)`, color: 'var(--text-bright)' }}>
               <Palette size={16} style={{ color: accentColor }} />
               <span>Theme: {themes[themeKey]?.name}</span>
               <div className="w-4 h-4 rounded-full ml-auto" style={{ background: accentColor, boxShadow: `0 0 8px rgba(${hexToRgb(accentColor)}, 0.5)` }}></div>
@@ -174,7 +174,7 @@ export default function Sidebar({ isOpen, onClose }) {
                 <div className="text-[10px] font-bold mt-0.5" style={{ color: accentColor }}>
                   {user?.role === 'admin' ? '⚡ Admin' : user?.role || 'User'}
                 </div>
-                <div className="text-[9px] font-medium truncate mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                <div className="text-[9px] font-medium truncate mt-0.5" style={{ color: 'var(--text-muted)' }}>
                   {user?.email || 'admin@globfabrication.com'}
                 </div>
               </div>
@@ -185,7 +185,7 @@ export default function Sidebar({ isOpen, onClose }) {
           <div className="flex gap-2">
             <button onClick={() => window.location.reload()}
               className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-[11px] font-semibold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] btn-shine"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#c8cad0' }}>
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }}>
               <RefreshCw size={12} /> Refresh
             </button>
             <button onClick={handleLogout}
