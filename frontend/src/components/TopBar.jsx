@@ -21,7 +21,7 @@ export default function TopBar() {
           <h2 className="text-sm font-bold tracking-tight text-white">
             {emoji} {greeting}, <span className="glow-text">{user?.name?.split(' ')[0] || 'Admin'}</span>
           </h2>
-          <p className="text-[10px] font-medium" style={{ color: 'rgba(255,255,255,0.35)' }}>
+          <p className="text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>
             {user?.organization?.name || 'Glob ERP'}
           </p>
         </div>
@@ -35,7 +35,7 @@ export default function TopBar() {
             boxShadow: searchFocus ? '0 0 20px rgba(var(--accent-rgb),0.1)' : 'none',
             width: searchFocus ? '260px' : '200px'
           }}>
-          <Search size={14} style={{ color: searchFocus ? 'var(--accent)' : 'rgba(255,255,255,0.3)', transition: 'color 0.2s ease' }} />
+          <Search size={14} style={{ color: searchFocus ? 'var(--accent)' : 'var(--text-muted)', transition: 'color 0.2s ease' }} />
           <input
             value={searchVal}
             onChange={e => setSearchVal(e.target.value)}
@@ -43,11 +43,11 @@ export default function TopBar() {
             onBlur={() => setSearchFocus(false)}
             placeholder="Search invoices, customers..."
             className="bg-transparent border-none outline-none text-xs font-medium flex-1"
-            style={{ color: '#fff' }}
+            style={{ color: 'var(--text-bright)' }}
           />
           {searchVal && (
             <button onClick={() => setSearchVal('')} className="transition-all duration-200 hover:scale-110">
-              <X size={12} style={{ color: 'rgba(255,255,255,0.4)' }} />
+              <X size={12} style={{ color: 'var(--text-muted)' }} />
             </button>
           )}
         </div>
@@ -93,9 +93,9 @@ export default function TopBar() {
           </div>
           <div className="hidden sm:block">
             <p className="text-xs font-semibold text-white leading-tight">{user?.name || 'User'}</p>
-            <p className="text-[10px] leading-tight font-medium" style={{ color: 'rgba(255,255,255,0.5)' }}>{user?.email || ''}</p>
+            <p className="text-[10px] leading-tight font-medium" style={{ color: 'var(--text-muted)' }}>{user?.email || ''}</p>
           </div>
-          <ChevronDown size={14} style={{ color: 'rgba(255,255,255,0.4)' }} />
+          <ChevronDown size={14} style={{ color: 'var(--text-muted)' }} />
         </div>
       </div>
     </header>
