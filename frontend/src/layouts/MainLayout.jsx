@@ -42,20 +42,25 @@ export default function MainLayout() {
   const [aiInput, setAiInput] = useState('')
   const [aiMessages, setAiMessages] = useState([{ role: 'assistant', content: 'Hi! 👋 I\'m your **Nebula AI** assistant. What do you need?' }])
   const [aiLoading, setAiLoading] = useState(false)
-  const [aiStatus, setAiStatus] = useState(null)
+  const [loaded, setLoaded] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
   const miniChatRef = useRef(null)
 
-  useEffect(() => { api.get('/ai/status').then(res => setAiStatus(res.data)).catch(() => {}) }, [])
-  
-  // Close AI chat on route change (no page remount!)
-  useEffect(() => { setAiOpen(false) }, [location.pathname])
+  // ═══ PAGE TRANSITION — Fade out overlay on first load ═══
+  useEffect(() => {
+    const timer = setTimeout(() => setLoaded(true), 600)
+    return () => clearTimeout(timer)
+  }, [])
 
+  useEffect(() => { api.get('/ai/status').then(res => setAiStatus(res.data)).catch(() => {}) }, [])
+  useEffect(() => { setAiOpen(false) }, [location.pathname])
   useEffect(() => {
     function handleClick(e) { if (aiOpen && miniChatRef.current && !miniChatRef.current.contains(e.target)) { const btn = document.getElementById('ai-float-btn'); if (btn && btn.contains(e.target)) return; setAiOpen(false) } }
     document.addEventListener('mousedown', handleClick); return () => document.removeEventListener('mousedown', handleClick)
   }, [aiOpen])
+
+  const [aiStatus, setAiStatus] = useState(null)
 
   const aiSend = useCallback(async (text) => {
     if (!text.trim() || aiLoading) return
@@ -70,11 +75,21 @@ export default function MainLayout() {
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#080b14' }}>
+      {/* ═══ Page Transition Overlay ═══ */}
+      <div className="page-transition-overlay" style={{ opacity: loaded ? 0 : 1, pointerEvents: loaded ? 'none' : 'all' }}>
+        <div className="page-transition-logo">
+          <div style={{ width: 48, height: 48, borderRadius: 14, background: 'linear-gradient(135deg, var(--accent), var(--accent-light))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 900, fontSize: 20, boxShadow: '0 0 30px rgba(var(--accent-rgb),0.3)' }}>G</div>
+          <div style={{ marginTop: 12, fontSize: 11, fontWeight: 700, color: 'var(--accent)', letterSpacing: 3, textTransform: 'uppercase' }}>Loading</div>
+          <div style={{ width: 120, height: 3, borderRadius: 2, background: 'rgba(var(--accent-rgb),0.15)', marginTop: 8, overflow: 'hidden' }}>
+            <div style={{ width: '40%', height: '100%', borderRadius: 2, background: 'var(--accent)', animation: 'loadSlide 1s ease-in-out infinite' }}></div>
+          </div>
+        </div>
+      </div>
+
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex-1 flex flex-col overflow-hidden" style={{ background: '#080b14' }}>
-        <div className="lg:hidden"><button onClick={() => setSidebarOpen(true)} className="p-4" style={{ color: 'rgba(255,255,255,0.6)' }}><Menu size={24} /></button></div>
+        <div className="lg:hidden"><button onClick={() => setSidebarOpen(true)} className="p-4" style={{ color: 'var(--text-secondary)' }}><Menu size={24} /></button></div>
         <TopBar />
-        {/* NO key prop, NO animation that starts at opacity:0 — prevents white flash */}
         <main className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth" style={{ background: '#080b14' }}>
           <Outlet />
         </main>
@@ -87,12 +102,9 @@ export default function MainLayout() {
               <div className="px-4 py-3 flex items-center justify-between flex-shrink-0" style={{ background: 'rgba(6,182,212,0.06)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #06b6d4, #a855f7, #4f8fff)' }}><Bot size={16} className="text-white" /></div>
-                  <div><span className="font-bold text-sm text-white">AI Assistant</span><div className="text-[10px]" style={{ color: 'rgba(255,255,255,0.35)' }}>🆓 {aiStatus?.primaryProvider || 'Free AI'}</div></div>
+                  <div><span className="font-bold text-sm text-white">AI Assistant</span><div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>🆓 {aiStatus?.primaryProvider || 'Free AI'}</div></div>
                 </div>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => { setAiOpen(false); navigate('/app/ai-assistant') }} className="p-1.5 rounded-lg hover:bg-white/5" style={{ color: 'rgba(255,255,255,0.4)' }}><Bot size={14} /></button>
-                  <button onClick={() => setAiOpen(false)} className="p-1.5 rounded-lg hover:bg-white/5" style={{ color: 'rgba(255,255,255,0.4)' }}><X size={14} /></button>
-                </div>
+                <button onClick={() => setAiOpen(false)} className="p-1.5 rounded-lg hover:bg-white/5" style={{ color: 'var(--text-muted)' }}><X size={14} /></button>
               </div>
               <div className="flex-1 overflow-y-auto p-3 space-y-3" style={{ maxHeight: '340px', minHeight: '200px' }}>
                 {aiMessages.map((m, i) => (
@@ -104,21 +116,37 @@ export default function MainLayout() {
                     </div>
                   </div>
                 ))}
-                {aiLoading && <div className="flex justify-start"><div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mr-2" style={{ background: 'linear-gradient(135deg, #06b6d4, #a855f7)' }}><Bot size={12} className="text-white" /></div><div className="rounded-xl px-3 py-2" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}><div className="flex items-center gap-2"><div className="flex gap-1"><div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: 'var(--accent)' }}></div><div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: '#a855f7', animationDelay: '150ms' }}></div><div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: '#4f8fff', animationDelay: '300ms' }}></div></div><span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>Thinking...</span></div></div></div>}
+                {aiLoading && <div className="flex justify-start"><div className="rounded-xl px-3 py-2" style={{ background: 'var(--surface-glass)' }}><div className="flex items-center gap-2"><div className="flex gap-1"><div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: 'var(--accent)' }}></div><div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: '#a855f7', animationDelay: '150ms' }}></div></div><span className="text-[10px]" style={{ color: 'var(--text-faint)' }}>Thinking...</span></div></div></div>}
               </div>
-              {aiMessages.length <= 1 && <div className="px-3 pb-2 flex flex-wrap gap-1">{['🔍 Diagnose', '⚠️ Errors', '🚀 Deploy', '🔧 Fix'].map(s => <button key={s} onClick={() => aiSend(s.replace(/^[^\s]+\s/, ''))} className="text-[10px] px-2 py-1 rounded-lg chip" style={{ background: 'rgba(var(--accent-rgb),0.08)', color: 'var(--accent)', border: '1px solid rgba(var(--accent-rgb),0.15)' }}>{s}</button>)}</div>}
               <div className="flex gap-2 p-3 flex-shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                <input type="text" value={aiInput} onChange={e => setAiInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); aiSend(aiInput) } }} placeholder="Ask me anything..." disabled={aiLoading} className="flex-1 text-xs px-3 py-2 rounded-xl disabled:opacity-50" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff' }} />
+                <input type="text" value={aiInput} onChange={e => setAiInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); aiSend(aiInput) } }} placeholder="Ask me anything..." disabled={aiLoading} className="flex-1 text-xs px-3 py-2 rounded-xl disabled:opacity-50" style={{ background: 'var(--surface-glass)', border: '1px solid var(--border-glass-md)', color: 'var(--text-bright)' }} />
                 <button onClick={() => aiSend(aiInput)} disabled={aiLoading || !aiInput.trim()} className="p-2 rounded-xl text-white disabled:opacity-50" style={{ background: 'linear-gradient(135deg, var(--accent), #a855f7)' }}><Send size={14} /></button>
               </div>
             </div>
           )}
-          <button id="ai-float-btn" onClick={() => setAiOpen(!aiOpen)} className="fab"
-            style={{ background: aiOpen ? '#ef4444' : 'linear-gradient(135deg, var(--accent), #a855f7, #4f8fff)', animation: aiOpen ? 'none' : 'pulseGlow 3s ease-in-out infinite' }}>
+          <button id="ai-float-btn" onClick={() => setAiOpen(!aiOpen)} className="fab" style={{ background: aiOpen ? '#ef4444' : 'linear-gradient(135deg, var(--accent), #a855f7, #4f8fff)', animation: aiOpen ? 'none' : 'pulseGlow 3s ease-in-out infinite' }}>
             {aiOpen ? <X size={24} /> : <Bot size={24} />}
           </button>
         </>
       )}
+
+      {/* ═══ Premium Animation Keyframes ═══ */}
+      <style>{`
+        .page-transition-overlay {
+          position: fixed; inset: 0; z-index: 100000;
+          background: #06080f; display: flex; align-items: center; justify-content: center;
+          transition: opacity 0.6s cubic-bezier(0.16,1,0.3,1);
+        }
+        .page-transition-logo {
+          display: flex; flex-direction: column; align-items: center; gap: 0;
+        }
+        @keyframes loadSlide {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(350%); }
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes ripple { to { transform: scale(4); opacity: 0; } }
+      `}</style>
     </div>
   )
 }
