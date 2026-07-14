@@ -271,14 +271,7 @@ export default function QuotationDetail() {
         </div>
 
         {/* Sign space — guaranteed at bottom */}
-        <div style={{ height: '35mm', flexShrink: 0, margin: '0 10mm', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-          <div style={{ borderTop: '1.5px solid #000', paddingTop: '4mm', display: 'flex', justifyContent: 'flex-end' }}>
-            <div style={{ textAlign: 'center', width: '60mm' }}>
-              <div style={{ minHeight: '15mm' }}></div>
-              <div style={{ borderTop: '1.5px solid #000', fontSize: '10pt', fontWeight: 'bold', color: '#000', paddingTop: '2mm' }}>Authorised Signatory</div>
-            </div>
-          </div>
-        </div>
+        <div style={{ height: '35mm', flexShrink: 0, margin: '0 10mm' }}></div>
       </div>
     </div>
   )
