@@ -24,6 +24,10 @@ export function ThemeProvider({ children }) {
   const [themeKey, setThemeKey] = useState(() => {
     return localStorage.getItem('glob-theme') || 'cyan'
   })
+  // ═══════════════════════════════════════════
+  // DAY / NIGHT MODE — stored in localStorage
+  // 'dark' = Nebula dark, 'light' = clean light
+  // ═══════════════════════════════════════════
   const [mode, setMode] = useState(() => {
     return localStorage.getItem('glob-mode') || 'dark'
   })
@@ -40,6 +44,7 @@ export function ThemeProvider({ children }) {
     }
   }, [themeKey])
 
+  // Apply mode class to HTML root
   useEffect(() => {
     const root = document.documentElement
     if (mode === 'light') {
@@ -73,10 +78,8 @@ export function useTheme() {
 
 export { THEMES }
 
-const basename = window.location.hostname.includes('github.io') ? '/glob-erp' : ''
-
 ReactDOM.createRoot(document.getElementById('root')).render(
-  <BrowserRouter basename={basename}>
+  <BrowserRouter>
     <AuthProvider>
       <ThemeProvider>
         <App />
