@@ -1,0 +1,20 @@
+{
+  "name": "Glob ERP",
+  "short_name": "GlobERP",
+  "description": "GST-Compliant Fabrication & Manufacturing ERP",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#080b14",
+  "theme_color": "#06b6d4",
+  "orientation": "any",
+  "scope": "/",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "categories": ["business", "finance", "productivity"],
+  "shortcuts": [
+    { "name": "New Invoice", "url": "/app/invoices/new", "icons": [{"src": "/icon-192.png", "sizes": "192x192"}] },
+    { "name": "Dashboard", "url": "/app/dashboard", "icons": [{"src": "/icon-192.png", "sizes": "192x192"}] }
+  ]
+}
