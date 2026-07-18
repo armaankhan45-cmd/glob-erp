@@ -1,12 +1,13 @@
 {
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/dist",
-  "rewrites": [
-    { "source": "/sw.js", "destination": "/sw.js" },
-    { "source": "/manifest.json", "destination": "/manifest.json" },
-    { "source": "/icon-192.png", "destination": "/icon-192.png" },
-    { "source": "/icon-512.png", "destination": "/icon-512.png" },
-    { "source": "/favicon.ico", "destination": "/favicon.ico" },
-    { "source": "/(.*)", "destination": "/index.html" }
+  "routes": [
+    { "src": "/sw.js", "dest": "/sw.js" },
+    { "src": "/manifest.json", "dest": "/manifest.json" },
+    { "src": "/icon-192.png", "dest": "/icon-192.png" },
+    { "src": "/icon-512.png", "dest": "/icon-512.png" },
+    { "src": "/favicon.ico", "dest": "/favicon.ico" },
+    { "src": "/assets/(.*)", "dest": "/assets/$1" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
