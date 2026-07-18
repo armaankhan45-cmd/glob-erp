@@ -5,20 +5,12 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
-    hmr: {
-      overlay: true,
-    },
-    proxy: {
-      '/api': {
-        target: 'http://localhost:5000',
-        changeOrigin: true
-      }
-    }
+    hmr: { overlay: true },
+    proxy: { '/api': { target: 'http://localhost:5000', changeOrigin: true } }
   },
   build: {
     outDir: 'dist',
     sourcemap: false,
-    // Optimize for performance
     minify: 'esbuild',
     target: 'es2020',
     rollupOptions: {
@@ -30,11 +22,6 @@ export default defineConfig({
       }
     }
   },
-  // High refresh rate optimizations
-  esbuild: {
-    logOverride: { 'this-is-undefined-in-esm': 'silent' },
-  },
-  optimizeDeps: {
-    include: ['react', 'react-dom', 'react-router-dom', 'axios', 'lucide-react', 'recharts']
-  }
+  esbuild: { logOverride: { 'this-is-undefined-in-esm': 'silent' } },
+  optimizeDeps: { include: ['react', 'react-dom', 'react-router-dom', 'axios', 'lucide-react', 'recharts'] }
 })
