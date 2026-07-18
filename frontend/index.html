@@ -7,7 +7,6 @@
     <meta name="theme-color" content="#06b6d4" />
     <meta name="description" content="Glob ERP - GST Compliant Fabrication Management" />
     <meta name="color-scheme" content="dark" />
-    <!-- High refresh rate: force 60fps+ compositing -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="manifest" href="/manifest.json" />
@@ -17,11 +16,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
-      /* Critical CSS for instant load + smooth animations */
       html { scroll-behavior: smooth; }
       body { margin: 0; background: #080b14; color: #f0f2f5; font-family: 'Inter', sans-serif; }
       #root { min-height: 100vh; }
-      /* Prevent FOUC */
       .loading-screen {
         display: flex; align-items: center; justify-content: center;
         min-height: 100vh; background: #080b14;
@@ -39,18 +36,5 @@
       <div class="loading-screen"><div class="loading-spinner"></div></div>
     </div>
     <script type="module" src="/src/main.jsx"></script>
-    <script>
-      // Register service worker for PWA
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(() => {});
-        });
-      }
-      // High refresh rate: use requestAnimationFrame for smooth updates
-      // Prefers reduced motion check
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        document.documentElement.style.setProperty('--animation-duration', '0s');
-      }
-    </script>
   </body>
 </html>
