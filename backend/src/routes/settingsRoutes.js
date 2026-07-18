@@ -111,4 +111,20 @@ router.post('/upload/signature', auth, adminOnly, upload.single('signature'), as
   }
 });
 
+// Delete uploaded image (logo, stamp, or signature)
+router.delete('/upload/:field', auth, adminOnly, async (req, res) => {
+  try {
+    const allowed = ['logo', 'stamp', 'signature'];
+    const field = req.params.field;
+    if (!allowed.includes(field)) return res.status(400).json({ success: false, msg: 'Invalid field' });
+    const db = getDb();
+    const column = `${field}_url`;
+    await db('organizations').where({ id: req.user.organization_id }).update({ [column]: null });
+    res.json({ success: true, msg: `${field} removed` });
+  } catch (err) {
+    console.error('Delete image error:', err);
+    res.status(500).json({ success: false, msg: 'Delete failed' });
+  }
+});
+
 module.exports = router;
