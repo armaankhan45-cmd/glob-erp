@@ -21,16 +21,8 @@ const THEMES = {
 const ThemeContext = createContext()
 
 export function ThemeProvider({ children }) {
-  const [themeKey, setThemeKey] = useState(() => {
-    return localStorage.getItem('glob-theme') || 'cyan'
-  })
-  // ═══════════════════════════════════════════
-  // DAY / NIGHT MODE — stored in localStorage
-  // 'dark' = Nebula dark, 'light' = clean light
-  // ═══════════════════════════════════════════
-  const [mode, setMode] = useState(() => {
-    return localStorage.getItem('glob-mode') || 'dark'
-  })
+  const [themeKey, setThemeKey] = useState(() => localStorage.getItem('glob-theme') || 'cyan')
+  const [mode, setMode] = useState(() => localStorage.getItem('glob-mode') || 'dark')
 
   useEffect(() => {
     const theme = THEMES[themeKey]
@@ -44,7 +36,6 @@ export function ThemeProvider({ children }) {
     }
   }, [themeKey])
 
-  // Apply mode class to HTML root
   useEffect(() => {
     const root = document.documentElement
     if (mode === 'light') {
@@ -59,9 +50,7 @@ export function ThemeProvider({ children }) {
     localStorage.setItem('glob-mode', mode)
   }, [mode])
 
-  const toggleMode = () => {
-    setMode(prev => prev === 'dark' ? 'light' : 'dark')
-  }
+  const toggleMode = () => setMode(prev => prev === 'dark' ? 'light' : 'dark')
 
   return (
     <ThemeContext.Provider value={{ themeKey, setThemeKey, themes: THEMES, currentTheme: THEMES[themeKey], mode, setMode, toggleMode }}>
