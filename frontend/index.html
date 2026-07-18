@@ -36,5 +36,23 @@
       <div class="loading-screen"><div class="loading-spinner"></div></div>
     </div>
     <script type="module" src="/src/main.jsx"></script>
+    <!-- Unregister any old broken service workers -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for (var i = 0; i < registrations.length; i++) {
+            registrations[i].unregister();
+            console.log('Unregistered old service worker');
+          }
+        });
+        if ('caches' in window) {
+          caches.keys().then(function(names) {
+            for (var i = 0; i < names.length; i++) {
+              caches.delete(names[i]);
+            }
+          });
+        }
+      }
+    </script>
   </body>
 </html>
