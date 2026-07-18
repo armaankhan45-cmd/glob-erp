@@ -16,6 +16,7 @@ export default function Settings() {
   const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'viewer' })
   const [msg, setMsg] = useState('')
   const [uploading, setUploading] = useState({})
+  const [deleting, setDeleting] = useState({})
 
   useEffect(() => { loadData() }, [])
 
@@ -70,6 +71,17 @@ export default function Settings() {
     setUploading(prev => ({ ...prev, [field]: false }))
   }
 
+  const deleteImage = async (field) => {
+    if (!confirm(`Remove this ${field}? This cannot be undone.`)) return
+    setDeleting(prev => ({ ...prev, [field]: true }))
+    try {
+      await api.delete(`/settings/upload/${field}`)
+      setOrg({ ...org, [`${field}_url`]: null })
+      setMsg(`✓ ${field.charAt(0).toUpperCase() + field.slice(1)} removed!`)
+    } catch (err) { setMsg(`✗ Failed to remove ${field}`) }
+    setDeleting(prev => ({ ...prev, [field]: false }))
+  }
+
   const handleChangePassword = async () => {
     try {
       await api.post('/auth/change-password', passwordForm)
@@ -90,12 +102,28 @@ export default function Settings() {
 
   const UploadRow = ({ label, field, accept='.png,.jpg,.jpeg,.webp', previewUrl, circular }) => (
     <div className="flex items-center gap-4 flex-wrap">
-      {previewUrl && (
-        <div style={{ width: '64px', height: circular ? '64px' : '48px', borderRadius: circular ? '50%' : '4px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.15)', flexShrink: 0 }}>
-          <img src={previewUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+      {previewUrl ? (
+        <div className="flex items-center gap-3">
+          <div style={{ width: '64px', height: circular ? '64px' : '48px', borderRadius: circular ? '50%' : '4px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.15)', flexShrink: 0 }}>
+            <img src={previewUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          </div>
+          <button
+            onClick={() => deleteImage(field)}
+            disabled={deleting[field]}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+            style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171' }}
+          >
+            <Trash2 size={12} /> {deleting[field] ? 'Removing...' : 'Remove'}
+          </button>
         </div>
+      ) : (
+        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>No image uploaded</span>
       )}
-      <input type="file" accept={accept} onChange={e => uploadImage(field, e.target.files[0])} className="text-sm" />
+      <label className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all"
+        style={{ background: 'rgba(var(--accent-rgb),0.1)', border: '1px solid rgba(var(--accent-rgb),0.25)', color: 'var(--accent)' }}>
+        <Upload size={12} /> {previewUrl ? 'Replace' : 'Upload'}
+        <input type="file" accept={accept} onChange={e => uploadImage(field, e.target.files[0])} className="hidden" />
+      </label>
       {uploading[field] && <span className="text-xs accent-text">Uploading...</span>}
       <span className="text-xs text-white/30">Max 2MB</span>
     </div>
@@ -143,11 +171,11 @@ export default function Settings() {
           <UploadRow label="Logo" field="logo" previewUrl={org.logo_url} circular />
         </div>
         <div>
-          <label className="block text-sm font-medium text-white/70 mb-2">Company Stamp / Seal (auto-stamps on invoices)</label>
+          <label className="block text-sm font-medium text-white/70 mb-2">Company Stamp / Seal (auto-stamps on invoices & quotations)</label>
           <UploadRow label="Stamp" field="stamp" previewUrl={org.stamp_url} />
         </div>
         <div>
-          <label className="block text-sm font-medium text-white/70 mb-2">Authorized Signature (auto-signs on invoices)</label>
+          <label className="block text-sm font-medium text-white/70 mb-2">Authorized Signature (auto-signs on invoices & quotations)</label>
           <UploadRow label="Signature" field="signature" previewUrl={org.signature_url} />
         </div>
       </div>
