@@ -2,7 +2,6 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
-  base: '/glob-erp/',
   plugins: [react()],
   server: {
     port: 5173,
@@ -19,6 +18,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
+    // Optimize for performance
     minify: 'esbuild',
     target: 'es2020',
     rollupOptions: {
@@ -30,6 +30,7 @@ export default defineConfig({
       }
     }
   },
+  // High refresh rate optimizations
   esbuild: {
     logOverride: { 'this-is-undefined-in-esm': 'silent' },
   },
