@@ -74,11 +74,16 @@ function ClassicLayout({ quotation, items, org, boldOn, customerSize, qNum, gstR
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   PRO LAYOUT — With letterhead, stamp, signature, navy accents
+   PRO LAYOUT — With letterhead image header, stamp, signature
+   Matches the company's printed letterhead format
    ═══════════════════════════════════════════════════════════════ */
 function ProLayout({ quotation, items, org, boldOn, customerSize, qNum, gstRate, totalGST, subtotal, totalAmount, amountWords }) {
   const NAVY = '#1a2744'
   const bdr = '1px solid #bbb'
+
+  // Company details from org settings
+  const companyName = (org?.name || 'GLOB FABRICATION AND ENTERPRISES').toUpperCase()
+  const hasLetterhead = !!org?.logo_url
 
   return (
     <div className="bg-white shadow-lg mx-auto print-area" style={{
@@ -89,29 +94,56 @@ function ProLayout({ quotation, items, org, boldOn, customerSize, qNum, gstRate,
       WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact',
       display: 'flex', flexDirection: 'column'
     }}>
-      {/* ══ HEADER with logo + company info ══ */}
-      <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, background: '#f5f7fa', borderTop: `4px solid ${NAVY}`, borderBottom: `2px solid ${NAVY}` }}>
-        <div style={{ width: 60, height: 60, flexShrink: 0, borderRadius: 6, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${NAVY}` }}>
-          {org?.logo_url
-            ? <img src={org.logo_url} style={{ width: 52, height: 52, objectFit: 'contain', borderRadius: 4 }} alt="Logo" />
-            : <span style={{ fontSize: 9, color: NAVY, fontWeight: 800 }}>LOGO</span>
-          }
+      {/* ══ LETTERHEAD HEADER ══ */}
+      {/* Top accent stripe - matches the dark strip on the scanned letterhead */}
+      <div style={{ height: 4, background: NAVY }}></div>
+
+      {hasLetterhead ? (
+        /* ══ HEADER WITH LOGO — matches letterhead style ══ */
+        <div style={{ padding: '10px 14px 8px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: `2px solid ${NAVY}` }}>
+          {/* Logo */}
+          <div style={{ width: 70, height: 70, flexShrink: 0, borderRadius: 4, overflow: 'hidden', border: `2px solid ${NAVY}`, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <img src={org.logo_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} alt="Logo" />
+          </div>
+          {/* Company name + details */}
+          <div style={{ flex: 1, textAlign: 'center' }}>
+            <div style={{ fontSize: '17pt', fontWeight: 900, color: '#1a1a2e', letterSpacing: 2, textTransform: 'uppercase', lineHeight: 1.2 }}>{companyName}</div>
+            <div style={{ fontSize: '9pt', color: '#333', marginTop: 3, fontWeight: 600, lineHeight: 1.5 }}>
+              {[org?.address, org?.city, org?.state, org?.pincode].filter(Boolean).join(', ')}
+            </div>
+            <div style={{ fontSize: '9pt', color: '#333', fontWeight: 600 }}>
+              {org?.phone ? `Ph: ${org.phone}` : ''}{org?.email ? `  |  ${org.email}` : ''}
+            </div>
+            {org?.gstin && (
+              <span style={{ display: 'inline-block', background: NAVY, color: '#fff', padding: '1px 10px', borderRadius: 3, fontSize: '8.5pt', fontWeight: 700, marginTop: 3, letterSpacing: 0.5 }}>GSTIN: {org.gstin}</span>
+            )}
+          </div>
+          {/* Right spacer to balance logo */}
+          <div style={{ width: 70, flexShrink: 0 }}></div>
         </div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: '16pt', fontWeight: 900, color: '#1a1a2e', letterSpacing: 1.5, textTransform: 'uppercase' }}>{(org?.name || 'GLOB FABRICATION AND ENTERPRISES').toUpperCase()}</div>
-          {org?.gstin && <span style={{ display: 'inline-block', background: NAVY, color: '#fff', padding: '1px 8px', borderRadius: 3, fontSize: '9pt', fontWeight: 700, marginTop: 2, letterSpacing: 0.5 }}>GSTIN: {org.gstin}</span>}
+      ) : (
+        /* ══ HEADER WITHOUT LOGO — still looks professional ══ */
+        <div style={{ padding: '12px 14px 8px', textAlign: 'center', borderBottom: `2px solid ${NAVY}` }}>
+          <div style={{ fontSize: '18pt', fontWeight: 900, color: '#1a1a2e', letterSpacing: 2.5, textTransform: 'uppercase' }}>{companyName}</div>
           <div style={{ fontSize: '9pt', color: '#333', marginTop: 2, fontWeight: 600 }}>{[org?.address, org?.city, org?.state, org?.pincode].filter(Boolean).join(', ')}</div>
-          <div style={{ fontSize: '9pt', color: '#333', fontWeight: 600 }}>{org?.phone ? `Ph: ${org.phone}` : ''}{org?.email ? `  ✉ ${org.email}` : ''}</div>
+          <div style={{ fontSize: '9pt', color: '#333', fontWeight: 600 }}>{org?.phone ? `Ph: ${org.phone}` : ''}{org?.email ? `  |  ${org.email}` : ''}</div>
+          {org?.gstin && <span style={{ display: 'inline-block', background: NAVY, color: '#fff', padding: '1px 10px', borderRadius: 3, fontSize: '8.5pt', fontWeight: 700, marginTop: 3 }}>GSTIN: {org.gstin}</span>}
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: '16pt', fontWeight: 900, color: NAVY, letterSpacing: 3 }}>QUOTATION</div>
-          <div style={{ fontSize: '9pt', color: '#555', fontWeight: 600, marginTop: 2 }}>No: {qNum}</div>
-          {quotation.quotation_date && <div style={{ fontSize: '9pt', color: '#555', fontWeight: 600 }}>Date: {fmtDate(quotation.quotation_date)}</div>}
+      )}
+
+      {/* Thin accent line under header */}
+      <div style={{ height: 2, background: `linear-gradient(90deg, ${NAVY}, #06b6d4, ${NAVY})` }}></div>
+
+      {/* ══ QUOTATION TITLE BAR ══ */}
+      <div style={{ display: 'flex', background: '#f5f7fa', borderBottom: `1.5px solid ${NAVY}`, padding: '6px 14px', alignItems: 'center' }}>
+        <div style={{ flex: 1 }}>
+          <span style={{ fontSize: '14pt', fontWeight: 900, color: NAVY, letterSpacing: 3 }}>QUOTATION</span>
+        </div>
+        <div style={{ textAlign: 'right', fontSize: '9pt', fontWeight: 700, color: '#444' }}>
+          <div>No: <span style={{ color: NAVY, fontSize: '11pt' }}>{qNum}</span></div>
+          {quotation.quotation_date && <div>Date: {fmtDate(quotation.quotation_date)}</div>}
         </div>
       </div>
-
-      {/* Accent stripe */}
-      <div style={{ height: 3, background: `linear-gradient(90deg, ${NAVY}, #06b6d4, ${NAVY})` }}></div>
 
       {/* ══ CUSTOMER INFO BAR ══ */}
       <div style={{ display: 'flex', border: `1.5px solid ${NAVY}`, borderTop: 'none' }}>
@@ -197,7 +229,7 @@ function ProLayout({ quotation, items, org, boldOn, customerSize, qNum, gstRate,
         )}
         {/* Signature + Stamp */}
         <div style={{ flex: 1, padding: '8px 14px', textAlign: 'right', fontSize: '9pt', color: '#000' }}>
-          <div style={{ fontSize: '9pt', fontWeight: 800, color: '#1a1a2e', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>For {(org?.name || '').toUpperCase()}</div>
+          <div style={{ fontSize: '9pt', fontWeight: 800, color: '#1a1a2e', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>For {companyName}</div>
           <div style={{ width: 130, height: 65, display: 'inline-block', position: 'relative', marginTop: 4 }}>
             {org?.stamp_url && <img src={org.stamp_url} style={{ position: 'absolute', width: 130, height: 65, objectFit: 'contain', opacity: 0.85 }} alt="Stamp" />}
             {org?.signature_url && <img src={org.signature_url} style={{ position: 'relative', zIndex: 1, maxHeight: 45, maxWidth: 100, objectFit: 'contain' }} alt="Sign" />}
@@ -209,7 +241,7 @@ function ProLayout({ quotation, items, org, boldOn, customerSize, qNum, gstRate,
       {/* Bottom accent stripe */}
       <div style={{ height: 3, background: `linear-gradient(90deg, ${NAVY}, #06b6d4, ${NAVY})` }}></div>
 
-      {/* Footer note */}
+      {/* Footer */}
       <div style={{ textAlign: 'center', padding: '6px 0', fontSize: '8pt', color: '#999', fontWeight: 600, letterSpacing: 0.5 }}>
         This is a computer generated quotation. • E & O.E
       </div>
