@@ -1,3 +1,9 @@
+import AutoHealErrorBoundary from './components/AutoHealErrorBoundary'
+
+// Wrap your entire app content in the boundary
+<AutoHealErrorBoundary>
+  <AllYourAppRoutes />
+</AutoHealErrorBoundary>
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { Component } from 'react'
 import { useAuth } from './context/AuthContext'
