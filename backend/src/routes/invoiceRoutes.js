@@ -229,7 +229,7 @@ router.get('/:id/pdf', pdfAuth, async (req, res) => {
   } catch (err) { console.error('PDF error:', err); res.status(500).json({ success: false, msg: 'PDF generation failed: ' + err.message }); }
 });
 
-// Email share
+// Email share — uses org SMTP settings first, then env vars
 router.post('/:id/share-email', pdfAuth, async (req, res) => {
   try {
     const { to } = req.body;
@@ -241,15 +241,21 @@ router.post('/:id/share-email', pdfAuth, async (req, res) => {
     const org = await db('organizations').where({ id: req.user.organization_id }).first();
     const invNum = (invoice.invoice_number || '').split('/')[0];
     const total = formatIndian(invoice.total_amount);
+    const layout = req.query.layout || 'pro';
+    const html = layout === 'pro' ? generateProInvoiceHTML(invoice, items, org) : generateClassicInvoiceHTML(invoice, items, org);
     try {
       const nodemailer = require('nodemailer');
-      const smtpHost = process.env.SMTP_HOST;
-      if (!smtpHost) throw new Error('SMTP not configured');
-      const transporter = nodemailer.createTransport({ host: smtpHost, port: parseInt(process.env.SMTP_PORT) || 587, secure: false, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } });
-      const html = generateProInvoiceHTML(invoice, items, org);
-      await transporter.sendMail({ from: `"${org.name || 'Glob ERP'}" <${process.env.SMTP_USER}>`, to, subject: `Tax Invoice ${invNum} - ${org.name || 'Our Company'}`, html: `<p>Dear ${invoice.customer_name || 'Customer'},</p><p>Please find your tax invoice attached:</p><p>Invoice No: ${invNum}<br>Total Amount: ₹${total}</p><p>Thank you for your business.</p><p>Best regards,<br>${org.name || 'Our Company'}</p>`, attachments: [{ filename: `Invoice_${invNum.replace(/\//g, '-')}.html`, content: html, contentType: 'text/html' }] });
+      // Use org SMTP settings first, fallback to env vars
+      const smtpHost = org.smtp_host || process.env.SMTP_HOST;
+      const smtpPort = parseInt(org.smtp_port || process.env.SMTP_PORT || '587');
+      const smtpUser = org.smtp_user || process.env.SMTP_USER;
+      const smtpPass = org.smtp_pass || process.env.SMTP_PASS;
+      if (!smtpHost || !smtpUser || !smtpPass) throw new Error('SMTP not configured. Go to Settings → Email Settings to configure Gmail SMTP.');
+      const secure = smtpPort === 465;
+      const transporter = nodemailer.createTransport({ host: smtpHost, port: smtpPort, secure, auth: { user: smtpUser, pass: smtpPass } });
+      await transporter.sendMail({ from: `"${org.name || 'Glob ERP'}" <${smtpUser}>`, to, subject: `Tax Invoice ${invNum} - ${org.name || 'Our Company'}`, html: `<p>Dear ${invoice.customer_name || 'Customer'},</p><p>Please find your tax invoice attached:</p><p>Invoice No: ${invNum}<br>Total Amount: ₹${total}</p><p>Thank you for your business.</p><p>Best regards,<br>${org.name || 'Our Company'}</p>`, attachments: [{ filename: `Invoice_${invNum.replace(/\//g, '-')}.html`, content: html, contentType: 'text/html' }] });
       return res.json({ success: true, msg: 'Invoice sent via email!' });
-    } catch (smtpErr) { return res.json({ success: false, msg: 'SMTP not configured. Use mailto fallback.' }); }
+    } catch (smtpErr) { return res.json({ success: false, msg: smtpErr.message || 'SMTP not configured. Use mailto fallback.' }); }
   } catch (err) { console.error('Share email error:', err); res.status(500).json({ success: false, msg: 'Failed: ' + err.message }); }
 });
 
@@ -411,7 +417,7 @@ function generateProInvoiceHTML(invoice, items, org) {
     </div>
     <div style="flex:1">
       <h1 style="font-size:20px;font-weight:900;color:#1a1a2e;letter-spacing:2px;line-height:1.2;margin:0 0 3px">${(org.name || 'GLOB FABRICATION AND ENTERPRISES').toUpperCase()}</h1>
-      ${org.gstin ? `<span style="display:inline-block;background:${NAVY};color:#fff;padding:2px 10px;border-radius:3px;font-size:11px;font-weight:700;letter-spacing:0.5px">GSTIN: ${org.gstin}</span>` : ''}
+      ${org.gstin ? `<span style="display:inline-block;background:#e8ecf1;color:${NAVY};padding:3px 12px;border-radius:4px;font-size:12px;font-weight:800;letter-spacing:0.5px;border:2px solid ${NAVY};box-shadow:0 1px 3px rgba(0,0,0,0.12)">GSTIN: ${org.gstin}</span>` : ''}
       <div style="font-size:11.5px;color:#333;margin-top:2px;line-height:1.4;font-weight:600">${[org.address, org.city, org.state, org.pincode ? 'PIN: ' + org.pincode : ''].filter(Boolean).join(', ')}</div>
       <div style="font-size:11.5px;color:#333;margin-top:1px;line-height:1.4;font-weight:600">${org.phone ? '&#128222; ' + org.phone : ''}${org.email ? ' &#9993; ' + org.email : ''}</div>
     </div>
@@ -513,9 +519,9 @@ function generateProInvoiceHTML(invoice, items, org) {
     </div>
     <div style="padding:14px 20px;font-size:12.5px;text-align:right;color:#000">
       <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:1px;color:#666;font-weight:700;margin-bottom:6px">For ${(org.name || '').toUpperCase()}</div>
-      <div style="width:130px;height:70px;display:inline-block;position:relative;margin-top:8px">
-        ${org.stamp_url ? `<img src="${org.stamp_url}" style="position:absolute;width:130px;height:70px;object-fit:contain;opacity:0.85">` : ''}
-        ${org.signature_url ? `<img src="${org.signature_url}" style="position:relative;z-index:1;max-height:50px;max-width:100px;object-fit:contain">` : ''}
+      <div style="width:130px;height:70px;display:inline-block;position:relative;margin-top:8px;overflow:hidden">
+        ${org.stamp_url ? `<img src="${org.stamp_url}" style="position:absolute;max-width:130px;max-height:70px;object-fit:contain;opacity:0.85">` : ''}
+        ${org.signature_url ? `<img src="${org.signature_url}" style="position:relative;z-index:1;max-height:45px;max-width:85px;object-fit:contain">` : ''}
       </div>
       <div style="border-top:1.5px solid #000;display:inline-block;padding-top:4px;font-weight:800;font-size:11px;margin-top:6px;color:#000">Authorized Signatory</div>
     </div>
@@ -715,8 +721,8 @@ function generateClassicInvoiceHTML(invoice, items, org) {
     </div>
     <div style="padding:16px 20px;font-size:13px;text-align:right;color:#000">
       <h4 style="margin:0 0 8px;font-weight:800;color:#000">For ${(org.name || '').toUpperCase()}</h4>
-      <div style="width:140px;height:80px;display:inline-block;position:relative;margin-top:10px">
-        ${org.stamp_url ? `<img src="${org.stamp_url}" style="position:absolute;width:140px;height:80px;object-fit:contain;opacity:0.85">` : ''}
+      <div style="width:140px;height:80px;display:inline-block;position:relative;margin-top:10px;overflow:hidden">
+        ${org.stamp_url ? `<img src="${org.stamp_url}" style="position:absolute;max-width:140px;max-height:80px;object-fit:contain;opacity:0.85">` : ''}
         ${org.signature_url ? `<img src="${org.signature_url}" style="position:relative;z-index:1;max-height:55px;max-width:110px;object-fit:contain">` : ''}
       </div>
       <div style="border-top:1px solid #000;display:inline-block;padding-top:4px;font-weight:800;font-size:12px;margin-top:8px;color:#000">Authorized Signatory</div>
