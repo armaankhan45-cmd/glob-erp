@@ -148,7 +148,7 @@ export default function InvoicePrint({ invoice, items, org }) {
           )}
           <div>
             <div style={{ fontSize: '17px', fontWeight: '900', color: '#1a1a2e', letterSpacing: '1.5px', textTransform: 'uppercase' }}>{companyName}</div>
-            {org.gstin && <div style={{ fontSize: '10.5px', color: '#1a1a2e', fontWeight: '700', marginTop: '2px' }}>GSTIN: {org.gstin}</div>}
+            {org.gstin && <div style={{ display: 'inline-block', background: '#e8ecf1', color: '#0d1b2a', padding: '2px 10px', borderRadius: 3, fontSize: '11px', fontWeight: '800', marginTop: '2px', border: '2px solid #0d1b2a', letterSpacing: '0.5px' }}>GSTIN: {org.gstin}</div>}
             <div style={{ fontSize: '10px', color: '#333', marginTop: '1px', fontWeight: '600' }}>
               {[org.address, org.city, org.state, org.pincode].filter(Boolean).join(', ')}
             </div>
