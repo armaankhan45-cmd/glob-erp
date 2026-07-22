@@ -105,7 +105,10 @@ router.post('/test-email', auth, adminOnly, async (req, res) => {
       host: smtpHost,
       port: smtpPort,
       secure,
-      auth: { user: smtpUser, pass: smtpPass }
+      auth: { user: smtpUser, pass: smtpPass },
+      connectionTimeout: 30000,  // 30s to connect
+      greetingTimeout: 30000,    // 30s for SMTP greeting
+      socketTimeout: 30000       // 30s for data transfer
     });
 
     // Verify connection
