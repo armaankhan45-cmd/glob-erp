@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../api/client'
 import { useAuth } from '../context/AuthContext'
-import { Save, Upload, Plus, Eye, EyeOff, Trash2 } from 'lucide-react'
+import { Save, Upload, Plus, Eye, EyeOff, Trash2, Mail, Send } from 'lucide-react'
 
 const FONTS = ['Arial', 'Georgia', 'Times New Roman', 'Courier New', 'Trebuchet MS', 'Verdana', 'Palatino', 'Garamond', 'Book Antiqua', 'Lucida Console']
 
@@ -17,6 +17,9 @@ export default function Settings() {
   const [msg, setMsg] = useState('')
   const [uploading, setUploading] = useState({})
   const [deleting, setDeleting] = useState({})
+  const [testingEmail, setTestingEmail] = useState(false)
+  const [emailMsg, setEmailMsg] = useState('')
+  const [showSmtpPass, setShowSmtpPass] = useState(false)
 
   useEffect(() => { loadData() }, [])
 
@@ -39,7 +42,9 @@ export default function Settings() {
           state_code: org.state_code, pincode: org.pincode, phone: org.phone, email: org.email,
           bank_name: org.bank_name, account_no: org.account_no, ifsc: org.ifsc, upi_id: org.upi_id,
           branch: org.branch, invoice_prefix: org.invoice_prefix, quotation_prefix: org.quotation_prefix,
-          print_letterhead_mm: parseInt(org.print_letterhead_mm) || 65, print_footer_mm: parseInt(org.print_footer_mm) || 50
+          print_letterhead_mm: parseInt(org.print_letterhead_mm) || 65, print_footer_mm: parseInt(org.print_footer_mm) || 50,
+          smtp_host: org.smtp_host || '', smtp_port: org.smtp_port || '587',
+          smtp_user: org.smtp_user || '', smtp_pass: org.smtp_pass || ''
         },
         settings: {
           print_font_size: settings.print_font_size || '10',
@@ -56,6 +61,35 @@ export default function Settings() {
       setMsg('✓ Settings saved successfully!')
     } catch (err) { setMsg('✗ Failed to save settings') }
     finally { setSaving(false) }
+  }
+
+  const handleTestEmail = async () => {
+    setTestingEmail(true); setEmailMsg('')
+    const emailTo = prompt('Enter email to send test to:', org.smtp_user || org.email || '')
+    if (!emailTo) { setTestingEmail(false); return }
+    try {
+      // First save the SMTP settings
+      await api.post('/settings', {
+        organization: {
+          name: org.name, gstin: org.gstin, address: org.address, city: org.city, state: org.state,
+          state_code: org.state_code, pincode: org.pincode, phone: org.phone, email: org.email,
+          bank_name: org.bank_name, account_no: org.account_no, ifsc: org.ifsc, upi_id: org.upi_id,
+          branch: org.branch, invoice_prefix: org.invoice_prefix, quotation_prefix: org.quotation_prefix,
+          print_letterhead_mm: parseInt(org.print_letterhead_mm) || 65, print_footer_mm: parseInt(org.print_footer_mm) || 50,
+          smtp_host: org.smtp_host || '', smtp_port: org.smtp_port || '587',
+          smtp_user: org.smtp_user || '', smtp_pass: org.smtp_pass || ''
+        },
+        settings: { print_font_size: settings.print_font_size || '10', print_font_family: settings.print_font_family || 'Arial',
+          invoice_item_bold: settings.invoice_item_bold || 'false', invoice_desc_size: settings.invoice_desc_size || '10',
+          quotation_font_family: settings.quotation_font_family || 'Georgia', quotation_font_size: settings.quotation_font_size || '9',
+          app_font_family: settings.app_font_family || 'Inter', default_gst_rate: settings.default_gst_rate || '18' }
+      })
+      // Then send test email
+      const res = await api.post('/settings/test-email', { to: emailTo })
+      if (res.data.success) setEmailMsg(`✓ Test email sent to ${emailTo}! Check your inbox.`)
+      else setEmailMsg(`✗ ${res.data.msg}`)
+    } catch (err) { setEmailMsg(`✗ Test failed: ${err.response?.data?.msg || err.message}`) }
+    setTestingEmail(false)
   }
 
   const uploadImage = async (field, file) => {
@@ -257,6 +291,52 @@ export default function Settings() {
           <label className="block text-sm font-medium text-white/70 mb-1">Footer Bottom Space: {org.print_footer_mm || 30}mm</label>
           <input type="range" min="10" max="60" value={org.print_footer_mm || 30} onChange={e => update('print_footer_mm', e.target.value)} className="w-full" />
           <p className="text-xs text-white/30 mt-1">Blank space at bottom for sign/stamp</p>
+        </div>
+      </div>
+
+      {/* ═══ Email Settings (Gmail SMTP) ═══ */}
+      <div className="card space-y-4">
+        <h3 className="font-bold text-lg flex items-center gap-2"><Mail size={20} className="text-blue-400" /> Email Settings (Gmail SMTP)</h3>
+        <p className="text-xs text-white/50 leading-relaxed">
+          Configure Gmail SMTP to send invoices & quotations directly via email from the app.
+          <br />You need a <strong className="text-cyan-400">Google App Password</strong> (NOT your regular Gmail password).
+          <br />Steps: ① Enable 2FA on your Google Account → ② Go to <a href="https://myaccount.google.com/apppasswords" target="_blank" className="text-cyan-400 underline">myaccount.google.com/apppasswords</a> → ③ Generate a 16-char App Password → ④ Enter it below.
+        </p>
+        <div className="grid md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-white/70 mb-1">SMTP Host</label>
+            <input value={org.smtp_host || ''} onChange={e => update('smtp_host', e.target.value)} className="input-field" placeholder="smtp.gmail.com" />
+            <p className="text-xs text-white/30 mt-1">Gmail: smtp.gmail.com</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-white/70 mb-1">SMTP Port</label>
+            <select value={org.smtp_port || '587'} onChange={e => update('smtp_port', e.target.value)} className="input-field">
+              <option value="587">587 (TLS/STARTTLS)</option>
+              <option value="465">465 (SSL)</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-white/70 mb-1">SMTP User (Your Gmail)</label>
+            <input value={org.smtp_user || ''} onChange={e => update('smtp_user', e.target.value)} className="input-field" placeholder="admin@globfabrication.com" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-white/70 mb-1">SMTP Password (App Password)</label>
+            <div className="relative">
+              <input type={showSmtpPass ? 'text' : 'password'} value={org.smtp_pass || ''} onChange={e => update('smtp_pass', e.target.value)} className="input-field pr-10" placeholder="xxxx xxxx xxxx xxxx" />
+              <button onClick={() => setShowSmtpPass(!showSmtpPass)} className="absolute right-2 top-2 text-white/30 hover:text-white/60 transition-colors">
+                {showSmtpPass ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+            <p className="text-xs text-white/30 mt-1">16-character Google App Password</p>
+          </div>
+        </div>
+        {emailMsg && <div className={`p-3 rounded-lg text-sm font-medium ${emailMsg.includes('✗') ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-green-500/10 text-green-400 border border-green-500/20'}`}>{emailMsg}</div>}
+        <div className="flex items-center gap-3">
+          <button onClick={handleTestEmail} disabled={testingEmail} className="btn-secondary flex items-center gap-2">
+            <Send size={16} /> {testingEmail ? 'Sending...' : 'Send Test Email'}
+          </button>
+          {!org.smtp_host && <span className="text-xs text-amber-400">⚠ Not configured — email sharing will use mailto: fallback</span>}
+          {org.smtp_host && org.smtp_user && org.smtp_pass && <span className="text-xs text-emerald-400">✓ SMTP configured</span>}
         </div>
       </div>
 
