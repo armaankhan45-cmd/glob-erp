@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import api from '../api/client'
 import { Plus, Users, CreditCard, FileText, Calculator, TrendingUp, IndianRupee, AlertCircle, UserPlus, ArrowUpRight, ArrowDownRight } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell, Legend, ComposedChart } from 'recharts'
 import GSTCalcModal from '../components/GSTCalcModal'
 import { formatCurrency, formatDate } from '../utils'
 
@@ -202,7 +202,12 @@ export default function Dashboard() {
     { label: 'Customers', value: stats.customerCount || 0, icon: Users, color: '#4f8fff', bg: 'rgba(79,143,255,0.12)', sub: 'In your database', isCurrency: false },
   ]
 
-  const chartData = monthlySales.map(m => ({ ...m, revenue: m.total || m.revenue || 0 }))
+  const chartData = monthlySales.map(m => ({
+    ...m,
+    revenue: m.total || m.revenue || 0,
+    gst: (parseFloat(m.cgst_amount || 0) || 0) + (parseFloat(m.sgst_amount || 0) || 0) + (parseFloat(m.igst_amount || 0) || 0),
+    profit: (m.total || m.revenue || 0) - ((parseFloat(m.cgst_amount || 0) || 0) + (parseFloat(m.sgst_amount || 0) || 0) + (parseFloat(m.igst_amount || 0) || 0)),
+  }))
 
   const gstPie = [
     { name: 'CGST', value: Math.max(0, stats.netPayable?.cgst || 0) },
@@ -350,41 +355,54 @@ export default function Dashboard() {
           <div className="h-64">
             {chartType === 'bar' && (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
+                <ComposedChart data={chartData} barCategoryGap="20%">
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} />
-                  <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} />
-                  <Tooltip formatter={fmtTooltip} contentStyle={{ background: 'rgba(12,16,32,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff', backdropFilter: 'blur(20px)' }} />
-                  <Bar dataKey="revenue" fill="var(--accent)" radius={[6,6,0,0]} name="Revenue" />
-                </BarChart>
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} />
+                  <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} />
+                  <Tooltip formatter={(val, name) => formatCurrency(val)} contentStyle={{ background: 'rgba(12,16,32,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff', backdropFilter: 'blur(20px)' }} />
+                  <Legend wrapperStyle={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }} />
+                  <Bar dataKey="revenue" fill="var(--accent)" radius={[4,4,0,0]} name="Revenue" />
+                  <Bar dataKey="gst" fill="#a855f7" radius={[4,4,0,0]} name="GST" opacity={0.7} />
+                  <Line type="monotone" dataKey="revenue" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3, fill: '#f59e0b' }} name="Trend" />
+                </ComposedChart>
               </ResponsiveContainer>
             )}
             {chartType === 'line' && (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
+                <ComposedChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} />
-                  <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} />
-                  <Tooltip formatter={fmtTooltip} contentStyle={{ background: 'rgba(12,16,32,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} />
-                  <Line type="monotone" dataKey="revenue" stroke="#4f8fff" strokeWidth={2.5} name="Revenue" dot={{ r: 4, fill: '#4f8fff', strokeWidth: 2 }} />
-                </LineChart>
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} />
+                  <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} />
+                  <Tooltip formatter={(val, name) => formatCurrency(val)} contentStyle={{ background: 'rgba(12,16,32,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} />
+                  <Legend wrapperStyle={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }} />
+                  <Line type="monotone" dataKey="revenue" stroke="#4f8fff" strokeWidth={3} name="Revenue" dot={{ r: 5, fill: '#4f8fff', strokeWidth: 2, stroke: '#1a1a2e' }} activeDot={{ r: 7 }} />
+                  <Line type="monotone" dataKey="gst" stroke="#a855f7" strokeWidth={2} name="GST" dot={{ r: 3, fill: '#a855f7' }} />
+                  <Area type="monotone" dataKey="revenue" fill="rgba(79,143,255,0.08)" stroke="none" name="" />
+                </ComposedChart>
               </ResponsiveContainer>
             )}
             {chartType === 'area' && (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData}>
+                <ComposedChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} />
-                  <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} />
-                  <Tooltip formatter={fmtTooltip} contentStyle={{ background: 'rgba(12,16,32,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} />
+                  <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} />
+                  <Tooltip formatter={(val, name) => formatCurrency(val)} contentStyle={{ background: 'rgba(12,16,32,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} />
+                  <Legend wrapperStyle={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }} />
                   <defs>
                     <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--accent)" stopOpacity={0.3} />
+                      <stop offset="5%" stopColor="var(--accent)" stopOpacity={0.4} />
                       <stop offset="95%" stopColor="var(--accent)" stopOpacity={0} />
                     </linearGradient>
+                    <linearGradient id="colorGST" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
+                    </linearGradient>
                   </defs>
-                  <Area type="monotone" dataKey="revenue" stroke="var(--accent)" strokeWidth={2.5} fill="url(#colorRevenue)" name="Revenue" />
-                </AreaChart>
+                  <Area type="monotone" dataKey="revenue" stroke="var(--accent)" strokeWidth={3} fill="url(#colorRevenue)" name="Revenue" />
+                  <Area type="monotone" dataKey="gst" stroke="#a855f7" strokeWidth={2} fill="url(#colorGST)" name="GST" />
+                  <Bar dataKey="profit" fill="#22c55e" radius={[2,2,0,0]} name="Profit" opacity={0.5} barSize={8} />
+                </ComposedChart>
               </ResponsiveContainer>
             )}
           </div>
