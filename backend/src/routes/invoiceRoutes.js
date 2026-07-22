@@ -252,7 +252,7 @@ router.post('/:id/share-email', pdfAuth, async (req, res) => {
       const smtpPass = org.smtp_pass || process.env.SMTP_PASS;
       if (!smtpHost || !smtpUser || !smtpPass) throw new Error('SMTP not configured. Go to Settings → Email Settings to configure Gmail SMTP.');
       const secure = smtpPort === 465;
-      const transporter = nodemailer.createTransport({ host: smtpHost, port: smtpPort, secure, auth: { user: smtpUser, pass: smtpPass } });
+      const transporter = nodemailer.createTransport({ host: smtpHost, port: smtpPort, secure, auth: { user: smtpUser, pass: smtpPass }, connectionTimeout: 30000, greetingTimeout: 30000, socketTimeout: 30000 });
       await transporter.sendMail({ from: `"${org.name || 'Glob ERP'}" <${smtpUser}>`, to, subject: `Tax Invoice ${invNum} - ${org.name || 'Our Company'}`, html: `<p>Dear ${invoice.customer_name || 'Customer'},</p><p>Please find your tax invoice attached:</p><p>Invoice No: ${invNum}<br>Total Amount: ₹${total}</p><p>Thank you for your business.</p><p>Best regards,<br>${org.name || 'Our Company'}</p>`, attachments: [{ filename: `Invoice_${invNum.replace(/\//g, '-')}.html`, content: html, contentType: 'text/html' }] });
       return res.json({ success: true, msg: 'Invoice sent via email!' });
     } catch (smtpErr) { return res.json({ success: false, msg: smtpErr.message || 'SMTP not configured. Use mailto fallback.' }); }
