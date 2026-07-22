@@ -159,6 +159,21 @@ app.get('/api/diagnose/errors', simpleAuth, (req, res) => {
   res.json({ success: true, errors: getRecentErrors(50), count: getRecentErrors(50).length });
 });
 
+// Frontend error reporting endpoint (for auto-heal)
+app.post('/api/diagnose/frontend-error', simpleAuth, async (req, res) => {
+  try {
+    const { message, stack, componentStack, url, userAgent, timestamp } = req.body;
+    console.error('🛡️ FRONTEND ERROR REPORTED:', message);
+    trackError('frontend', { message, stack, componentStack, url, userAgent, timestamp }, { originalUrl: url, method: 'FRONTEND_ERROR' });
+    // Auto-fix: if it's a missing column error, trigger self-heal
+    if (message && message.includes('column') && message.includes('does not exist')) {
+      console.log('🔧 Auto-triggering self-heal for missing column...');
+      try { await selfHeal(db); } catch(e) { console.error('Auto-heal trigger failed:', e.message); }
+    }
+    res.json({ success: true, msg: 'Error recorded', autoFixTriggered: message?.includes('column') });
+  } catch(e) { res.json({ success: true, msg: 'Error logged (fallback)' }); }
+});
+
 // Quick column checker — given a table name, shows what columns exist vs expected
 app.get('/api/diagnose/table/:name', simpleAuth, async (req, res) => {
   try {
