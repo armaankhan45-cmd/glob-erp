@@ -514,9 +514,9 @@ function ProLayout({ inv, items, org, invNum, isPaid, placeOfSupply, invoiceDate
         </div>
         <div style={{ padding: '14px 20px', fontSize: '12.5px', textAlign: 'right', color: '#000' }}>
           <div style={{ fontSize: '10.5px', textTransform: 'uppercase', letterSpacing: 1, color: '#666', fontWeight: 700, marginBottom: 6 }}>For {(org.name || '').toUpperCase()}</div>
-          <div style={{ width: 130, height: 70, display: 'inline-block', position: 'relative', marginTop: 8 }}>
-            {org.stamp_url && <img src={org.stamp_url} style={{ position: 'absolute', width: 130, height: 70, objectFit: 'contain', opacity: 0.85 }} alt="Stamp" />}
-            {org.signature_url && <img src={org.signature_url} style={{ position: 'relative', zIndex: 1, maxHeight: 50, maxWidth: 100, objectFit: 'contain' }} alt="Sign" />}
+          <div style={{ width: 130, height: 70, display: 'inline-block', position: 'relative', marginTop: 8, overflow: 'hidden' }}>
+            {org.stamp_url && <img src={org.stamp_url} style={{ position: 'absolute', maxWidth: 130, maxHeight: 70, objectFit: 'contain', opacity: 0.85 }} alt="Stamp" />}
+            {org.signature_url && <img src={org.signature_url} style={{ position: 'relative', zIndex: 1, maxHeight: 45, maxWidth: 85, objectFit: 'contain' }} alt="Sign" />}
           </div>
           <div style={{ borderTop: '1.5px solid #000', display: 'inline-block', paddingTop: 4, fontWeight: 800, fontSize: 11, marginTop: 6, color: '#000' }}>Authorized Signatory</div>
         </div>
@@ -809,9 +809,9 @@ function ClassicLayout({ inv, items, org, invNum, isPaid, placeOfSupply, invoice
         </div>
         <div style={{ padding: '16px 20px', fontSize: 13, textAlign: 'right', color: '#000' }}>
           <h4 style={{ margin: '0 0 8px', fontWeight: 800, color: '#000' }}>For {(org.name || '').toUpperCase()}</h4>
-          <div style={{ width: 140, height: 80, display: 'inline-block', position: 'relative', marginTop: 10 }}>
-            {org.stamp_url && <img src={org.stamp_url} style={{ position: 'absolute', width: 140, height: 80, objectFit: 'contain', opacity: 0.85 }} alt="Stamp" />}
-            {org.signature_url && <img src={org.signature_url} style={{ position: 'relative', zIndex: 1, maxHeight: 55, maxWidth: 110, objectFit: 'contain' }} alt="Sign" />}
+          <div style={{ width: 140, height: 80, display: 'inline-block', position: 'relative', marginTop: 10, overflow: 'hidden' }}>
+            {org.stamp_url && <img src={org.stamp_url} style={{ position: 'absolute', maxWidth: 140, maxHeight: 80, objectFit: 'contain', opacity: 0.85 }} alt="Stamp" />}
+            {org.signature_url && <img src={org.signature_url} style={{ position: 'relative', zIndex: 1, maxHeight: 50, maxWidth: 95, objectFit: 'contain' }} alt="Sign" />}
           </div>
           <div style={{ borderTop: '1px solid #000', display: 'inline-block', paddingTop: 4, fontWeight: 800, fontSize: 12, marginTop: 8, color: '#000' }}>Authorized Signatory</div>
         </div>
