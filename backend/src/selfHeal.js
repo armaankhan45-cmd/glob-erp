@@ -50,6 +50,10 @@ const TABLE_SCHEMAS = {
       quotation_font_size: { type: 'text' },
       app_font_family: { type: 'text' },
       app_font_size: { type: 'text' },
+      smtp_host: { type: 'text' },
+      smtp_port: { type: 'text' },
+      smtp_user: { type: 'text' },
+      smtp_pass: { type: 'text' },
       created_at: { type: 'timestamp', defaultTo: 'now' },
     }
   },
