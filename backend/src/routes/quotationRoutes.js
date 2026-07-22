@@ -439,27 +439,29 @@ router.post('/:id/share-email', pdfAuth, async (req, res) => {
     const rawNum = (quotation.quotation_number || '').split('/')[0];
     const qNum = rawNum.replace(/^[A-Za-z\-]+/, '').replace(/^0+/, '') || rawNum;
 
-    // Try sending via nodemailer if configured
-    try {
-      const nodemailer = require('nodemailer');
-      const smtpHost = process.env.SMTP_HOST;
-      if (!smtpHost) throw new Error('SMTP not configured');
+    // Try sending via nodemailer — use org SMTP settings first, then env vars
+    const html = generateQuotationHTML(quotation, items, org, customerName, additionalInfo);
+    const total = new Intl.NumberFormat("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(quotation.total_amount);
+      // Use org SMTP settings first, fallback to env vars
+      const smtpHost = org.smtp_host || process.env.SMTP_HOST;
+      const smtpPort = parseInt(org.smtp_port || process.env.SMTP_PORT || '587');
+      const smtpUser = org.smtp_user || process.env.SMTP_USER;
+      const smtpPass = org.smtp_pass || process.env.SMTP_PASS;
+      if (!smtpHost || !smtpUser || !smtpPass) throw new Error('SMTP not configured. Go to Settings to configure Gmail SMTP.');
       
+      const secure = smtpPort === 465;
       const transporter = nodemailer.createTransport({
         host: smtpHost,
-        port: parseInt(process.env.SMTP_PORT) || 587,
-        secure: false,
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS
-        }
+        port: smtpPort,
+        secure,
+        auth: { user: smtpUser, pass: smtpPass },
+        connectionTimeout: 30000,
+        greetingTimeout: 30000,
+        socketTimeout: 30000
       });
 
-      const html = generateQuotationHTML(quotation, items, org, customerName, additionalInfo);
-      const total = new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(quotation.total_amount);
-
       await transporter.sendMail({
-        from: `"${org.name || 'Glob ERP'}" <${process.env.SMTP_USER}>`,
+        from: `"${org.name || 'Glob ERP'}" <${smtpUser}>`,
         to,
         subject: `Quotation ${qNum} - ${org.name || 'Our Company'}`,
         html: `<p>Dear ${customerName},</p><p>Please find our quotation attached:</p><p>Quotation No: ${qNum}<br>Total Amount: ₹${total}</p><p>Thank you for your interest.</p><p>Best regards,<br>${org.name || 'Our Company'}</p>`,
@@ -473,7 +475,7 @@ router.post('/:id/share-email', pdfAuth, async (req, res) => {
       return res.json({ success: true, msg: 'Quotation sent via email!' });
     } catch (smtpErr) {
       // SMTP not configured — return the PDF URL so frontend can fallback to mailto
-      return res.json({ success: false, msg: 'SMTP not configured. Use mailto fallback.', pdfUrl: `${process.env.CORS_ORIGIN || ''}/api/quotations/${req.params.id}/pdf` });
+      return res.json({ success: false, msg: smtpErr.message || 'SMTP not configured. Use mailto fallback.', pdfUrl: `${process.env.CORS_ORIGIN || ''}/api/quotations/${req.params.id}/pdf` });
     }
   } catch (err) {
     console.error('Share email error:', err);
