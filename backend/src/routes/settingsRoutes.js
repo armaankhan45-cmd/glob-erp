@@ -52,9 +52,22 @@ router.post('/', auth, adminOnly, async (req, res) => {
       }
     }
 
-    // Update organization details
+    // Update organization details — including SMTP settings
     if (organization) {
-      await db('organizations').where({ id: orgId }).update(organization);
+      // Only allow valid columns (prevent SQL injection)
+      const allowedOrgCols = [
+        'name', 'gstin', 'address', 'city', 'state', 'state_code', 'pincode',
+        'phone', 'email', 'bank_name', 'account_no', 'ifsc', 'upi_id', 'branch',
+        'invoice_prefix', 'quotation_prefix', 'print_letterhead_mm', 'print_footer_mm',
+        'invoice_font_family', 'invoice_font_size', 'invoice_desc_size', 'invoice_item_bold',
+        'quotation_font_family', 'quotation_font_size', 'app_font_family', 'app_font_size',
+        'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass'
+      ];
+      const cleanOrg = {};
+      for (const col of allowedOrgCols) {
+        if (organization[col] !== undefined) cleanOrg[col] = organization[col];
+      }
+      await db('organizations').where({ id: orgId }).update(cleanOrg);
     }
 
     await auditLog(req.user.id, orgId, 'UPDATE', 'settings', null, null, { settings, organization }, req.ip);
@@ -63,6 +76,67 @@ router.post('/', auth, adminOnly, async (req, res) => {
   } catch (err) {
     console.error('Save settings error:', err);
     res.status(500).json({ success: false, msg: 'Failed to save settings' });
+  }
+});
+
+// Test Email — verifies SMTP configuration by sending a test email
+router.post('/test-email', auth, adminOnly, async (req, res) => {
+  try {
+    const db = getDb();
+    const org = await db('organizations').where({ id: req.user.organization_id }).first();
+    const { to } = req.body;
+    const testTo = to || org.smtp_user || org.email || process.env.SMTP_USER;
+    
+    if (!testTo) return res.status(400).json({ success: false, msg: 'No email address provided' });
+
+    // Use org SMTP settings first, fallback to env vars
+    const smtpHost = org.smtp_host || process.env.SMTP_HOST;
+    const smtpPort = parseInt(org.smtp_port || process.env.SMTP_PORT || '587');
+    const smtpUser = org.smtp_user || process.env.SMTP_USER;
+    const smtpPass = org.smtp_pass || process.env.SMTP_PASS;
+
+    if (!smtpHost || !smtpUser || !smtpPass) {
+      return res.json({ success: false, msg: 'SMTP not configured. Please set Host, User, and Password in Email Settings.' });
+    }
+
+    const nodemailer = require('nodemailer');
+    const secure = smtpPort === 465;
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure,
+      auth: { user: smtpUser, pass: smtpPass }
+    });
+
+    // Verify connection
+    await transporter.verify();
+
+    // Send test email
+    await transporter.sendMail({
+      from: `"${org.name || 'Glob ERP'}" <${smtpUser}>`,
+      to: testTo,
+      subject: `✓ Email Configuration Verified — ${org.name || 'Glob ERP'}`,
+      html: `<div style="font-family:Arial;max-width:500px;margin:0 auto;padding:20px;background:#f5f5f5;border-radius:8px">
+        <div style="background:#1a1a2e;color:#fff;padding:16px;border-radius:6px 6px 0 0;text-align:center">
+          <h2 style="margin:0;font-size:18px">✓ Email Settings Verified!</h2>
+        </div>
+        <div style="background:#fff;padding:20px;border-radius:0 0 6px 6px">
+          <p style="margin:0 0 12px;font-size:14px;color:#333">Great news! Your Gmail SMTP settings are working correctly.</p>
+          <table style="width:100%;font-size:13px;border-collapse:collapse">
+            <tr><td style="padding:6px 0;color:#666;font-weight:600">SMTP Host</td><td style="padding:6px 0;color:#333">${smtpHost}</td></tr>
+            <tr><td style="padding:6px 0;color:#666;font-weight:600">SMTP Port</td><td style="padding:6px 0;color:#333">${smtpPort}</td></tr>
+            <tr><td style="padding:6px 0;color:#666;font-weight:600">SMTP User</td><td style="padding:6px 0;color:#333">${smtpUser}</td></tr>
+            <tr><td style="padding:6px 0;color:#666;font-weight:600">Organization</td><td style="padding:6px 0;color:#333">${org.name || 'N/A'}</td></tr>
+          </table>
+          <p style="margin:12px 0 0;font-size:12px;color:#999">You can now share invoices and quotations via email directly from the app.</p>
+        </div>
+      </div>`
+    });
+
+    res.json({ success: true, msg: `Test email sent to ${testTo}! Check your inbox.` });
+  } catch (err) {
+    console.error('Test email error:', err);
+    res.json({ success: false, msg: 'Email test failed: ' + (err.message || 'Unknown error. Check your SMTP settings.') });
   }
 });
 
