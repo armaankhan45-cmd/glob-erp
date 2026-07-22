@@ -2,8 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import api from '../api/client'
-import { Plus, Users, CreditCard, FileText, Calculator, TrendingUp, IndianRupee, AlertCircle, UserPlus, ArrowUpRight, ArrowDownRight } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell, Legend, ComposedChart } from 'recharts'
+import { Plus, Users, CreditCard, FileText, Calculator, TrendingUp, IndianRupee, AlertCircle, UserPlus, ArrowUpRight, ArrowDownRight, Package, AlertTriangle, Receipt, FileSpreadsheet, Clock } from 'lucide-react'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell } from 'recharts'
 import GSTCalcModal from '../components/GSTCalcModal'
 import { formatCurrency, formatDate } from '../utils'
 
@@ -115,40 +115,14 @@ function SkeletonChart() {
   )
 }
 
-function SkeletonList() {
-  return (
-    <div className="card">
-      <div className="flex items-center justify-between mb-4">
-        <SkeletonBlock w="140px" h="18px" radius="6px" />
-        <SkeletonBlock w="70px" h="14px" radius="4px" />
-      </div>
-      <div className="space-y-3">
-        {Array.from({length: 4}).map((_, i) => (
-          <div key={i} className="flex items-center justify-between p-3">
-            <div className="flex items-center gap-3">
-              <SkeletonBlock w="36px" h="36px" radius="8px" />
-              <div>
-                <SkeletonBlock w="100px" h="14px" radius="4px" />
-                <SkeletonBlock w="140px" h="10px" radius="3px" className="mt-1" />
-              </div>
-            </div>
-            <div className="text-right">
-              <SkeletonBlock w="80px" h="14px" radius="4px" />
-              <SkeletonBlock w="50px" h="10px" radius="3px" className="mt-1" />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 export default function Dashboard() {
   const { user } = useAuth()
   const [stats, setStats] = useState({})
   const [recentInvoices, setRecentInvoices] = useState([])
   const [topCustomers, setTopCustomers] = useState([])
   const [monthlySales, setMonthlySales] = useState([])
+  const [monthlyExpenses, setMonthlyExpenses] = useState([])
+  const [lowStockItems, setLowStockItems] = useState([])
   const [chartType, setChartType] = useState('bar')
   const [loading, setLoading] = useState(true)
 
@@ -156,29 +130,28 @@ export default function Dashboard() {
 
   const loadDashboard = async () => {
     try {
-      const [statsRes, custRes] = await Promise.all([
-        api.get('/dashboard/stats').catch(() => ({ data: { stats: {}, recentInvoices: [], monthlySales: [] } })),
-        api.get('/customers').catch(() => ({ data: { customers: [] } }))
-      ])
-      setStats(statsRes.data.stats || {})
-      setRecentInvoices(statsRes.data.recentInvoices || [])
-      setMonthlySales(statsRes.data.monthlySales || [])
-
-      const allCusts = custRes.data.customers || []
-      if (allCusts.length > 0) {
-        const custDetails = await Promise.allSettled(
-          allCusts.slice(0, 20).map(async c => {
-            try {
-              const cRes = await api.get(`/customers/${c.id}`)
-              return { ...c, totalBusiness: cRes.data.totalBusiness || 0 }
-            } catch { return { ...c, totalBusiness: 0 } }
-          })
-        )
-        const successful = custDetails.filter(r => r.status === 'fulfilled').map(r => r.value)
-          .sort((a, b) => b.totalBusiness - a.totalBusiness).slice(0, 5)
-        setTopCustomers(successful)
-      }
-    } catch (err) { console.error('Dashboard error:', err) }
+      const statsRes = await api.getCached('/dashboard/stats')
+      const data = statsRes.data
+      setStats(data.stats || {})
+      setRecentInvoices(data.recentInvoices || [])
+      setTopCustomers(data.topCustomers || [])
+      setMonthlySales(data.monthlySales || [])
+      setMonthlyExpenses(data.monthlyExpenses || [])
+      setLowStockItems(data.lowStockItems || [])
+    } catch (err) {
+      console.error('Dashboard error:', err)
+      // Try without cache
+      try {
+        const res = await api.get('/dashboard/stats')
+        const data = res.data
+        setStats(data.stats || {})
+        setRecentInvoices(data.recentInvoices || [])
+        setTopCustomers(data.topCustomers || [])
+        setMonthlySales(data.monthlySales || [])
+        setMonthlyExpenses(data.monthlyExpenses || [])
+        setLowStockItems(data.lowStockItems || [])
+      } catch (e2) { console.error('Dashboard fallback error:', e2) }
+    }
     finally { setLoading(false) }
   }
 
@@ -194,19 +167,26 @@ export default function Dashboard() {
 
   const pendingAmount = stats.pendingAmount || 0
   const netPayable = (stats.netPayable?.cgst || 0) + (stats.netPayable?.sgst || 0) + (stats.netPayable?.igst || 0)
+  const netProfit = stats.netProfit || 0
 
   const metricCards = [
-    { label: 'Total Revenue', value: stats.totalRevenue || 0, icon: IndianRupee, color: '#22c55e', bg: 'rgba(34,197,94,0.12)', sub: 'All time sales', isCurrency: true },
-    { label: 'Outstanding', value: pendingAmount || 0, icon: AlertCircle, color: '#ef4444', bg: 'rgba(239,68,68,0.12)', sub: `${stats.pendingInvoices || 0} unpaid invoices`, isCurrency: true },
-    { label: 'GST Payable', value: netPayable || 0, icon: TrendingUp, color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', sub: 'Output − Input', isCurrency: true },
+    { label: 'Total Revenue', value: stats.totalRevenue || 0, icon: IndianRupee, color: '#22c55e', bg: 'rgba(34,197,94,0.12)', sub: `Paid: ${formatCurrency(stats.paidRevenue || 0)}`, isCurrency: true },
+    { label: 'Outstanding', value: pendingAmount || 0, icon: AlertCircle, color: '#ef4444', bg: 'rgba(239,68,68,0.12)', sub: `${stats.pendingInvoices || 0} unpaid • ${stats.overdue30?.count || 0} overdue`, isCurrency: true },
+    { label: 'Net Profit', value: netProfit || 0, icon: TrendingUp, color: '#4f8fff', bg: 'rgba(79,143,255,0.12)', sub: `Revenue − Expenses`, isCurrency: true },
+    { label: 'GST Payable', value: netPayable || 0, icon: Calculator, color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', sub: 'Output − Input', isCurrency: true },
     { label: 'Customers', value: stats.customerCount || 0, icon: Users, color: '#4f8fff', bg: 'rgba(79,143,255,0.12)', sub: 'In your database', isCurrency: false },
   ]
 
-  const chartData = monthlySales.map(m => ({
-    ...m,
-    revenue: m.total || m.revenue || 0,
-    gst: (parseFloat(m.cgst_amount || 0) || 0) + (parseFloat(m.sgst_amount || 0) || 0) + (parseFloat(m.igst_amount || 0) || 0),
-    profit: (m.total || m.revenue || 0) - ((parseFloat(m.cgst_amount || 0) || 0) + (parseFloat(m.sgst_amount || 0) || 0) + (parseFloat(m.igst_amount || 0) || 0)),
+  // ═══ Combine sales + expenses into one chart ═══
+  const allMonths = [...new Set([
+    ...monthlySales.map(m => m.month),
+    ...monthlyExpenses.map(m => m.month)
+  ])].sort()
+
+  const chartData = allMonths.map(month => ({
+    month,
+    revenue: parseFloat(monthlySales.find(m => m.month === month)?.total || 0),
+    expenses: parseFloat(monthlyExpenses.find(m => m.month === month)?.total || 0),
   }))
 
   const gstPie = [
@@ -235,8 +215,8 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 stagger">
-        <SkeletonMetricCard /><SkeletonMetricCard /><SkeletonMetricCard /><SkeletonMetricCard />
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 stagger">
+        {Array.from({length: 5}).map((_, i) => <SkeletonMetricCard key={i} />)}
       </div>
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2"><SkeletonChart /></div>
@@ -254,7 +234,6 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-      <div className="grid lg:grid-cols-2 gap-6"><SkeletonList /><SkeletonList /></div>
       <GSTCalcModal />
     </div>
   )
@@ -277,20 +256,29 @@ export default function Dashboard() {
             <p className="text-sm" style={{ color: 'rgba(255,255,255,0.85)' }}>{user?.organization?.name} • GSTIN: {user?.organization?.gstin || 'N/A'}</p>
             <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.65)' }}>{today}</p>
           </div>
-          {monthGrowth !== null && (
+          <div className="flex gap-3">
+            {monthGrowth !== null && (
+              <div className="flex items-center gap-3 px-5 py-3 rounded-2xl" style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(12px)' }}>
+                {parseFloat(monthGrowth) >= 0 ? <ArrowUpRight size={22} /> : <ArrowDownRight size={22} />}
+                <div>
+                  <p className="text-[10px] font-medium" style={{ color: 'rgba(255,255,255,0.75)' }}>vs Last Month</p>
+                  <p className="font-extrabold text-xl">{parseFloat(monthGrowth) >= 0 ? '+' : ''}{monthGrowth}%</p>
+                </div>
+              </div>
+            )}
             <div className="flex items-center gap-3 px-5 py-3 rounded-2xl" style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(12px)' }}>
-              {parseFloat(monthGrowth) >= 0 ? <ArrowUpRight size={22} /> : <ArrowDownRight size={22} />}
+              <Receipt size={18} />
               <div>
-                <p className="text-[10px] font-medium" style={{ color: 'rgba(255,255,255,0.75)' }}>vs Last Month</p>
-                <p className="font-extrabold text-xl">{parseFloat(monthGrowth) >= 0 ? '+' : ''}{monthGrowth}%</p>
+                <p className="text-[10px] font-medium" style={{ color: 'rgba(255,255,255,0.75)' }}>Quotations</p>
+                <p className="font-extrabold text-lg">{stats.quotationCount || 0} sent • {stats.convertedQuotes || 0} converted</p>
               </div>
             </div>
-          )}
+          </div>
         </div>
       </div>
 
       {/* ═══════════════════════════════════════════
-          QUICK ACTIONS — Staggered entrance + magnetic hover
+          QUICK ACTIONS
           ═══════════════════════════════════════════ */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
         {quickActions.map((a, i) => (
@@ -306,9 +294,9 @@ export default function Dashboard() {
       </div>
 
       {/* ═══════════════════════════════════════════
-          STAT CARDS — 3D Tilt + Holographic + Counter
+          STAT CARDS — 5 cards with profit & overdue
           ═══════════════════════════════════════════ */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {metricCards.map((m, i) => (
           <TiltCard key={i} className="stat-card card-premium"
             style={{ animation: `entranceScale 0.6s cubic-bezier(0.16,1,0.3,1) ${0.15 + i * 0.1}s both` }}>
@@ -329,8 +317,66 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* ═══ Glow Line Separator ═══ */}
+      {/* ═══ Glow Line ═══ */}
       <div className="glow-line"></div>
+
+      {/* ═══════════════════════════════════════════
+          OVERDUE AGING + LOW STOCK ALERTS
+          ═══════════════════════════════════════════ */}
+      {(stats.overdue30?.count > 0 || lowStockItems.length > 0) && (
+        <div className="grid md:grid-cols-2 gap-4">
+          {/* Overdue Aging */}
+          {stats.overdue30?.count > 0 && (
+            <div className="card card-premium" style={{ animation: 'entranceUp 0.5s cubic-bezier(0.16,1,0.3,1) 0.35s both' }}>
+              <div className="shimmer"></div>
+              <h3 className="font-bold text-white text-[15px] flex items-center gap-2 mb-4">
+                <Clock size={18} className="text-red-400" /> Payment Aging
+              </h3>
+              <div className="space-y-2">
+                {[
+                  { label: '0–30 days overdue', count: (stats.overdue30?.count || 0) - (stats.overdue60?.count || 0), amount: (stats.overdue30?.amount || 0) - (stats.overdue60?.amount || 0), color: '#f59e0b', bg: 'rgba(245,158,11,0.08)' },
+                  { label: '30–60 days overdue', count: (stats.overdue60?.count || 0) - (stats.overdue90?.count || 0), amount: (stats.overdue60?.amount || 0) - (stats.overdue90?.amount || 0), color: '#ef4444', bg: 'rgba(239,68,68,0.08)' },
+                  { label: '60–90+ days overdue', count: stats.overdue90?.count || 0, amount: stats.overdue90?.amount || 0, color: '#dc2626', bg: 'rgba(220,38,38,0.12)' },
+                ].map((aging, i) => aging.count > 0 && (
+                  <div key={i} className="flex items-center justify-between p-3 rounded-xl" style={{ background: aging.bg, border: `1px solid ${aging.color}20` }}>
+                    <div>
+                      <span className="text-sm font-semibold" style={{ color: aging.color }}>{aging.label}</span>
+                      <span className="text-xs text-white/30 ml-2">{aging.count} invoices</span>
+                    </div>
+                    <span className="font-extrabold" style={{ color: aging.color }}>{formatCurrency(aging.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Low Stock Alerts */}
+          {lowStockItems.length > 0 && (
+            <div className="card card-premium" style={{ animation: 'entranceUp 0.5s cubic-bezier(0.16,1,0.3,1) 0.4s both' }}>
+              <div className="shimmer"></div>
+              <h3 className="font-bold text-white text-[15px] flex items-center gap-2 mb-4">
+                <AlertTriangle size={18} className="text-amber-400" /> Low Stock Alerts
+              </h3>
+              <div className="space-y-2">
+                {lowStockItems.map((item, i) => (
+                  <Link key={i} to="/app/inventory"
+                    className="flex items-center justify-between p-3 rounded-xl hover:bg-white/[0.03] transition-all"
+                    style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.12)' }}>
+                    <div className="flex items-center gap-2">
+                      <Package size={14} className="text-amber-400" />
+                      <span className="text-sm font-semibold text-white">{item.item_name}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-bold text-amber-400">{item.quantity} {item.unit}</span>
+                      <span className="text-xs text-white/30 ml-1">(min: {item.min_quantity})</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ═══════════════════════════════════════════
           CHARTS + GST SUMMARY
@@ -340,7 +386,7 @@ export default function Dashboard() {
           <div className="shimmer"></div>
           <div className="flex items-center justify-between mb-5">
             <div>
-              <h3 className="font-bold text-white text-[15px]">Sales Performance</h3>
+              <h3 className="font-bold text-white text-[15px]">Revenue vs Expenses</h3>
               <p className="text-xs text-white/25 mt-0.5">Current Financial Year</p>
             </div>
             <div className="flex gap-1.5">
@@ -355,56 +401,59 @@ export default function Dashboard() {
           <div className="h-64">
             {chartType === 'bar' && (
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={chartData} barCategoryGap="20%">
+                <BarChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} />
-                  <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} />
-                  <Tooltip formatter={(val, name) => formatCurrency(val)} contentStyle={{ background: 'rgba(12,16,32,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff', backdropFilter: 'blur(20px)' }} />
-                  <Legend wrapperStyle={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }} />
-                  <Bar dataKey="revenue" fill="var(--accent)" radius={[4,4,0,0]} name="Revenue" />
-                  <Bar dataKey="gst" fill="#a855f7" radius={[4,4,0,0]} name="GST" opacity={0.7} />
-                  <Line type="monotone" dataKey="revenue" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3, fill: '#f59e0b' }} name="Trend" />
-                </ComposedChart>
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} />
+                  <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} />
+                  <Tooltip formatter={fmtTooltip} contentStyle={{ background: 'rgba(12,16,32,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff', backdropFilter: 'blur(20px)' }} />
+                  <Bar dataKey="revenue" fill="#06b6d4" radius={[6,6,0,0]} name="Revenue" />
+                  <Bar dataKey="expenses" fill="#ef4444" radius={[6,6,0,0]} name="Expenses" />
+                </BarChart>
               </ResponsiveContainer>
             )}
             {chartType === 'line' && (
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={chartData}>
+                <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} />
-                  <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} />
-                  <Tooltip formatter={(val, name) => formatCurrency(val)} contentStyle={{ background: 'rgba(12,16,32,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} />
-                  <Legend wrapperStyle={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }} />
-                  <Line type="monotone" dataKey="revenue" stroke="#4f8fff" strokeWidth={3} name="Revenue" dot={{ r: 5, fill: '#4f8fff', strokeWidth: 2, stroke: '#1a1a2e' }} activeDot={{ r: 7 }} />
-                  <Line type="monotone" dataKey="gst" stroke="#a855f7" strokeWidth={2} name="GST" dot={{ r: 3, fill: '#a855f7' }} />
-                  <Area type="monotone" dataKey="revenue" fill="rgba(79,143,255,0.08)" stroke="none" name="" />
-                </ComposedChart>
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} />
+                  <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} />
+                  <Tooltip formatter={fmtTooltip} contentStyle={{ background: 'rgba(12,16,32,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} />
+                  <Line type="monotone" dataKey="revenue" stroke="#06b6d4" strokeWidth={2.5} name="Revenue" dot={{ r: 4, fill: '#06b6d4', strokeWidth: 2 }} />
+                  <Line type="monotone" dataKey="expenses" stroke="#ef4444" strokeWidth={2} name="Expenses" dot={{ r: 3, fill: '#ef4444' }} />
+                </LineChart>
               </ResponsiveContainer>
             )}
             {chartType === 'area' && (
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={chartData}>
+                <AreaChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} />
-                  <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} />
-                  <Tooltip formatter={(val, name) => formatCurrency(val)} contentStyle={{ background: 'rgba(12,16,32,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} />
-                  <Legend wrapperStyle={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} />
+                  <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} />
+                  <Tooltip formatter={fmtTooltip} contentStyle={{ background: 'rgba(12,16,32,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} />
                   <defs>
                     <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--accent)" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="var(--accent)" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
                     </linearGradient>
-                    <linearGradient id="colorGST" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
+                    <linearGradient id="colorExpenses" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <Area type="monotone" dataKey="revenue" stroke="var(--accent)" strokeWidth={3} fill="url(#colorRevenue)" name="Revenue" />
-                  <Area type="monotone" dataKey="gst" stroke="#a855f7" strokeWidth={2} fill="url(#colorGST)" name="GST" />
-                  <Bar dataKey="profit" fill="#22c55e" radius={[2,2,0,0]} name="Profit" opacity={0.5} barSize={8} />
-                </ComposedChart>
+                  <Area type="monotone" dataKey="revenue" stroke="#06b6d4" strokeWidth={2.5} fill="url(#colorRevenue)" name="Revenue" />
+                  <Area type="monotone" dataKey="expenses" stroke="#ef4444" strokeWidth={2} fill="url(#colorExpenses)" name="Expenses" />
+                </AreaChart>
               </ResponsiveContainer>
             )}
+          </div>
+          {/* Legend */}
+          <div className="flex justify-center gap-6 mt-3">
+            <span className="text-xs flex items-center gap-2 text-white/40">
+              <span style={{ width: 12, height: 12, borderRadius: 3, background: '#06b6d4', display: 'inline-block' }}></span> Revenue
+            </span>
+            <span className="text-xs flex items-center gap-2 text-white/40">
+              <span style={{ width: 12, height: 12, borderRadius: 3, background: '#ef4444', display: 'inline-block' }}></span> Expenses
+            </span>
           </div>
         </div>
 
@@ -478,7 +527,7 @@ export default function Dashboard() {
           {recentInvoices.length === 0 ? (
             <p className="text-center py-8 text-white/25">No invoices yet. Create your first invoice!</p>
           ) : (
-            <div className="space-y-1.5 stagger">
+            <div className="space-y-1.5">
               {recentInvoices.slice(0, 6).map((inv, i) => (
                 <Link key={inv.id} to={`/app/invoices/${inv.id}`}
                   className="flex items-center justify-between p-3 rounded-xl hover:bg-white/[0.03] transition-all duration-200 group"
@@ -514,7 +563,7 @@ export default function Dashboard() {
           {topCustomers.length === 0 ? (
             <p className="text-center py-8 text-white/25">No customer data yet</p>
           ) : (
-            <div className="space-y-1.5 stagger">
+            <div className="space-y-1.5">
               {topCustomers.map((c, i) => (
                 <Link key={c.id} to={`/app/customers/${c.id}`}
                   className="flex items-center justify-between p-3 rounded-xl hover:bg-white/[0.03] transition-all duration-200 group"
