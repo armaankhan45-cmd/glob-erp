@@ -348,11 +348,11 @@ export default function InvoicePrint({ invoice, items, org }) {
             <div style={{ width: '65px', height: '65px', border: '1.5px solid #333', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', fontWeight: '700' }}>QR</div>
           )}
         </div>
-        <div style={{ flex: 1, padding: '5px 10px', textAlign: 'center', fontSize: '10px' }}>
+        <div style={{ flex: 1, padding: '5px 10px', textAlign: 'center', fontSize: '10px', overflow: 'hidden' }}>
           <div style={{ textAlign: 'right', marginBottom: '2px', fontWeight: '700', color: '#000' }}>For <b>{companyName}</b></div>
-          <div style={{ width: '90px', height: '55px', margin: '0 auto 2px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-            {org.stamp_url && <img src={org.stamp_url} alt="" style={{ position: 'absolute', width: '90px', height: '55px', objectFit: 'contain', opacity: 0.85 }} />}
-            {org.signature_url && <img src={org.signature_url} alt="" style={{ position: 'relative', zIndex: 1, maxHeight: '40px', maxWidth: '70px', objectFit: 'contain' }} />}
+          <div style={{ width: '90px', height: '55px', margin: '0 auto 2px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
+            {org.stamp_url && <img src={org.stamp_url} alt="" style={{ position: 'absolute', maxWidth: '90px', maxHeight: '55px', objectFit: 'contain', opacity: 0.85 }} />}
+            {org.signature_url && <img src={org.signature_url} alt="" style={{ position: 'relative', zIndex: 1, maxHeight: '35px', maxWidth: '60px', objectFit: 'contain' }} />}
           </div>
           <div style={{ fontSize: '9.5px', color: '#000', fontWeight: '700' }}>Authorized Signatory</div>
         </div>
