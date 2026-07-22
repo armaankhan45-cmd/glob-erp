@@ -274,7 +274,7 @@ function ProLayout({ inv, items, org, invNum, isPaid, placeOfSupply, invoiceDate
         </div>
         <div style={{ flex: 1 }}>
           <h1 style={{ fontSize: 20, fontWeight: 900, color: '#1a1a2e', letterSpacing: 2, lineHeight: 1.2, margin: '0 0 3px' }}>{(org.name || 'GLOB FABRICATION AND ENTERPRISES').toUpperCase()}</h1>
-          {org.gstin && <span style={{ display: 'inline-block', background: NAVY, color: '#fff', padding: '2px 10px', borderRadius: 3, fontSize: 11, fontWeight: 700, letterSpacing: 0.5 }}>GSTIN: {org.gstin}</span>}
+          {org.gstin && <span style={{ display: 'inline-block', background: '#e8ecf1', color: NAVY, padding: '3px 12px', borderRadius: 4, fontSize: 12, fontWeight: 800, letterSpacing: 0.5, border: `2px solid ${NAVY}`, boxShadow: '0 1px 3px rgba(0,0,0,0.12)' }}>GSTIN: {org.gstin}</span>}
           <div style={{ fontSize: '12px', color: '#333', marginTop: 3, lineHeight: 1.5, fontWeight: 600 }}>{[org.address, org.city, org.state, org.pincode ? 'PIN: ' + org.pincode : ''].filter(Boolean).join(', ')}</div>
           <div style={{ fontSize: '12px', color: '#333', marginTop: 1, lineHeight: 1.5, fontWeight: 600 }}>{org.phone ? `📞 ${org.phone}` : ''}{org.email ? `  ✉ ${org.email}` : ''}</div>
         </div>
