@@ -1,27 +1,13 @@
-// ═══════════════════════════════════════════════════════════════════
-// App.jsx — FIXED: No stuck loading overlay, BrowserRouter included
-//
-// THE BUG THAT WAS FIXED:
-// Old code had a "page-transition-overlay" with opacity:h?0:1
-// where h started as false → opacity=1 → overlay VISIBLE forever.
-// The setTimeout that should hide it got cleared by React cleanup.
-// Overlay had z-index:100000 blocking ALL interaction.
-// FIX: Removed overlay entirely. App shows content immediately.
-// ═══════════════════════════════════════════════════════════════════
-
 import { useState, Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import AutoHealErrorBoundary from './components/AutoHealErrorBoundary'
 
-// ─── Lazy load pages ───
 function PageFallback({ name }) {
   return (
     <div style={{ padding: '40px', textAlign: 'center' }}>
       <h2 style={{ color: '#06b6d4', fontSize: '20px' }}>{name}</h2>
-      <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>
-        Page loading or updating. Try refreshing if stuck.
-      </p>
+      <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>Page loading. Try refreshing if stuck.</p>
     </div>
   )
 }
@@ -46,7 +32,6 @@ const Reports        = lazy(() => import('./pages/Reports').catch(() => ({ defau
 const AIAssistant    = lazy(() => import('./pages/AIAssistant').catch(() => ({ default: () => <PageFallback name="AI Assistant" /> })))
 const Settings       = lazy(() => import('./pages/Settings').catch(() => ({ default: () => <PageFallback name="Settings" /> })))
 
-// ─── Small inline loader (NOT a stuck overlay!) ───
 function InlineLoader() {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '60px', gap: '12px' }}>
@@ -57,7 +42,6 @@ function InlineLoader() {
   )
 }
 
-// ─── Auth guard ───
 function PrivateRoute({ children }) {
   const { user, initialized } = useAuth()
   if (!initialized) return <InlineLoader />
@@ -65,7 +49,6 @@ function PrivateRoute({ children }) {
   return children
 }
 
-// ─── Navigation items ───
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: '📊', path: '/app' },
   { id: 'invoices', label: 'Invoices', icon: '📄', path: '/app/invoices' },
@@ -86,7 +69,6 @@ const NAV = [
   { id: 'settings', label: 'Settings', icon: '⚙️', path: '/app/settings' },
 ]
 
-// ─── Main app layout ───
 function AppLayout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
@@ -96,7 +78,6 @@ function AppLayout() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', background: '#080b14' }}>
-      {/* SIDEBAR */}
       {sidebarOpen && (
         <aside style={{
           width: '260px', background: 'linear-gradient(180deg, #0d1b2a, #1a1a2e)',
@@ -106,9 +87,7 @@ function AppLayout() {
           <div style={{ marginBottom: '24px', padding: '0 8px' }}>
             <h2 style={{ color: '#06b6d4', fontSize: '18px', fontWeight: '700', letterSpacing: '1px' }}>GLOB ERP</h2>
             <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '11px', marginTop: '4px' }}>Fabrication & Enterprises</p>
-            <div style={{ background: '#e8ecf1', color: '#0d1b2a', border: '2px solid #0d1b2a', padding: '4px 10px', borderRadius: '6px', fontSize: '10px', fontWeight: '700', marginTop: '8px', letterSpacing: '0.5px', display: 'inline-block' }}>
-              GSTIN: 27AWAPK1209R1ZC
-            </div>
+            <div style={{ background: '#e8ecf1', color: '#0d1b2a', border: '2px solid #0d1b2a', padding: '4px 10px', borderRadius: '6px', fontSize: '10px', fontWeight: '700', marginTop: '8px', letterSpacing: '0.5px', display: 'inline-block' }}>GSTIN: 27AWAPK1209R1ZC</div>
           </div>
           <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             {NAV.map(item => {
@@ -139,16 +118,13 @@ function AppLayout() {
                 <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '11px' }}>{user?.role || 'admin'}</p>
               </div>
             </div>
-            <button onClick={() => { logout(); navigate('/login') }} style={{ marginTop: '12px', width: '100%', padding: '8px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: '8px', color: '#f87171', fontSize: '12px', cursor: 'pointer', fontWeight: '600' }}>
-              Logout
-            </button>
+            <button onClick={() => { logout(); navigate('/login') }} style={{ marginTop: '12px', width: '100%', padding: '8px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: '8px', color: '#f87171', fontSize: '12px', cursor: 'pointer', fontWeight: '600' }}>Logout</button>
           </div>
         </aside>
       )}
-      {/* MAIN CONTENT */}
       <main style={{ marginLeft: sidebarOpen ? '260px' : '0', padding: '24px', minHeight: '100vh', width: sidebarOpen ? 'calc(100% - 260px)' : '100%', overflowY: 'auto' }}>
         <button onClick={() => setSidebarOpen(!sidebarOpen)} style={{ marginBottom: '16px', padding: '8px 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', color: 'rgba(255,255,255,0.4)', fontSize: '12px', cursor: 'pointer' }}>
-          {sidebarOpen ? '← Collapse sidebar' : '→ Open sidebar'}
+          {sidebarOpen ? '← Collapse' : '→ Open sidebar'}
         </button>
         <Suspense fallback={<InlineLoader />}>
           <Routes>
@@ -179,7 +155,6 @@ function AppLayout() {
   )
 }
 
-// ─── Login page ───
 function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
@@ -225,7 +200,6 @@ function LoginPage() {
   )
 }
 
-// ─── Root App component ───
 export default function App() {
   return (
     <AutoHealErrorBoundary>
