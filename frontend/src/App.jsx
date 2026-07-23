@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import React, { useState, Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import AutoHealErrorBoundary from './components/AutoHealErrorBoundary'
@@ -6,31 +6,28 @@ import Dashboard from './pages/Dashboard'
 import InvoiceDetail from './pages/InvoiceDetail'
 import Settings from './pages/Settings'
 
-// Page fallback for pages that don't exist yet
 function PageFallback({ name }) {
-  return <div style={{ padding: 40, color: '#06b6d4', fontSize: 20 }}>{name} — page file not found on GitHub yet</div>
+  return <div style={{ padding: 40, color: '#06b6d4', fontSize: 20 }}>{name} — page not found on GitHub yet</div>
 }
 
-// Try to lazy-import pages that might exist. If not, show fallback.
-// .catch() means the build WON'T fail if a page file is missing!
-const Invoices       = React.lazy(() => import('./pages/Invoices').catch(() => ({ default: () => <PageFallback name="Invoices" /> })))
-const Quotations     = React.lazy(() => import('./pages/Quotations').catch(() => ({ default: () => <PageFallback name="Quotations" /> })))
-const QuotationDetail = React.lazy(() => import('./pages/QuotationDetail').catch(() => ({ default: () => <PageFallback name="Quotation Detail" /> })))
-const Customers      = React.lazy(() => import('./pages/Customers').catch(() => ({ default: () => <PageFallback name="Customers" /> })))
-const Purchases      = React.lazy(() => import('./pages/Purchases').catch(() => ({ default: () => <PageFallback name="Purchases" /> })))
-const Payments       = React.lazy(() => import('./pages/Payments').catch(() => ({ default: () => <PageFallback name="Payments" /> })))
-const Expenses       = React.lazy(() => import('./pages/Expenses').catch(() => ({ default: () => <PageFallback name="Expenses" /> })))
-const Suppliers      = React.lazy(() => import('./pages/Suppliers').catch(() => ({ default: () => <PageFallback name="Suppliers" /> })))
-const Inventory      = React.lazy(() => import('./pages/Inventory').catch(() => ({ default: () => <PageFallback name="Inventory" /> })))
-const CreditNotes    = React.lazy(() => import('./pages/CreditNotes').catch(() => ({ default: () => <PageFallback name="Credit Notes" /> })))
-const Workers        = React.lazy(() => import('./pages/Workers').catch(() => ({ default: () => <PageFallback name="Workers" /> })))
-const Machines       = React.lazy(() => import('./pages/Machines').catch(() => ({ default: () => <PageFallback name="Machines" /> })))
-const Production     = React.lazy(() => import('./pages/Production').catch(() => ({ default: () => <PageFallback name="Production" /> })))
-const GSTReports     = React.lazy(() => import('./pages/GSTReports').catch(() => ({ default: () => <PageFallback name="GST Reports" /> })))
-const Reports        = React.lazy(() => import('./pages/Reports').catch(() => ({ default: () => <PageFallback name="Reports" /> })))
-const AIAssistant    = React.lazy(() => import('./pages/AIAssistant').catch(() => ({ default: () => <PageFallback name="AI Assistant" /> })))
+const lazyPage = (name) => lazy(() => import(`./pages/${name}`).catch(() => ({ default: () => <PageFallback name={name} /> })))
 
-const React = await import('react')
+const Invoices       = lazyPage('Invoices')
+const Quotations     = lazyPage('Quotations')
+const QuotationDetail = lazyPage('QuotationDetail')
+const Customers      = lazyPage('Customers')
+const Purchases      = lazyPage('Purchases')
+const Payments       = lazyPage('Payments')
+const Expenses       = lazyPage('Expenses')
+const Suppliers      = lazyPage('Suppliers')
+const Inventory      = lazyPage('Inventory')
+const CreditNotes    = lazyPage('CreditNotes')
+const Workers        = lazyPage('Workers')
+const Machines       = lazyPage('Machines')
+const Production     = lazyPage('Production')
+const GSTReports     = lazyPage('GSTReports')
+const Reports        = lazyPage('Reports')
+const AIAssistant    = lazyPage('AIAssistant')
 
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: '📊', path: '/app' },
@@ -110,7 +107,7 @@ function AppLayout() {
       )}
       <main style={{ marginLeft: sidebarOpen ? 260 : 0, padding: 24, minHeight: '100vh', width: sidebarOpen ? 'calc(100% - 260px)' : '100%', overflowY: 'auto' }}>
         <button onClick={() => setSidebarOpen(!sidebarOpen)} style={{ marginBottom: 16, padding: '8px 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, color: 'rgba(255,255,255,0.4)', fontSize: 12, cursor: 'pointer' }}>{sidebarOpen ? '← Collapse' : '→ Open sidebar'}</button>
-        <React.Suspense fallback={<InlineLoader />}>
+        <Suspense fallback={<InlineLoader />}>
           <Routes>
             <Route path="" element={<Dashboard />} />
             <Route path="invoices" element={<Invoices />} />
@@ -133,7 +130,7 @@ function AppLayout() {
             <Route path="settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/app" replace />} />
           </Routes>
-        </React.Suspense>
+        </Suspense>
       </main>
     </div>
   )
@@ -161,7 +158,6 @@ function LoginPage() {
           <div><label style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, marginBottom: 6, display: 'block' }}>Password</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Enter password" required style={{ width: '100%', padding: '12px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 14, outline: 'none' }} /></div>
           <button type="submit" disabled={loading} style={{ padding: 14, background: loading ? 'rgba(6,182,212,0.3)' : 'linear-gradient(135deg, #06b6d4, #4f8fff)', border: 'none', borderRadius: 10, color: '#fff', fontSize: 15, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>{loading ? 'Signing in...' : 'Sign In'}</button>
         </form>
-        <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontSize: 11, marginTop: 20 }}>First visit may take 30s (server waking up)</p>
       </div>
     </div>
   )
