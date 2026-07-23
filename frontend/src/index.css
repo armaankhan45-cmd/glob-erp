@@ -2,6 +2,9 @@
    GLOB ERP — Global Styles
    Dark theme, print-safe GSTIN badge, responsive
    ═══════════════════════════════════════════════════ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
   --bg-primary: #0a0a1a;
