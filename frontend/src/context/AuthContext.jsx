@@ -1,111 +1,143 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import api from '../api/client'
 
 const AuthContext = createContext(null)
-
-export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  // ═══════════════════════════════════════════
-  // INSTANT RESTORE — load user from localStorage immediately
-  // No white flash, no waiting for API on app start
-  // ═══════════════════════════════════════════
-  useEffect(() => {
-    const token = localStorage.getItem('token')
-    const savedUser = localStorage.getItem('user')
-    if (token && savedUser) {
-      try {
-        const parsed = JSON.parse(savedUser)
-        setUser(parsed)
-        // Background: verify token is still valid & refresh user data
-        api.get('/auth/me').then(res => {
-          const freshUser = res.data.user
-          localStorage.setItem('user', JSON.stringify(freshUser))
-          setUser(freshUser)
-        }).catch(() => {
-          // Token expired — will be handled by 401 interceptor
-        })
-      } catch {
-        localStorage.removeItem('token')
-        localStorage.removeItem('user')
-      }
-    }
-    setLoading(false)
-  }, [])
-
-  // ═══════════════════════════════════════════
-  // LOGIN WITH RETRY — handles Render cold starts
-  // Retries up to 2 times with exponential backoff
-  // ═══════════════════════════════════════════
-  const login = async (email, password, retryCount = 0) => {
-    const MAX_RETRIES = 2
-    try {
-      const res = await api.post('/auth/login', { email, password })
-      const { token, user: userData } = res.data
-      localStorage.setItem('token', token)
-      localStorage.setItem('user', JSON.stringify(userData))
-      setUser(userData)
-      return userData
-    } catch (err) {
-      const isTimeout = err.code === 'ECONNABORTED' || err.message?.includes('timeout')
-      const isServerError = err.response?.status >= 500
-      const isNetworkError = !err.response && !isTimeout
-
-      // Retry on timeout, server error, or network error (cold start)
-      if ((isTimeout || isServerError || isNetworkError) && retryCount < MAX_RETRIES) {
-        const delay = Math.pow(2, retryCount) * 1500 // 1.5s, 3s
-        await new Promise(r => setTimeout(r, delay))
-        return login(email, password, retryCount + 1)
-      }
-
-      // If all retries exhausted, throw with helpful message
-      if (isTimeout || isNetworkError) {
-        const error = new Error('Server is waking up from sleep. Please try again in 30 seconds.')
-        error.code = 'COLD_START'
-        throw error
-      }
-
-      throw err
-    }
-  }
-
-  const register = async (data) => {
-    const res = await api.post('/auth/register', data)
-    const { token, user: userData } = res.data
-    localStorage.setItem('token', token)
-    localStorage.setItem('user', JSON.stringify(userData))
-    setUser(userData)
-    return userData
-  }
-
-  const logout = () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-    setUser(null)
-  }
-
-  const refreshUser = async () => {
-    try {
-      const res = await api.get('/auth/me')
-      const userData = res.data.user
-      localStorage.setItem('user', JSON.stringify(userData))
-      setUser(userData)
-    } catch {
-      // token expired
-      logout()
-    }
-  }
-
-  return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser }}>
-      {children}
-    </AuthContext.Provider>
-  )
-}
 
 export function useAuth() {
   const ctx = useContext(AuthContext)
   if (!ctx) throw new Error('useAuth must be inside AuthProvider')
   return ctx
+}
+
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [initialized, setInitialized] = useState(false)
+
+  // ── SAFE AUTH CHECK: Never gets stuck ──
+  // If backend is sleeping (Render cold start), we timeout in 10s
+  // and show the app anyway — user can retry later
+  useEffect(() => {
+    let cancelled = false
+    const timeoutId = setTimeout(() => {
+      if (!cancelled && !initialized) {
+        console.warn('⚠️ Auth check timed out — showing app anyway')
+        setLoading(false)
+        setInitialized(true)
+        // Check if we have a token in localStorage — if so, assume valid
+        const savedUser = localStorage.getItem('user')
+        if (savedUser) {
+          try { setUser(JSON.parse(savedUser)) } catch {}
+        }
+      }
+    }, 10000) // 10 second safety timeout — NEVER stuck forever
+
+    const checkAuth = async () => {
+      const token = localStorage.getItem('token')
+      if (!token) {
+        setLoading(false)
+        setInitialized(true)
+        clearTimeout(timeoutId)
+        return
+      }
+
+      try {
+        const res = await api.get('/auth/me', { timeout: 8000 })
+        if (!cancelled) {
+          setUser(res.data.user)
+          localStorage.setItem('user', JSON.stringify(res.data.user))
+          setLoading(false)
+          setInitialized(true)
+          clearTimeout(timeoutId)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          // If 401, token is invalid — clear it
+          if (err.response?.status === 401) {
+            localStorage.removeItem('token')
+            localStorage.removeItem('user')
+            setUser(null)
+          } else {
+            // Network error (backend sleeping) — use cached user data
+            console.warn('⚠️ Auth check failed (backend might be sleeping):', err.message)
+            const savedUser = localStorage.getItem('user')
+            if (savedUser) {
+              try { setUser(JSON.parse(savedUser)) } catch {}
+            }
+          }
+          setLoading(false)
+          setInitialized(true)
+          clearTimeout(timeoutId)
+        }
+      }
+    }
+
+    checkAuth()
+    return () => { cancelled = true; clearTimeout(timeoutId) }
+  }, [])
+
+  const login = useCallback(async (email, password) => {
+    setError(null)
+    try {
+      const res = await api.post('/auth/login', { email, password })
+      const { token, user } = res.data
+      localStorage.setItem('token', token)
+      localStorage.setItem('user', JSON.stringify(user))
+      setUser(user)
+      return { success: true }
+    } catch (err) {
+      const msg = err.response?.data?.msg || err.message || 'Login failed'
+      setError(msg)
+      return { success: false, msg }
+    }
+  }, [])
+
+  const logout = useCallback(() => {
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+    setUser(null)
+  }, [])
+
+  const refreshUser = useCallback(async () => {
+    try {
+      const res = await api.get('/auth/me')
+      setUser(res.data.user)
+      localStorage.setItem('user', JSON.stringify(res.data.user))
+    } catch {}
+  }, [])
+
+  // While loading, show a minimal splash (NOT stuck forever)
+  if (loading) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'linear-gradient(135deg, #0a0a1a, #0d1b2a)',
+        color: '#fff',
+        flexDirection: 'column',
+        gap: '12px'
+      }}>
+        <div style={{
+          width: '48px', height: '48px',
+          border: '3px solid rgba(6,182,212,0.2)',
+          borderTopColor: '#06b6d4',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite'
+        }} />
+        <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)' }}>
+          Checking session...
+        </p>
+        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+      </div>
+    )
+  }
+
+  return (
+    <AuthContext.Provider value={{ user, loading, error, login, logout, refreshUser, initialized }}>
+      {children}
+    </AuthContext.Provider>
+  )
 }
