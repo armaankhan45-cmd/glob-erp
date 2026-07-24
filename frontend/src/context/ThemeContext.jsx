@@ -2,7 +2,8 @@ import { createContext, useContext, useState, useEffect } from 'react'
 
 // ══════════════════════════════════════════════════════════
 // GLOB ERP — Relaxing Theme System
-// Softer, more visible colors. Day/Night + 6 accent themes.
+// Day/Night mode + 6 color themes with live accent switching
+// All CSS variables for both modes
 // ══════════════════════════════════════════════════════════
 
 const THEMES = {
@@ -30,7 +31,7 @@ export function ThemeProvider({ children }) {
     localStorage.setItem('glob-theme-key', themeKey)
   }, [themeKey])
 
-  // Apply ALL CSS variables — dark + light mode with relaxing colors
+  // Apply theme CSS variables to document root
   useEffect(() => {
     const accent = THEMES[themeKey]?.color || '#22d3ee'
     const r = parseInt(accent.slice(1,3), 16)
@@ -38,19 +39,13 @@ export function ThemeProvider({ children }) {
     const b = parseInt(accent.slice(5,7), 16)
     const root = document.documentElement
 
-    // ── Accent colors ──
     root.style.setProperty('--accent', accent)
     root.style.setProperty('--accent-rgb', `${r},${g},${b}`)
     root.style.setProperty('--accent-dark', `${accent}cc`)
     root.style.setProperty('--accent-light', `${accent}44`)
-    root.style.setProperty('--accent2', '#6ea8fe')
-    root.style.setProperty('--success', '#4ade80')
-    root.style.setProperty('--warning', '#fbbf24')
-    root.style.setProperty('--danger', '#f87171')
 
-    // ── Mode-specific colors ──
+    // Mode-specific variables
     if (mode === 'light') {
-      // Light mode — warm white backgrounds, dark text
       root.style.setProperty('--bg-primary', '#f0f2f5')
       root.style.setProperty('--bg-card', '#ffffff')
       root.style.setProperty('--bg-sidebar', 'rgba(255,255,255,0.92)')
@@ -72,7 +67,6 @@ export function ThemeProvider({ children }) {
       root.classList.add('light-mode')
       root.classList.remove('dark-mode')
     } else {
-      // Dark mode — relaxing soft navy, clear white text
       root.style.setProperty('--bg-primary', '#0f1419')
       root.style.setProperty('--bg-card', 'rgba(22,28,38,0.97)')
       root.style.setProperty('--bg-sidebar', 'rgba(14,20,30,0.96)')
