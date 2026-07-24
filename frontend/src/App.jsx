@@ -1,21 +1,71 @@
-import React, { useState, Suspense, lazy } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, Link } from 'react-router-dom'
+// ═══════════════════════════════════════════════════════════════════
+// App.jsx — FIXED: No stuck loading overlay, BrowserRouter included
+//
+// THE BUG THAT WAS FIXED:
+// Old code had a "page-transition-overlay" with opacity:h?0:1
+// where h started as false → opacity=1 → overlay VISIBLE forever.
+// The setTimeout that should hide it got cleared by React cleanup.
+// Overlay had z-index:100000 blocking ALL interaction.
+// FIX: Removed overlay entirely. App shows content immediately.
+// ═══════════════════════════════════════════════════════════════════
+
+import { useState, Suspense, lazy } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import AutoHealErrorBoundary from './components/AutoHealErrorBoundary'
-import Dashboard from './pages/Dashboard'
-import InvoiceDetail from './pages/InvoiceDetail'
-import Settings from './pages/Settings'
 
-const Invoices       = lazy(() => import('./pages/Invoices'))
-const Quotations     = lazy(() => import('./pages/Quotations'))
-const QuotationDetail = lazy(() => import('./pages/QuotationDetail'))
-const Customers      = lazy(() => import('./pages/Customers'))
-const Purchases      = lazy(() => import('./pages/Purchases'))
-const GSTReports     = lazy(() => import('./pages/GSTReports'))
-const Reports        = lazy(() => import('./pages/Reports'))
-const AIAssistant    = lazy(() => import('./pages/AIAssistant'))
+// ─── Lazy load pages ───
+function PageFallback({ name }) {
+  return (
+    <div style={{ padding: '40px', textAlign: 'center' }}>
+      <h2 style={{ color: '#06b6d4', fontSize: '20px' }}>{name}</h2>
+      <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>
+        Page loading or updating. Try refreshing if stuck.
+      </p>
+    </div>
+  )
+}
 
-// Only the sections the user wants
+const Dashboard      = lazy(() => import('./pages/Dashboard').catch(() => ({ default: () => <PageFallback name="Dashboard" /> })))
+const Invoices       = lazy(() => import('./pages/Invoices').catch(() => ({ default: () => <PageFallback name="Invoices" /> })))
+const InvoiceDetail  = lazy(() => import('./pages/InvoiceDetail').catch(() => ({ default: () => <PageFallback name="Invoice Detail" /> })))
+const Quotations     = lazy(() => import('./pages/Quotations').catch(() => ({ default: () => <PageFallback name="Quotations" /> })))
+const QuotationDetail = lazy(() => import('./pages/QuotationDetail').catch(() => ({ default: () => <PageFallback name="Quotation Detail" /> })))
+const Customers      = lazy(() => import('./pages/Customers').catch(() => ({ default: () => <PageFallback name="Customers" /> })))
+const Purchases      = lazy(() => import('./pages/Purchases').catch(() => ({ default: () => <PageFallback name="Purchases" /> })))
+const Payments       = lazy(() => import('./pages/Payments').catch(() => ({ default: () => <PageFallback name="Payments" /> })))
+const Expenses       = lazy(() => import('./pages/Expenses').catch(() => ({ default: () => <PageFallback name="Expenses" /> })))
+const Suppliers      = lazy(() => import('./pages/Suppliers').catch(() => ({ default: () => <PageFallback name="Suppliers" /> })))
+const Inventory      = lazy(() => import('./pages/Inventory').catch(() => ({ default: () => <PageFallback name="Inventory" /> })))
+const CreditNotes    = lazy(() => import('./pages/CreditNotes').catch(() => ({ default: () => <PageFallback name="Credit Notes" /> })))
+const Workers        = lazy(() => import('./pages/Workers').catch(() => ({ default: () => <PageFallback name="Workers" /> })))
+const Machines       = lazy(() => import('./pages/Machines').catch(() => ({ default: () => <PageFallback name="Machines" /> })))
+const Production     = lazy(() => import('./pages/Production').catch(() => ({ default: () => <PageFallback name="Production" /> })))
+const GSTReports     = lazy(() => import('./pages/GSTReports').catch(() => ({ default: () => <PageFallback name="GST Reports" /> })))
+const Reports        = lazy(() => import('./pages/Reports').catch(() => ({ default: () => <PageFallback name="Reports" /> })))
+const AIAssistant    = lazy(() => import('./pages/AIAssistant').catch(() => ({ default: () => <PageFallback name="AI Assistant" /> })))
+const Settings       = lazy(() => import('./pages/Settings').catch(() => ({ default: () => <PageFallback name="Settings" /> })))
+
+// ─── Small inline loader (NOT a stuck overlay!) ───
+function InlineLoader() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '60px', gap: '12px' }}>
+      <div style={{ width: '24px', height: '24px', border: '2px solid rgba(6,182,212,0.2)', borderTopColor: '#06b6d4', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+      <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}>Loading page...</span>
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+    </div>
+  )
+}
+
+// ─── Auth guard ───
+function PrivateRoute({ children }) {
+  const { user, initialized } = useAuth()
+  if (!initialized) return <InlineLoader />
+  if (!user) return <Navigate to="/login" replace />
+  return children
+}
+
+// ─── Navigation items ───
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: '📊', path: '/app' },
   { id: 'invoices', label: 'Invoices', icon: '📄', path: '/app/invoices' },
@@ -28,22 +78,7 @@ const NAV = [
   { id: 'settings', label: 'Settings', icon: '⚙️', path: '/app/settings' },
 ]
 
-function InlineLoader() {
-  return (
-    <div className="flex flex-col items-center justify-center h-96">
-      <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-      <p className="text-sm text-white/30 mt-3">Loading...</p>
-    </div>
-  )
-}
-
-function PrivateRoute({ children }) {
-  const { user, initialized } = useAuth()
-  if (!initialized) return <InlineLoader />
-  if (!user) return <Navigate to="/login" replace />
-  return children
-}
-
+// ─── Main app layout ───
 function AppLayout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
@@ -52,40 +87,60 @@ function AppLayout() {
   const currentPath = location.pathname
 
   return (
-    <div className="min-h-screen flex" style={{ background: '#080b14' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', background: '#080b14' }}>
+      {/* SIDEBAR */}
       {sidebarOpen && (
-        <aside className="w-[260px] flex-shrink-0 fixed h-screen overflow-y-auto z-40" style={{ background: 'linear-gradient(180deg, #0d1b2a, #1a1a2e)', borderRight: '1px solid rgba(255,255,255,0.06)', padding: '20px 16px' }}>
-          <div className="mb-6 px-2">
-            <h2 className="text-lg font-bold tracking-wide" style={{ color: '#06b6d4', letterSpacing: 1 }}>GLOB ERP</h2>
-            <p className="text-[11px] mt-1" style={{ color: 'rgba(255,255,255,0.3)' }}>Fabrication & Enterprises</p>
-            <div className="gstin-badge mt-2">GSTIN: 27AWAPK1209R1ZC</div>
+        <aside style={{
+          width: '260px', background: 'linear-gradient(180deg, #0d1b2a, #1a1a2e)',
+          borderRight: '1px solid rgba(255,255,255,0.06)', padding: '20px 16px',
+          overflowY: 'auto', flexShrink: 0, position: 'fixed', height: '100vh', zIndex: 40,
+        }}>
+          <div style={{ marginBottom: '24px', padding: '0 8px' }}>
+            <h2 style={{ color: '#06b6d4', fontSize: '18px', fontWeight: '700', letterSpacing: '1px' }}>GLOB ERP</h2>
+            <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '11px', marginTop: '4px' }}>Fabrication & Enterprises</p>
+            <div style={{ background: '#e8ecf1', color: '#0d1b2a', border: '2px solid #0d1b2a', padding: '4px 10px', borderRadius: '6px', fontSize: '10px', fontWeight: '700', marginTop: '8px', letterSpacing: '0.5px', display: 'inline-block' }}>
+              GSTIN: 27AWAPK1209R1ZC
+            </div>
           </div>
-          <nav className="flex flex-col gap-1">
+          <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             {NAV.map(item => {
               const isActive = currentPath === item.path || (item.path === '/app' && currentPath === '/app')
               return (
-                <Link key={item.id} to={item.path}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${isActive ? 'text-cyan-400 bg-white/5 border border-white/10' : 'text-white/60 hover:bg-white/5 hover:text-white'}`}>
-                  <span className="text-base">{item.icon}</span>{item.label}
-                </Link>
+                <a key={item.id} href={item.path} onClick={(e) => { e.preventDefault(); navigate(item.path) }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '10px',
+                    color: isActive ? '#06b6d4' : 'rgba(255,255,255,0.6)', fontSize: '13px',
+                    textDecoration: 'none', fontWeight: isActive ? '600' : '400',
+                    background: isActive ? 'rgba(6,182,212,0.08)' : 'transparent',
+                    border: isActive ? '1px solid rgba(6,182,212,0.15)' : '1px solid transparent',
+                    transition: 'all 0.2s',
+                  }}>
+                  <span style={{ fontSize: '16px' }}>{item.icon}</span>
+                  {item.label}
+                </a>
               )
             })}
           </nav>
-          <div className="mt-10 pt-5 border-t border-white/5">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white" style={{ background: 'linear-gradient(135deg, #06b6d4, #4f8fff)' }}>{user?.name?.charAt(0)?.toUpperCase() || 'A'}</div>
+          <div style={{ marginTop: '40px', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, #06b6d4, #4f8fff)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '14px', fontWeight: '700' }}>
+                {user?.name?.charAt(0)?.toUpperCase() || 'A'}
+              </div>
               <div>
-                <p className="text-sm font-semibold text-white">{user?.name || 'Admin'}</p>
-                <p className="text-xs text-white/30">{user?.role || 'admin'}</p>
+                <p style={{ color: '#fff', fontSize: '13px', fontWeight: '600' }}>{user?.name || 'Admin'}</p>
+                <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '11px' }}>{user?.role || 'admin'}</p>
               </div>
             </div>
-            <button onClick={() => { logout(); navigate('/login') }} className="w-full mt-3 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)', color: '#f87171' }}>Logout</button>
+            <button onClick={() => { logout(); navigate('/login') }} style={{ marginTop: '12px', width: '100%', padding: '8px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: '8px', color: '#f87171', fontSize: '12px', cursor: 'pointer', fontWeight: '600' }}>
+              Logout
+            </button>
           </div>
         </aside>
       )}
-      <main className="min-h-screen overflow-y-auto p-6" style={{ marginLeft: sidebarOpen ? 260 : 0, width: sidebarOpen ? 'calc(100% - 260px)' : '100%' }}>
-        <button onClick={() => setSidebarOpen(!sidebarOpen)} className="mb-4 px-3 py-2 rounded-lg text-xs cursor-pointer" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)' }}>
-          {sidebarOpen ? '← Collapse' : '→ Open sidebar'}
+      {/* MAIN CONTENT */}
+      <main style={{ marginLeft: sidebarOpen ? '260px' : '0', padding: '24px', minHeight: '100vh', width: sidebarOpen ? 'calc(100% - 260px)' : '100%', overflowY: 'auto' }}>
+        <button onClick={() => setSidebarOpen(!sidebarOpen)} style={{ marginBottom: '16px', padding: '8px 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', color: 'rgba(255,255,255,0.4)', fontSize: '12px', cursor: 'pointer' }}>
+          {sidebarOpen ? '← Collapse sidebar' : '→ Open sidebar'}
         </button>
         <Suspense fallback={<InlineLoader />}>
           <Routes>
@@ -96,6 +151,14 @@ function AppLayout() {
             <Route path="quotations/:id" element={<QuotationDetail />} />
             <Route path="customers" element={<Customers />} />
             <Route path="purchases" element={<Purchases />} />
+            <Route path="payments" element={<Payments />} />
+            <Route path="expenses" element={<Expenses />} />
+            <Route path="suppliers" element={<Suppliers />} />
+            <Route path="inventory" element={<Inventory />} />
+            <Route path="credit-notes" element={<CreditNotes />} />
+            <Route path="workers" element={<Workers />} />
+            <Route path="machines" element={<Machines />} />
+            <Route path="production" element={<Production />} />
             <Route path="gst" element={<GSTReports />} />
             <Route path="reports" element={<Reports />} />
             <Route path="ai-assistant" element={<AIAssistant />} />
@@ -108,6 +171,7 @@ function AppLayout() {
   )
 }
 
+// ─── Login page ───
 function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
@@ -115,34 +179,45 @@ function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState('')
-  const handleSubmit = async (e) => { e.preventDefault(); setLoading(true); setMsg(''); const result = await login(email, password); setLoading(false); if (result.success) navigate('/app'); else setMsg(result.msg || 'Login failed') }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setLoading(true); setMsg('')
+    const result = await login(email, password)
+    setLoading(false)
+    if (result.success) navigate('/app')
+    else setMsg(result.msg || 'Login failed')
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center p-6" style={{ background: '#06080f' }}>
-      <div className="max-w-lg w-full rounded-2xl p-8" style={{ background: 'rgba(14,18,36,0.97)', border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 25px 50px rgba(0,0,0,0.5)' }}>
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold" style={{ color: '#06b6d4', letterSpacing: 2 }}>GLOB ERP</h1>
-          <p className="text-sm mt-2" style={{ color: 'rgba(255,255,255,0.4)' }}>Fabrication & Enterprises</p>
-          <div className="gstin-badge mt-3">GSTIN: 27AWAPK1209R1ZC</div>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#06080f', padding: '20px' }}>
+      <div style={{ width: '100%', maxWidth: '420px', background: 'rgba(14,18,36,0.97)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', padding: '40px 32px', boxShadow: '0 25px 50px rgba(0,0,0,0.5)' }}>
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <h1 style={{ color: '#06b6d4', fontSize: '28px', fontWeight: '700', letterSpacing: '2px' }}>GLOB ERP</h1>
+          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', marginTop: '6px' }}>Fabrication & Enterprises</p>
+          <div style={{ background: '#e8ecf1', color: '#0d1b2a', border: '2px solid #0d1b2a', padding: '4px 10px', borderRadius: '6px', fontSize: '10px', fontWeight: '700', marginTop: '10px', letterSpacing: '0.5px', display: 'inline-block' }}>GSTIN: 27AWAPK1209R1ZC</div>
         </div>
-        {msg && <div className="rounded-lg p-3 mb-4 text-sm" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }}>{msg}</div>}
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {msg && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', padding: '12px', borderRadius: '8px', color: '#f87171', fontSize: '13px', marginBottom: '16px' }}>{msg}</div>}
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
-            <label className="text-xs font-semibold mb-2 block" style={{ color: 'rgba(255,255,255,0.5)' }}>Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="admin@globfabrication.com" required className="input-field" />
+            <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginBottom: '6px', display: 'block' }}>Email</label>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="admin@globfabrication.com" required style={{ width: '100%', padding: '12px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: '#fff', fontSize: '14px', outline: 'none' }} />
           </div>
           <div>
-            <label className="text-xs font-semibold mb-2 block" style={{ color: 'rgba(255,255,255,0.5)' }}>Password</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Enter password" required className="input-field" />
+            <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginBottom: '6px', display: 'block' }}>Password</label>
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Enter password" required style={{ width: '100%', padding: '12px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: '#fff', fontSize: '14px', outline: 'none' }} />
           </div>
-          <button type="submit" disabled={loading} className="btn-primary w-full py-3 text-base font-bold" style={{ padding: 14, fontSize: 15 }}>
+          <button type="submit" disabled={loading} style={{ padding: '14px', background: loading ? 'rgba(6,182,212,0.3)' : 'linear-gradient(135deg, #06b6d4, #4f8fff)', border: 'none', borderRadius: '10px', color: '#fff', fontSize: '15px', fontWeight: '700', cursor: loading ? 'not-allowed' : 'pointer' }}>
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
+        <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontSize: '11px', marginTop: '20px' }}>First visit may take 30s (server waking up)</p>
       </div>
     </div>
   )
 }
 
+// ─── Root App component ───
 export default function App() {
   return (
     <AutoHealErrorBoundary>
