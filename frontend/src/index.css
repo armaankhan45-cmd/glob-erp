@@ -355,6 +355,21 @@ tbody tr:hover { background: rgba(255,255,255,0.03); }
   100% { opacity: 0; transform: scale(1.05); }
 }
 
+/* ─── LOGIN PAGE ANIMATIONS ─── */
+@keyframes loginFloat1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(30px, -20px) scale(1.05); }
+  66% { transform: translate(-20px, 15px) scale(0.95); }
+}
+@keyframes loginFloat2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-25px, -30px) scale(1.1); }
+}
+@keyframes loginFloat3 {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-45%, -55%) scale(1.15); }
+}
+
 .stagger > * {
   animation: entranceScale 0.5s cubic-bezier(0.16,1,0.3,1) both;
 }
