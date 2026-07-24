@@ -1,60 +1,112 @@
-import React, { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Plus, Search, Eye, Edit, Trash2, Users, Phone, Mail, MapPin, IndianRupee } from 'lucide-react'
 import api from '../api/client'
-import { Users, Plus, Search } from 'lucide-react'
+import useCachedApi, { invalidateCache } from '../hooks/useCachedApi'
 
 export default function Customers() {
-  const [customers, setCustomers] = useState([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [showAdd, setShowAdd] = useState(false)
-  const [form, setForm] = useState({ name: '', email: '', phone: '', gstin: '', address: '', state: '', state_code: '27' })
-  const [msg, setMsg] = useState(null)
+  const navigate = useNavigate()
+  const { data, loading, refetch } = useCachedApi('/customers', { maxAge: 30000 })
+  const list = data && data.customers ? data.customers : []
+  const load = () => { invalidateCache('/customers'); refetch() }
 
-  const load = () => { setLoading(true); api.get('/customers').then(res => { setCustomers(res.data || []); setLoading(false) }).catch(err => { setLoading(false) }) }
-  useEffect(load, [])
-
-  const handleAdd = async (e) => {
-    e.preventDefault()
-    try { await api.post('/customers', form); setShowAdd(false); setForm({ name: '', email: '', phone: '', gstin: '', address: '', state: '', state_code: '27' }); setMsg({ type: 'success', text: 'Customer added!' }); load() } catch (err) { setMsg({ type: 'error', text: err.response?.data?.msg || err.message }) }
+  const del = async (id, name, e) => {
+    if (e) e.stopPropagation()
+    if (!confirm(`Delete customer "${name}"?`)) return
+    try { await api.delete('/customers/' + id); load() } catch (e) { alert('Delete failed') }
   }
 
-  if (loading) return <div className="flex flex-col items-center justify-center h-96"><div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
+  const filtered = list.filter(c =>
+    c.name?.toLowerCase().includes(search.toLowerCase()) || c.gstin?.toLowerCase().includes(search.toLowerCase()) || c.phone?.includes(search)
+  )
 
-  const filtered = customers.filter(c => c.name?.toLowerCase().includes(search.toLowerCase()) || c.gstin?.toLowerCase().includes(search.toLowerCase()))
+  const totalOutstanding = list.reduce((s, c) => s + (c.outstanding || 0), 0)
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between mb-4"><div><h1 className="text-xl font-extrabold accent-text">Customers</h1><div className="gstin-badge mt-2">GSTIN: 27AWAPK1209R1ZC</div></div>
-        <button className="btn-primary flex items-center gap-2" onClick={() => setShowAdd(true)}><Plus size={16} /> Add Customer</button></div>
-      {msg && <div className={msg.type === 'success' ? 'text-emerald-400 text-sm' : 'text-red-400 text-sm'}>{msg.text}</div>}
-      <div className="card card-premium" style={{ animation: 'entranceUp 0.5s cubic-bezier(0.16,1,0.3,1) both' }}>
-        <div className="shimmer" />
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-bold text-white text-[15px]">All Customers</h3>
-          <div className="relative"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search customers..." className="input-field pl-8" style={{ width: 200 }} /></div>
+    <div className="space-y-5">
+      <div className="flex items-center justify-between flex-wrap gap-3" style={{ animation: 'entranceUp 0.5s cubic-bezier(0.16,1,0.3,1) both' }}>
+        <div>
+          <h1 className="text-2xl font-bold text-white">Customers</h1>
+          <p className="text-white/35 text-sm">Manage your customer database</p>
         </div>
-        <table>
-          <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>GSTIN</th><th>State</th><th>Address</th></tr></thead>
-          <tbody>
-            {filtered.length === 0 ? <tr><td colSpan={6} className="text-center py-8 text-white/25">No customers yet</td></tr> :
-            filtered.map(c => <tr key={c.id}><td className="font-semibold text-white">{c.name}</td><td>{c.email || '-'}</td><td>{c.phone || '-'}</td><td>{c.gstin || '-'}</td><td>{c.state || '-'}</td><td>{c.address || '-'}</td></tr>)}
-          </tbody>
-        </table>
+        <button onClick={() => navigate('/app/customers/new')} className="btn-primary flex items-center gap-2 btn-shine">
+          <Plus size={18} />Add Customer
+        </button>
       </div>
-      {showAdd && (
-        <div className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center" onClick={() => setShowAdd(false)}>
-          <div className="max-w-lg w-full rounded-2xl p-6" style={{ background: 'rgba(14,18,36,0.97)', border: '1px solid rgba(255,255,255,0.08)' }} onClick={e => e.stopPropagation()}>
-            <h2 className="text-xl font-bold accent-text mb-4">Add Customer</h2>
-            <form onSubmit={handleAdd} className="space-y-3">
-              <div><label className="text-xs font-semibold block mb-1 text-white/50">Name *</label><input className="input-field" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required /></div>
-              <div><label className="text-xs font-semibold block mb-1 text-white/50">Email</label><input className="input-field" type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} /></div>
-              <div><label className="text-xs font-semibold block mb-1 text-white/50">Phone</label><input className="input-field" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} /></div>
-              <div><label className="text-xs font-semibold block mb-1 text-white/50">GSTIN</label><input className="input-field" value={form.gstin} onChange={e => setForm({...form, gstin: e.target.value})} /></div>
-              <div><label className="text-xs font-semibold block mb-1 text-white/50">State</label><input className="input-field" value={form.state} onChange={e => setForm({...form, state: e.target.value})} /></div>
-              <div><label className="text-xs font-semibold block mb-1 text-white/50">Address</label><input className="input-field" value={form.address} onChange={e => setForm({...form, address: e.target.value})} /></div>
-              <div className="flex gap-2"><button type="submit" className="btn-primary">Save</button><button type="button" className="btn-secondary" onClick={() => setShowAdd(false)}>Cancel</button></div>
-            </form>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 stagger">
+        {[
+          { label: 'Total Customers', value: list.length, color: '#3b82f6' },
+          { label: 'Active', value: list.filter(c => c.invoice_count > 0).length, color: '#22c55e' },
+          { label: 'Outstanding', value: '₹' + Math.round(totalOutstanding).toLocaleString('en-IN'), color: '#f59e0b' },
+        ].map((s, i) => (
+          <div key={i} className="stat-card card-premium" style={{ animationDelay: `${i * 0.08}s` }}>
+            <div className="shimmer"></div>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-white/30">{s.label}</span>
+            <p className="text-xl font-extrabold text-white mt-1">{s.value}</p>
           </div>
+        ))}
+      </div>
+
+      {/* Search */}
+      <div className="card card-premium">
+        <div className="relative">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/25" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name, GSTIN, or phone..." className="input-field pl-10" />
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-12"><div className="w-10 h-10 border-4 rounded-full" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent', animation: 'spin 1s linear infinite' }}></div></div>
+      ) : filtered.length === 0 ? (
+        <div className="card card-premium p-12 text-center">
+          <Users size={48} className="mx-auto text-white/15 mb-3" />
+          <h3 className="text-lg font-bold text-white/60">No Customers Yet</h3>
+          <p className="text-sm text-white/25 mt-1 mb-4">Add your first customer</p>
+          <button onClick={() => navigate('/app/customers/new')} className="btn-primary inline-flex items-center gap-2 btn-shine"><Plus size={16} />Add Customer</button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 stagger">
+          {filtered.map((c, i) => (
+            <div key={c.id}
+              className="card card-premium cursor-pointer group"
+              style={{ animation: `entranceScale 0.4s cubic-bezier(0.16,1,0.3,1) ${i * 0.04}s both` }}
+              onClick={() => navigate('/app/customers/' + c.id)}>
+              <div className="shimmer"></div>
+              <div className="flex items-start gap-3 mb-3">
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-lg font-extrabold flex-shrink-0"
+                  style={{ background: 'rgba(var(--accent-rgb),0.15)', color: 'var(--accent)' }}>
+                  {c.name?.charAt(0)?.toUpperCase() || 'C'}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-bold text-white truncate">{c.name}</div>
+                  {c.gstin && <div className="text-[10px] font-mono accent-text mt-0.5">{c.gstin}</div>}
+                </div>
+              </div>
+              <div className="space-y-1 mb-3 text-xs text-white/40">
+                {c.phone && <div className="flex items-center gap-2"><Phone size={10} />{c.phone}</div>}
+                {c.email && <div className="flex items-center gap-2 truncate"><Mail size={10} />{c.email}</div>}
+                {(c.city || c.state) && <div className="flex items-center gap-2"><MapPin size={10} />{[c.city, c.state].filter(Boolean).join(', ')}</div>}
+              </div>
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <div className="rounded-lg p-2" style={{ background: 'rgba(var(--accent-rgb),0.05)' }}>
+                  <div className="text-[10px] text-white/30">Invoices</div>
+                  <div className="text-sm font-bold text-white">{c.invoice_count || 0}</div>
+                </div>
+                <div className="rounded-lg p-2" style={{ background: 'rgba(239,68,68,0.05)' }}>
+                  <div className="text-[10px] text-white/30">Outstanding</div>
+                  <div className="text-sm font-bold text-amber-400">₹{Math.round(c.outstanding || 0).toLocaleString('en-IN')}</div>
+                </div>
+              </div>
+              <div className="flex gap-2 pt-3 border-t border-white/5">
+                <button onClick={(e) => { e.stopPropagation(); navigate('/app/customers/' + c.id) }} className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-semibold accent-text transition-all hover:bg-white/5"><Eye size={12} />View</button>
+                <button onClick={(e) => { e.stopPropagation(); navigate('/app/customers/' + c.id + '/edit') }} className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-semibold text-blue-400 transition-all hover:bg-white/5"><Edit size={12} />Edit</button>
+                <button onClick={(e) => del(c.id, c.name, e)} className="px-2 py-1.5 rounded-lg text-xs text-red-400 transition-all hover:bg-white/5"><Trash2 size={12} /></button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
