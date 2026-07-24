@@ -1,4 +1,4 @@
-import { useState, Suspense, lazy } from 'react'
+import { useState, useEffect, Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
@@ -99,7 +99,7 @@ function LoginPage() {
         <div style={{ position: 'absolute', width: 300, height: 300, borderRadius: '50%', background: 'radial-gradient(circle, rgba(168,85,247,0.05) 0%, transparent 70%)', top: '40%', right: '20%', animation: 'floatOrb 12s ease-in-out infinite 2s' }}></div>
       </div>
 
-      {/* Login card with entrance animation */}
+      {/* Login card */}
       <div style={{
         width: '100%', maxWidth: '440px',
         background: 'rgba(14,18,36,0.97)',
@@ -112,7 +112,7 @@ function LoginPage() {
         transform: ready ? 'translateY(0)' : 'translateY(20px)',
         transition: 'all 0.6s cubic-bezier(0.16,1,0.3,1)'
       }}>
-        {/* Logo / Brand */}
+        {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '36px' }}>
           <div style={{
             width: 64, height: 64, borderRadius: 18,
@@ -138,7 +138,7 @@ function LoginPage() {
           }}>GSTIN: 27AWAPK1209R1ZC</div>
         </div>
 
-        {/* Error message */}
+        {/* Error */}
         {msg && (
           <div style={{
             background: 'rgba(239,68,68,0.08)',
@@ -239,13 +239,11 @@ function LoginPage() {
           </button>
         </form>
 
-        {/* Cold start notice */}
         <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontSize: '11px', marginTop: '24px', fontWeight: 500 }}>
           ⏳ First visit may take 30s (server waking up on free tier)
         </p>
       </div>
 
-      {/* Animation keyframes */}
       <style>{`
         @keyframes floatOrb {
           0%, 100% { transform: translate(0, 0) scale(1); }
