@@ -1,5 +1,5 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react'
 import Sidebar from '../components/Sidebar'
 import TopBar from '../components/TopBar'
 import { Menu, Bot, X, Send } from 'lucide-react'
@@ -36,6 +36,17 @@ function MiniMarkdown({ text }) {
   )
 }
 
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center h-64">
+      <div className="text-center">
+        <div className="w-10 h-10 border-4 rounded-full animate-spin mx-auto" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}></div>
+        <p className="text-sm mt-3 font-medium" style={{ color: 'var(--text-muted)' }}>Loading page...</p>
+      </div>
+    </div>
+  )
+}
+
 export default function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [aiOpen, setAiOpen] = useState(false)
@@ -53,14 +64,13 @@ export default function MainLayout() {
     return () => clearTimeout(timer)
   }, [])
 
+  const [aiStatus, setAiStatus] = useState(null)
   useEffect(() => { api.get('/ai/status').then(res => setAiStatus(res.data)).catch(() => {}) }, [])
   useEffect(() => { setAiOpen(false) }, [location.pathname])
   useEffect(() => {
     function handleClick(e) { if (aiOpen && miniChatRef.current && !miniChatRef.current.contains(e.target)) { const btn = document.getElementById('ai-float-btn'); if (btn && btn.contains(e.target)) return; setAiOpen(false) } }
     document.addEventListener('mousedown', handleClick); return () => document.removeEventListener('mousedown', handleClick)
   }, [aiOpen])
-
-  const [aiStatus, setAiStatus] = useState(null)
 
   const aiSend = useCallback(async (text) => {
     if (!text.trim() || aiLoading) return
@@ -91,7 +101,9 @@ export default function MainLayout() {
         <div className="lg:hidden"><button onClick={() => setSidebarOpen(true)} className="p-4" style={{ color: 'var(--text-secondary)' }}><Menu size={24} /></button></div>
         <TopBar />
         <main className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth" style={{ background: '#080b14' }}>
-          <Outlet />
+          <Suspense fallback={<PageLoader />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
       {!location.pathname.includes('ai-assistant') && (
