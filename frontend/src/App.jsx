@@ -1,10 +1,12 @@
 // ═══════════════════════════════════════════════════════════════════
 // App.jsx — Uses MainLayout with Sidebar + TopBar + Theme switching
+// ThemeProvider is HERE (not in main.jsx) to avoid build issues
 // ═══════════════════════════════════════════════════════════════════
 
 import { useState, Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { ThemeProvider } from './context/ThemeContext'
 import AutoHealErrorBoundary from './components/AutoHealErrorBoundary'
 import MainLayout from './layouts/MainLayout'
 
@@ -65,11 +67,11 @@ function PrivateRoute({ children }) {
 // ─── Login page ───
 function LoginPage() {
   const { login } = useAuth()
+  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState('')
-  const navigate = useNavigate()
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -111,42 +113,45 @@ function LoginPage() {
 // ─── Root App component ───
 export default function App() {
   return (
-    <AutoHealErrorBoundary>
-      <BrowserRouter>
-        <AuthProvider>
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/app" element={<PrivateRoute><MainLayout /></PrivateRoute>}>
-              <Route path="dashboard" element={<Dashboard />} />
-              <Route path="invoices" element={<Invoices />} />
-              <Route path="invoices/new" element={<InvoiceNew />} />
-              <Route path="invoices/:id" element={<InvoiceDetail />} />
-              <Route path="invoices/:id/edit" element={<InvoiceEdit />} />
-              <Route path="quotations" element={<Quotations />} />
-              <Route path="quotations/new" element={<QuotationForm />} />
-              <Route path="quotations/:id" element={<QuotationDetail />} />
-              <Route path="customers" element={<Customers />} />
-              <Route path="customers/new" element={<CustomerNew />} />
-              <Route path="customers/:id" element={<CustomerDetail />} />
-              <Route path="customers/:id/edit" element={<CustomerEdit />} />
-              <Route path="purchases" element={<Purchases />} />
-              <Route path="purchases/new" element={<PurchaseNew />} />
-              <Route path="purchases/:id" element={<PurchaseDetail />} />
-              <Route path="purchases/:id/edit" element={<PurchaseEdit />} />
-              <Route path="gst" element={<GSTReports />} />
-              <Route path="reports" element={<Reports />} />
-              <Route path="ai-assistant" element={<AIAssistant />} />
-              <Route path="settings" element={<Settings />} />
-              <Route path="fonts" element={<FontSettings />} />
-              <Route path="export" element={<ExportData />} />
-              <Route path="deploy" element={<DeployControl />} />
-              <Route path="diagnostics" element={<Diagnostics />} />
-            </Route>
-            <Route path="/" element={<Navigate to="/app/dashboard" replace />} />
-            <Route path="*" element={<Navigate to="/app/dashboard" replace />} />
-          </Routes>
-        </AuthProvider>
-      </BrowserRouter>
-    </AutoHealErrorBoundary>
+    <ThemeProvider>
+      <AutoHealErrorBoundary>
+        <BrowserRouter>
+          <AuthProvider>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/app" element={<PrivateRoute><MainLayout /></PrivateRoute>}>
+                <Route path="dashboard" element={<Dashboard />} />
+                <Route path="invoices" element={<Invoices />} />
+                <Route path="invoices/new" element={<InvoiceNew />} />
+                <Route path="invoices/:id" element={<InvoiceDetail />} />
+                <Route path="invoices/:id/edit" element={<InvoiceEdit />} />
+                <Route path="quotations" element={<Quotations />} />
+                <Route path="quotations/new" element={<QuotationForm />} />
+                <Route path="quotations/:id" element={<QuotationDetail />} />
+                <Route path="customers" element={<Customers />} />
+                <Route path="customers/new" element={<CustomerNew />} />
+                <Route path="customers/:id" element={<CustomerDetail />} />
+                <Route path="customers/:id/edit" element={<CustomerEdit />} />
+                <Route path="purchases" element={<Purchases />} />
+                <Route path="purchases/new" element={<PurchaseNew />} />
+                <Route path="purchases/:id" element={<PurchaseDetail />} />
+                <Route path="purchases/:id/edit" element={<PurchaseEdit />} />
+                <Route path="gst" element={<GSTReports />} />
+                <Route path="reports" element={<Reports />} />
+                <Route path="ai-assistant" element={<AIAssistant />} />
+                <Route path="settings" element={<Settings />} />
+                <Route path="fonts" element={<FontSettings />} />
+                <Route path="export" element={<ExportData />} />
+                <Route path="deploy" element={<DeployControl />} />
+                <Route path="diagnostics" element={<Diagnostics />} />
+                <Route path="" element={<Navigate to="/app/dashboard" replace />} />
+              </Route>
+              <Route path="/" element={<Navigate to="/app/dashboard" replace />} />
+              <Route path="*" element={<Navigate to="/app/dashboard" replace />} />
+            </Routes>
+          </AuthProvider>
+        </BrowserRouter>
+      </AutoHealErrorBoundary>
+    </ThemeProvider>
   )
 }
