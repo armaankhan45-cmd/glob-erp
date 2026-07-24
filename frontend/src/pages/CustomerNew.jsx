@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Save, Search, Loader2, CheckCircle, AlertCircle, MapPin } from 'lucide-react'
+import { ArrowLeft, Save, Search, Loader2, CheckCircle, AlertCircle, MapPin, Building2, Phone, Mail, CreditCard, Banknote, Receipt } from 'lucide-react'
 import api from '../api/client'
 
 const STATES = {
@@ -59,6 +59,7 @@ export default function CustomerNew() {
   const [loading, setLoading] = useState(false)
   const [gstLoading, setGstLoading] = useState(false)
   const [message, setMessage] = useState({ type: '', text: '' })
+  const [activeStep, setActiveStep] = useState(1)
 
   const [name, setName] = useState('')
   const [gstin, setGstin] = useState('')
@@ -170,158 +171,206 @@ export default function CustomerNew() {
     }
   }
 
+  const steps = [
+    { num: 1, label: 'GSTIN Lookup', icon: Receipt },
+    { num: 2, label: 'Basic Info', icon: Building2 },
+    { num: 3, label: 'Contact', icon: Phone },
+    { num: 4, label: 'Address', icon: MapPin },
+    { num: 5, label: 'Bank', icon: Banknote },
+  ]
+
+  const msgColors = {
+    success: { bg: 'rgba(74,222,128,0.1)', border: 'rgba(74,222,128,0.25)', text: '#4ade80' },
+    info: { bg: 'rgba(34,211,238,0.1)', border: 'rgba(34,211,238,0.25)', text: '#22d3ee' },
+    error: { bg: 'rgba(248,113,113,0.1)', border: 'rgba(248,113,113,0.25)', text: '#f87171' },
+  }
+  const mc = msgColors[message.type] || msgColors.error
+
   return (
     <div className="space-y-5 max-w-5xl">
+      {/* Header */}
       <div className="flex items-center gap-3">
-        <button onClick={() => navigate('/app/customers')} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-white"><ArrowLeft size={16} /></button>
+        <button onClick={() => navigate('/app/customers')} className="p-2 rounded-lg" style={{ background: 'var(--bg-glass)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
+          <ArrowLeft size={16} />
+        </button>
         <div>
-          <h1 className="text-2xl font-bold text-white">Add New Customer</h1>
-          <p className="text-slate-400 text-sm">Enter GSTIN to auto-fill State & PAN</p>
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Add New Customer</h1>
+          <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Enter GSTIN to auto-fill State & PAN</p>
         </div>
       </div>
 
+      {/* Step Progress */}
+      <div className="flex gap-2 overflow-x-auto">
+        {steps.map(s => (
+          <button key={s.num} onClick={() => setActiveStep(s.num)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap"
+            style={activeStep === s.num
+              ? { background: 'rgba(var(--accent-rgb),0.12)', color: 'var(--accent)', border: '1px solid rgba(var(--accent-rgb),0.25)' }
+              : { background: 'var(--bg-glass)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }
+            }>
+            <s.icon size={14} />
+            {s.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Message */}
       {message.text && (
-        <div className={"p-4 rounded-xl flex items-start gap-2 text-sm " + (
-          message.type === 'success' ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400' :
-          message.type === 'info' ? 'bg-blue-500/10 border border-blue-500/30 text-blue-400' :
-          'bg-red-500/10 border border-red-500/30 text-red-400'
-        )}>
+        <div className="p-4 rounded-xl flex items-start gap-2 text-sm" style={{ background: mc.bg, border: `1px solid ${mc.border}`, color: mc.text }}>
           {message.type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
           <span>{message.text}</span>
         </div>
       )}
 
       <form onSubmit={submit} className="space-y-5">
-        <div className="glass rounded-2xl p-5 border border-blue-500/20 bg-blue-500/5">
-          <h3 className="text-sm font-bold text-blue-400 mb-3">GSTIN Lookup</h3>
-          <p className="text-xs text-slate-400 mb-4">Type 15-digit GSTIN to auto-fill State and PAN</p>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <input
-              type="text"
-              value={gstin}
-              onChange={(e) => setGstin(e.target.value.toUpperCase())}
-              maxLength="15"
-              placeholder="Example: 27AAACR5055K1Z7"
-              className="flex-1 px-4 py-3 rounded-xl text-base font-mono uppercase tracking-wider"
-              autoComplete="off"
-            />
-            <button
-              type="button"
-              onClick={fetchGST}
-              disabled={gstLoading || gstin.length !== 15}
-              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              {gstLoading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
-              {gstLoading ? 'Fetching...' : 'Validate'}
-            </button>
-          </div>
-        </div>
-
-        <div className="glass rounded-2xl p-5">
-          <h3 className="text-sm font-bold text-white mb-4">Basic Information</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs text-slate-400 font-semibold mb-1.5">Customer Name *</label>
-              <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Sharma Steel Works" required className="w-full px-3 py-2.5 rounded-xl text-sm" autoComplete="off" />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-400 font-semibold mb-1.5">Trade Name</label>
-              <input type="text" value={tradeName} onChange={(e) => setTradeName(e.target.value)} className="w-full px-3 py-2.5 rounded-xl text-sm" autoComplete="off" />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-400 font-semibold mb-1.5">Contact Person</label>
-              <input type="text" value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} placeholder="Mr. Rajesh" className="w-full px-3 py-2.5 rounded-xl text-sm" autoComplete="off" />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-400 font-semibold mb-1.5">Business Type</label>
-              <select value={businessType} onChange={(e) => setBusinessType(e.target.value)} className="w-full px-3 py-2.5 rounded-xl text-sm">
-                <option value="">Select Type</option>
-                <option>Sole Proprietorship</option>
-                <option>Partnership</option>
-                <option>Private Limited</option>
-                <option>Public Limited</option>
-                <option>LLP</option>
-                <option>Government</option>
-              </select>
+        {/* Step 1: GSTIN Lookup */}
+        {activeStep === 1 && (
+          <div className="glass rounded-2xl p-5" style={{ border: '1px solid rgba(var(--accent-rgb),0.2)', background: 'rgba(var(--accent-rgb),0.05)' }}>
+            <h3 className="text-sm font-bold mb-3" style={{ color: 'var(--accent)' }}>🔍 GSTIN Lookup</h3>
+            <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>Type 15-digit GSTIN to auto-fill State and PAN — saves time and reduces errors</p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="text"
+                value={gstin}
+                onChange={(e) => setGstin(e.target.value.toUpperCase())}
+                maxLength="15"
+                placeholder="Example: 27AAACR5055K1Z7"
+                className="flex-1 px-4 py-3 rounded-xl text-base font-mono uppercase tracking-wider input-field"
+                autoComplete="off"
+              />
+              <button
+                type="button"
+                onClick={fetchGST}
+                disabled={gstLoading || gstin.length !== 15}
+                className="px-6 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+                style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent2))', color: '#fff' }}
+              >
+                {gstLoading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
+                {gstLoading ? 'Fetching...' : 'Validate GSTIN'}
+              </button>
             </div>
           </div>
-        </div>
+        )}
 
-        <div className="glass rounded-2xl p-5">
-          <h3 className="text-sm font-bold text-white mb-4">Contact Information</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs text-slate-400 font-semibold mb-1.5">Phone Number</label>
-              <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="9876543210" className="w-full px-3 py-2.5 rounded-xl text-sm" autoComplete="off" />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-400 font-semibold mb-1.5">Email</label>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-3 py-2.5 rounded-xl text-sm" autoComplete="off" />
+        {/* Step 2: Basic Information */}
+        {activeStep === 2 && (
+          <div className="glass rounded-2xl p-5">
+            <h3 className="text-sm font-bold mb-4" style={{ color: 'var(--text-primary)' }}>📋 Basic Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Customer Name *</label>
+                <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Sharma Steel Works" required className="input-field" autoComplete="off" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Trade Name</label>
+                <input type="text" value={tradeName} onChange={(e) => setTradeName(e.target.value)} className="input-field" autoComplete="off" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Contact Person</label>
+                <input type="text" value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} placeholder="Mr. Rajesh" className="input-field" autoComplete="off" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Business Type</label>
+                <select value={businessType} onChange={(e) => setBusinessType(e.target.value)} className="input-field">
+                  <option value="">Select Type</option>
+                  <option>Sole Proprietorship</option>
+                  <option>Partnership</option>
+                  <option>Private Limited</option>
+                  <option>Public Limited</option>
+                  <option>LLP</option>
+                  <option>Government</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Credit Limit ₹</label>
+                <input type="text" inputMode="decimal" value={creditLimit} onChange={(e) => setCreditLimit(e.target.value)} placeholder="50000" className="input-field" autoComplete="off" />
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        <div className="glass rounded-2xl p-5">
-          <h3 className="text-sm font-bold text-white mb-4">Address Details</h3>
-          <div className="space-y-3">
-            <div>
-              <label className="block text-xs text-slate-400 font-semibold mb-1.5">Full Address</label>
-              <textarea value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Building, Street, Area" rows="2" className="w-full px-3 py-2.5 rounded-xl text-sm" autoComplete="off" />
+        {/* Step 3: Contact */}
+        {activeStep === 3 && (
+          <div className="glass rounded-2xl p-5">
+            <h3 className="text-sm font-bold mb-4" style={{ color: 'var(--text-primary)' }}>📞 Contact Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Phone Number</label>
+                <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="9876543210" className="input-field" autoComplete="off" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Email</label>
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="input-field" autoComplete="off" />
+              </div>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          </div>
+        )}
+
+        {/* Step 4: Address */}
+        {activeStep === 4 && (
+          <div className="glass rounded-2xl p-5">
+            <h3 className="text-sm font-bold mb-4" style={{ color: 'var(--text-primary)' }}>📍 Address Details</h3>
+            <div className="space-y-3">
               <div>
-                <label className="block text-xs text-slate-400 font-semibold mb-1.5">City <span className="text-blue-400">(auto-fills state)</span></label>
-                <input type="text" value={city} onChange={(e) => handleCityChange(e.target.value)} className="w-full px-3 py-2.5 rounded-xl text-sm" autoComplete="off" placeholder="Mumbai, Pune..." />
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Full Address</label>
+                <textarea value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Building, Street, Area" rows="2" className="input-field" autoComplete="off" />
               </div>
-              <div>
-                <label className="block text-xs text-slate-400 font-semibold mb-1.5">State</label>
-                <input type="text" value={state} onChange={(e) => setState(e.target.value)} className="w-full px-3 py-2.5 rounded-xl text-sm" autoComplete="off" />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 font-semibold mb-1.5">State Code</label>
-                <input type="text" value={stateCode} onChange={(e) => setStateCode(e.target.value)} maxLength="2" className="w-full px-3 py-2.5 rounded-xl text-sm font-mono" autoComplete="off" />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 font-semibold mb-1.5">Pincode <span className="text-emerald-400">(auto-fetch)</span></label>
-                <div className="relative">
-                  <input type="text" value={pincode} onChange={(e) => fetchByPincode(e.target.value)} maxLength="6" className="w-full px-3 py-2.5 rounded-xl text-sm pr-8" autoComplete="off" placeholder="400074" />
-                  <MapPin size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-emerald-400" />
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>City <span style={{ color: 'var(--accent)' }}>auto-fills state</span></label>
+                  <input type="text" value={city} onChange={(e) => handleCityChange(e.target.value)} className="input-field" autoComplete="off" placeholder="Mumbai, Pune..." />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>State</label>
+                  <input type="text" value={state} onChange={(e) => setState(e.target.value)} className="input-field" autoComplete="off" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>State Code</label>
+                  <input type="text" value={stateCode} onChange={(e) => setStateCode(e.target.value)} maxLength="2" className="input-field font-mono" autoComplete="off" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Pincode <span style={{ color: '#4ade80' }}>auto-fetch</span></label>
+                  <div className="relative">
+                    <input type="text" value={pincode} onChange={(e) => fetchByPincode(e.target.value)} maxLength="6" className="input-field pr-8" autoComplete="off" placeholder="400074" />
+                    <MapPin size={14} className="absolute right-2 top-1/2 -translate-y-1/2" style={{ color: '#4ade80' }} />
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
-        <div className="glass rounded-2xl p-5">
-          <h3 className="text-sm font-bold text-white mb-4">Bank Details (Optional)</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs text-slate-400 font-semibold mb-1.5">Bank Name</label>
-              <input type="text" value={bankName} onChange={(e) => setBankName(e.target.value)} className="w-full px-3 py-2.5 rounded-xl text-sm" autoComplete="off" />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-400 font-semibold mb-1.5">Account Number</label>
-              <input type="text" value={accountNo} onChange={(e) => setAccountNo(e.target.value)} className="w-full px-3 py-2.5 rounded-xl text-sm font-mono" autoComplete="off" />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-400 font-semibold mb-1.5">IFSC Code</label>
-              <input type="text" value={ifsc} onChange={(e) => setIfsc(e.target.value.toUpperCase())} className="w-full px-3 py-2.5 rounded-xl text-sm font-mono uppercase" autoComplete="off" />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-400 font-semibold mb-1.5">UPI ID</label>
-              <input type="text" value={upiId} onChange={(e) => setUpiId(e.target.value)} className="w-full px-3 py-2.5 rounded-xl text-sm" autoComplete="off" />
+        {/* Step 5: Bank */}
+        {activeStep === 5 && (
+          <div className="glass rounded-2xl p-5">
+            <h3 className="text-sm font-bold mb-4" style={{ color: 'var(--text-primary)' }}>🏦 Bank Details (Optional)</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Bank Name</label>
+                <input type="text" value={bankName} onChange={(e) => setBankName(e.target.value)} className="input-field" autoComplete="off" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Account Number</label>
+                <input type="text" value={accountNo} onChange={(e) => setAccountNo(e.target.value)} className="input-field font-mono" autoComplete="off" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>IFSC Code</label>
+                <input type="text" value={ifsc} onChange={(e) => setIfsc(e.target.value.toUpperCase())} className="input-field font-mono uppercase" autoComplete="off" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>UPI ID</label>
+                <input type="text" value={upiId} onChange={(e) => setUpiId(e.target.value)} className="input-field" autoComplete="off" />
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        <div className="glass rounded-2xl p-5">
-          <h3 className="text-sm font-bold text-white mb-4">Credit Limit</h3>
-          <input type="text" inputMode="decimal" value={creditLimit} onChange={(e) => setCreditLimit(e.target.value)} placeholder="50000" className="w-full md:w-1/3 px-3 py-2.5 rounded-xl text-sm" autoComplete="off" />
-        </div>
-
-        <div className="flex gap-3 sticky bottom-0 bg-slate-900/95 backdrop-blur p-4 rounded-2xl border border-slate-800">
-          <button type="button" onClick={() => navigate('/app/customers')} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl text-sm font-bold transition">Cancel</button>
-          <button type="submit" disabled={loading} className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-500 hover:shadow-lg text-white py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+        {/* Sticky Footer */}
+        <div className="flex gap-3 sticky bottom-0 p-4 rounded-2xl" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', backdropFilter: 'blur(20px)' }}>
+          <button type="button" onClick={() => navigate('/app/customers')} className="flex-1 py-3 rounded-xl text-sm font-bold transition"
+            style={{ background: 'var(--bg-glass)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>Cancel</button>
+          <button type="submit" disabled={loading} className="flex-1 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50 transition"
+            style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent2))', color: '#fff' }}>
             {loading ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
             {loading ? 'Saving...' : 'Save Customer'}
           </button>
