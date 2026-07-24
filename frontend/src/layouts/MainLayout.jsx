@@ -58,6 +58,38 @@ export default function MainLayout() {
   const location = useLocation()
   const miniChatRef = useRef(null)
 
+  // ═══ Font Init — apply saved font on app startup ═══
+  useEffect(() => {
+    const savedFont = localStorage.getItem('selected_font')
+    if (savedFont) {
+      const SYSTEM_FONTS = ['Arial', 'Helvetica', 'Times New Roman', 'Georgia', 'Verdana', 'Calibri', 'Segoe UI', 'Tahoma', 'Trebuchet MS', 'Cambria', 'Consolas', 'Lucida Console', 'Impact', 'Comic Sans MS']
+      if (!SYSTEM_FONTS.includes(savedFont)) {
+        const fontFamily = savedFont.replace(/ /g, '+')
+        const link = document.createElement('link')
+        link.id = 'app-font-loader'
+        link.href = 'https://fonts.googleapis.com/css2?family=' + fontFamily + ':wght@300;400;500;600;700;800;900&display=swap'
+        link.rel = 'stylesheet'
+        if (!document.getElementById('app-font-loader')) {
+          document.head.appendChild(link)
+        }
+      }
+      const style = document.createElement('style')
+      style.id = 'app-font-style'
+      style.textContent = "*, body, html, div, span, p, h1, h2, h3, h4, h5, h6, button, input, select, textarea, table, th, td, label, a, li, nav { font-family: '" + savedFont + "', system-ui, sans-serif !important; }"
+      if (!document.getElementById('app-font-style')) {
+        document.head.appendChild(style)
+      }
+      document.body.style.fontFamily = "'" + savedFont + "', system-ui, sans-serif"
+    }
+
+    // ═══ App Bold Init — apply saved bold state on startup ═══
+    const savedBold = localStorage.getItem('appBold')
+    if (savedBold === 'true') {
+      document.documentElement.classList.add('app-bold-mode')
+    }
+  }, [])
+
+  // ═══ PAGE TRANSITION ═══
   useEffect(() => {
     const timer = setTimeout(() => setLoaded(true), 600)
     return () => clearTimeout(timer)
