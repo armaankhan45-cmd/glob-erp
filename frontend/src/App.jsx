@@ -1,9 +1,3 @@
-// ═══════════════════════════════════════════════════════════════════
-// App.jsx — Uses MainLayout with Sidebar + TopBar + Theme switching
-// ThemeProvider is HERE (not in main.jsx) to avoid build issues
-// Suspense wrapper added to prevent React error #426
-// ═══════════════════════════════════════════════════════════════════
-
 import { useState, Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
@@ -11,14 +5,14 @@ import { ThemeProvider } from './context/ThemeContext'
 import AutoHealErrorBoundary from './components/AutoHealErrorBoundary'
 import MainLayout from './layouts/MainLayout'
 
-// ─── Suspense fallback for lazy-loaded pages ───
+// ─── Suspense fallback ───
 function PageFallback({ name }) {
   return (
     <div className="flex items-center justify-center h-96">
       <div className="text-center">
         <div className="w-10 h-10 border-4 rounded-full animate-spin mx-auto" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}></div>
         <h2 className="text-xl font-bold mt-4" style={{ color: 'var(--accent)' }}>{name}</h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Page loading or updating. Try refreshing if stuck.</p>
+        <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Loading page...</p>
       </div>
     </div>
   )
@@ -53,8 +47,8 @@ const Diagnostics     = lazy(() => import('./pages/Diagnostics').catch(() => ({ 
 // ─── Inline loader ───
 function InlineLoader() {
   return (
-    <div className="flex items-center justify-center h-screen">
-      <div className="w-10 h-10 border-4 rounded-full animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
+    <div className="flex items-center justify-center h-screen" style={{ background: '#06080f' }}>
+      <div className="w-12 h-12 border-4 rounded-full animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
     </div>
   )
 }
@@ -67,7 +61,9 @@ function PrivateRoute({ children }) {
   return children
 }
 
-// ─── Login page ───
+// ═══════════════════════════════════════════════════════════════════
+// ENHANCED LOGIN PAGE — Premium dark theme with animated background
+// ═══════════════════════════════════════════════════════════════════
 function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
@@ -75,40 +71,190 @@ function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [ready, setReady] = useState(false)
+
+  useEffect(() => { setTimeout(() => setReady(true), 200) }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true); setMsg('')
-    const result = await login(email, password)
-    setLoading(false)
-    if (result.success) navigate('/app/dashboard')
-    else setMsg(result.msg || 'Login failed')
+    try {
+      const result = await login(email, password)
+      setLoading(false)
+      if (result.success) navigate('/app/dashboard')
+      else setMsg(result.msg || 'Login failed')
+    } catch (err) {
+      setLoading(false)
+      setMsg('Server may be waking up (30s). Please try again.')
+    }
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#06080f', padding: '20px' }}>
-      <div style={{ width: '100%', maxWidth: '420px', background: 'rgba(14,18,36,0.97)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', padding: '40px 32px', boxShadow: '0 25px 50px rgba(0,0,0,0.5)' }}>
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <h1 style={{ color: '#06b6d4', fontSize: '28px', fontWeight: '700', letterSpacing: '2px' }}>GLOB ERP</h1>
-          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', marginTop: '6px' }}>Fabrication & Enterprises</p>
-          <div style={{ background: '#e8ecf1', color: '#0d1b2a', border: '2px solid #0d1b2a', padding: '4px 10px', borderRadius: '6px', fontSize: '10px', fontWeight: '700', marginTop: '10px', letterSpacing: '0.5px', display: 'inline-block' }}>GSTIN: 27AWAPK1209R1ZC</div>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#06080f', position: 'relative', overflow: 'hidden' }}>
+      {/* Animated background orbs */}
+      <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', width: 600, height: 600, borderRadius: '50%', background: 'radial-gradient(circle, rgba(6,182,212,0.08) 0%, transparent 70%)', top: '-200px', left: '-100px', animation: 'floatOrb 20s ease-in-out infinite' }}></div>
+        <div style={{ position: 'absolute', width: 500, height: 500, borderRadius: '50%', background: 'radial-gradient(circle, rgba(79,143,255,0.06) 0%, transparent 70%)', bottom: '-150px', right: '-50px', animation: 'floatOrb 15s ease-in-out infinite reverse' }}></div>
+        <div style={{ position: 'absolute', width: 300, height: 300, borderRadius: '50%', background: 'radial-gradient(circle, rgba(168,85,247,0.05) 0%, transparent 70%)', top: '40%', right: '20%', animation: 'floatOrb 12s ease-in-out infinite 2s' }}></div>
+      </div>
+
+      {/* Login card with entrance animation */}
+      <div style={{
+        width: '100%', maxWidth: '440px',
+        background: 'rgba(14,18,36,0.97)',
+        border: '1px solid rgba(255,255,255,0.08)',
+        borderRadius: '24px',
+        padding: '48px 40px',
+        boxShadow: '0 30px 60px rgba(0,0,0,0.5), 0 0 80px rgba(6,182,212,0.05)',
+        position: 'relative', zIndex: 1,
+        opacity: ready ? 1 : 0,
+        transform: ready ? 'translateY(0)' : 'translateY(20px)',
+        transition: 'all 0.6s cubic-bezier(0.16,1,0.3,1)'
+      }}>
+        {/* Logo / Brand */}
+        <div style={{ textAlign: 'center', marginBottom: '36px' }}>
+          <div style={{
+            width: 64, height: 64, borderRadius: 18,
+            background: 'linear-gradient(135deg, #06b6d4, #4f8fff, #a855f7)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 16px',
+            boxShadow: '0 0 40px rgba(6,182,212,0.2)',
+            fontSize: 28, fontWeight: 900, color: '#fff', letterSpacing: 1
+          }}>G</div>
+          <h1 style={{ color: '#06b6d4', fontSize: '32px', fontWeight: '900', letterSpacing: '4px', textTransform: 'uppercase', lineHeight: 1 }}>GLOB ERP</h1>
+          <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: '13px', marginTop: '8px', fontWeight: 600 }}>Fabrication & Enterprises</p>
+          <div style={{
+            background: 'rgba(6,182,212,0.08)',
+            color: '#06b6d4',
+            border: '1px solid rgba(6,182,212,0.15)',
+            padding: '6px 14px',
+            borderRadius: '8px',
+            fontSize: '11px',
+            fontWeight: '700',
+            marginTop: '12px',
+            letterSpacing: '0.5px',
+            display: 'inline-block'
+          }}>GSTIN: 27AWAPK1209R1ZC</div>
         </div>
-        {msg && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', padding: '12px', borderRadius: '8px', color: '#f87171', fontSize: '13px', marginBottom: '16px' }}>{msg}</div>}
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+        {/* Error message */}
+        {msg && (
+          <div style={{
+            background: 'rgba(239,68,68,0.08)',
+            border: '1px solid rgba(239,68,68,0.15)',
+            padding: '14px 18px',
+            borderRadius: '12px',
+            color: '#f87171',
+            fontSize: '13px',
+            marginBottom: '20px',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px'
+          }}>
+            <span style={{ fontSize: 18 }}>⚠️</span>
+            <span>{msg}</span>
+          </div>
+        )}
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div>
-            <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginBottom: '6px', display: 'block' }}>Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="admin@globfabrication.com" required style={{ width: '100%', padding: '12px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: '#fff', fontSize: '14px', outline: 'none' }} />
+            <label style={{ color: 'rgba(255,255,255,0.55)', fontSize: '12px', marginBottom: '8px', display: 'block', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase' }}>Email</label>
+            <div style={{ position: 'relative' }}>
+              <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.25)', fontSize: 14 }}>📧</span>
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="admin@globfabrication.com"
+                required
+                style={{
+                  width: '100%', padding: '14px 14px 14px 42px',
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: '12px', color: '#fff',
+                  fontSize: '14px', outline: 'none',
+                  transition: 'border-color 0.2s, background 0.2s'
+                }}
+                onFocus={e => { e.target.style.borderColor = 'rgba(6,182,212,0.3)'; e.target.style.background = 'rgba(255,255,255,0.06)' }}
+                onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.08)'; e.target.style.background = 'rgba(255,255,255,0.04)' }}
+              />
+            </div>
           </div>
           <div>
-            <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginBottom: '6px', display: 'block' }}>Password</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Enter password" required style={{ width: '100%', padding: '12px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: '#fff', fontSize: '14px', outline: 'none' }} />
+            <label style={{ color: 'rgba(255,255,255,0.55)', fontSize: '12px', marginBottom: '8px', display: 'block', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase' }}>Password</label>
+            <div style={{ position: 'relative' }}>
+              <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.25)', fontSize: 14 }}>🔒</span>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="Enter password"
+                required
+                style={{
+                  width: '100%', padding: '14px 42px 14px 42px',
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: '12px', color: '#fff',
+                  fontSize: '14px', outline: 'none',
+                  transition: 'border-color 0.2s, background 0.2s'
+                }}
+                onFocus={e => { e.target.style.borderColor = 'rgba(6,182,212,0.3)'; e.target.style.background = 'rgba(255,255,255,0.06)' }}
+                onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.08)'; e.target.style.background = 'rgba(255,255,255,0.04)' }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: 14, cursor: 'pointer' }}
+              >
+                {showPassword ? '🙈' : '👁️'}
+              </button>
+            </div>
           </div>
-          <button type="submit" disabled={loading} style={{ padding: '14px', background: loading ? 'rgba(6,182,212,0.3)' : 'linear-gradient(135deg, #06b6d4, #4f8fff)', border: 'none', borderRadius: '10px', color: '#fff', fontSize: '15px', fontWeight: '700', cursor: loading ? 'not-allowed' : 'pointer' }}>
-            {loading ? 'Signing in...' : 'Sign In'}
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              padding: '16px',
+              background: loading ? 'rgba(6,182,212,0.15)' : 'linear-gradient(135deg, #06b6d4, #4f8fff)',
+              border: 'none', borderRadius: '12px',
+              color: '#fff', fontSize: '16px', fontWeight: '800',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              letterSpacing: '1px',
+              boxShadow: loading ? 'none' : '0 4px 20px rgba(6,182,212,0.3)',
+              transition: 'all 0.3s',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+            }}
+          >
+            {loading ? (
+              <>
+                <div style={{ width: 18, height: 18, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                Signing in...
+              </>
+            ) : (
+              <>🚀 Sign In</>
+            )}
           </button>
         </form>
-        <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontSize: '11px', marginTop: '20px' }}>First visit may take 30s (server waking up)</p>
+
+        {/* Cold start notice */}
+        <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontSize: '11px', marginTop: '24px', fontWeight: 500 }}>
+          ⏳ First visit may take 30s (server waking up on free tier)
+        </p>
       </div>
+
+      {/* Animation keyframes */}
+      <style>{`
+        @keyframes floatOrb {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          25% { transform: translate(30px, -20px) scale(1.05); }
+          50% { transform: translate(-20px, 30px) scale(0.95); }
+          75% { transform: translate(10px, 20px) scale(1.02); }
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
     </div>
   )
 }
