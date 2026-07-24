@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme, THEMES } from '../context/ThemeContext'
-import { LayoutDashboard, FileText, FileSpreadsheet, Users, ShoppingCart, Calculator, BarChart3, Settings, Download, RefreshCw, LogOut, Factory, Activity, Bot, Upload, Palette } from 'lucide-react'
+import { LayoutDashboard, FileText, FileSpreadsheet, Users, ShoppingCart, Calculator, BarChart3, Settings, Download, RefreshCw, LogOut, Factory, Activity, Bot, Upload, Palette, Bold } from 'lucide-react'
 
 const navItems = [
   { label: 'Dashboard', path: '/app/dashboard', icon: LayoutDashboard, section: 'MAIN' },
@@ -25,6 +25,7 @@ export default function Sidebar({ isOpen, onClose }) {
   const navigate = useNavigate()
   const [showColors, setShowColors] = useState(false)
   const [navReady, setNavReady] = useState(false)
+  const [appBold, setAppBold] = useState(() => localStorage.getItem('appBold') === 'true')
   const navRef = useRef(null)
 
   useEffect(() => {
@@ -34,13 +35,25 @@ export default function Sidebar({ isOpen, onClose }) {
 
   const handleLogout = () => { logout(); navigate('/login') }
 
+  // App-wide Bold Toggle (separate from invoice/quotation bold)
+  const toggleAppBold = () => {
+    const newVal = !appBold
+    setAppBold(newVal)
+    localStorage.setItem('appBold', String(newVal))
+    if (newVal) {
+      document.documentElement.classList.add('app-bold-mode')
+    } else {
+      document.documentElement.classList.remove('app-bold-mode')
+    }
+  }
+
   const sections = {}
   navItems.forEach(item => {
     if (!sections[item.section]) sections[item.section] = []
     sections[item.section].push(item)
   })
 
-  const accentColor = themes[themeKey]?.color || '#06b6d4'
+  const accentColor = themes[themeKey]?.color || '#22d3ee'
 
   function hexToRgb(hex) {
     const r = parseInt(hex.slice(1,3), 16)
@@ -127,6 +140,19 @@ export default function Sidebar({ isOpen, onClose }) {
             }}>
             <span style={{ fontSize: 16 }}>{mode === 'dark' ? '🌙' : '☀️'}</span>
             <span>{mode === 'dark' ? 'Dark Mode' : 'Light Mode'}</span>
+          </button>
+
+          {/* App-wide Bold ON/OFF Toggle */}
+          <button onClick={toggleAppBold}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 btn-shine"
+            style={{
+              background: appBold ? `rgba(${hexToRgb(accentColor)}, 0.12)` : `rgba(${hexToRgb(accentColor)}, 0.06)`,
+              border: appBold ? `1px solid rgba(${hexToRgb(accentColor)}, 0.25)` : `1px solid rgba(${hexToRgb(accentColor)}, 0.10)`,
+              color: appBold ? accentColor : 'var(--text-secondary)'
+            }}>
+            <Bold size={16} style={{ color: appBold ? accentColor : 'var(--text-muted)' }} />
+            <span>Bold {appBold ? 'ON' : 'OFF'}</span>
+            <span className="text-[9px] ml-auto" style={{ color: 'var(--text-muted)' }}>App-wide</span>
           </button>
 
           {/* Color Switcher */}
