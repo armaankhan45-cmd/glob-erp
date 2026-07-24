@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Check, Type, Search } from 'lucide-react'
 
 const ALL_FONTS = [
+  // Modern (26)
   { name: 'Inter', cat: 'Modern', preview: 'Clean modern sans-serif' },
   { name: 'Roboto', cat: 'Modern', preview: 'Google default font' },
   { name: 'Open Sans', cat: 'Modern', preview: 'Friendly readable font' },
@@ -27,6 +28,8 @@ const ALL_FONTS = [
   { name: 'Albert Sans', cat: 'Modern', preview: 'Modern geometric' },
   { name: 'Red Hat Display', cat: 'Modern', preview: 'Red Hat brand font' },
   { name: 'Space Grotesk', cat: 'Modern', preview: 'Space-age grotesk' },
+  { name: 'Atkinson Hyperlegible', cat: 'Modern', preview: 'Accessibility focused' },
+  // Professional (10)
   { name: 'PT Sans', cat: 'Professional', preview: 'Public typography' },
   { name: 'Noto Sans', cat: 'Professional', preview: 'Universal language' },
   { name: 'Heebo', cat: 'Professional', preview: 'Multilingual clean' },
@@ -37,6 +40,7 @@ const ALL_FONTS = [
   { name: 'Titillium Web', cat: 'Professional', preview: 'Web optimized' },
   { name: 'Archivo', cat: 'Professional', preview: 'Grotesque versatile' },
   { name: 'Overpass', cat: 'Professional', preview: 'Highway signage' },
+  // Serif (16)
   { name: 'Playfair Display', cat: 'Serif', preview: 'High contrast elegant' },
   { name: 'Merriweather', cat: 'Serif', preview: 'Designed for screens' },
   { name: 'Lora', cat: 'Serif', preview: 'Well-balanced calligraphy' },
@@ -52,6 +56,8 @@ const ALL_FONTS = [
   { name: 'Vollkorn', cat: 'Serif', preview: 'Everyday serif' },
   { name: 'Noto Serif', cat: 'Serif', preview: 'Universal serif' },
   { name: 'Cardo', cat: 'Serif', preview: 'Renaissance scholarly' },
+  { name: 'Fraunces', cat: 'Serif', preview: 'Variable serif display' },
+  // Display (10)
   { name: 'Oswald', cat: 'Display', preview: 'Condensed display' },
   { name: 'Bebas Neue', cat: 'Display', preview: 'All-caps display' },
   { name: 'Anton', cat: 'Display', preview: 'Tall condensed bold' },
@@ -62,6 +68,7 @@ const ALL_FONTS = [
   { name: 'Bungee', cat: 'Display', preview: 'Multi-line display' },
   { name: 'Teko', cat: 'Display', preview: 'Devanagari display' },
   { name: 'Saira Condensed', cat: 'Display', preview: 'Racing condensed' },
+  // Unique (12)
   { name: 'Quicksand', cat: 'Unique', preview: 'Rounded modern' },
   { name: 'Comfortaa', cat: 'Unique', preview: 'Rounded geometric' },
   { name: 'Josefin Sans', cat: 'Unique', preview: '1920s geometric' },
@@ -72,6 +79,9 @@ const ALL_FONTS = [
   { name: 'Signika', cat: 'Unique', preview: 'Signage optimized' },
   { name: 'Catamaran', cat: 'Unique', preview: 'Tamil Latin support' },
   { name: 'ABeeZee', cat: 'Unique', preview: 'Childrens reading' },
+  { name: 'Urbanist', cat: 'Unique', preview: 'Modern urban style' },
+  { name: 'Geologica', cat: 'Unique', preview: 'Variable weight modern' },
+  // Elegant (8)
   { name: 'Cinzel', cat: 'Elegant', preview: 'Classical Roman caps' },
   { name: 'Marcellus', cat: 'Elegant', preview: 'Refined uppercase' },
   { name: 'Italiana', cat: 'Elegant', preview: 'Very thin elegant' },
@@ -80,6 +90,7 @@ const ALL_FONTS = [
   { name: 'Forum', cat: 'Elegant', preview: 'Roman influenced' },
   { name: 'Oranienbaum', cat: 'Elegant', preview: 'Classical display' },
   { name: 'Yeseva One', cat: 'Elegant', preview: 'Heavy display serif' },
+  // Handwriting (12)
   { name: 'Pacifico', cat: 'Handwriting', preview: 'Brush script casual' },
   { name: 'Caveat', cat: 'Handwriting', preview: 'Casual handwriting' },
   { name: 'Dancing Script', cat: 'Handwriting', preview: 'Flowing cursive' },
@@ -90,6 +101,9 @@ const ALL_FONTS = [
   { name: 'Yellowtail', cat: 'Handwriting', preview: 'Brush flowing' },
   { name: 'Indie Flower', cat: 'Handwriting', preview: 'Handdrawn casual' },
   { name: 'Permanent Marker', cat: 'Handwriting', preview: 'Marker pen style' },
+  { name: 'Kalam', cat: 'Handwriting', preview: 'Indian handwriting' },
+  { name: 'Gochi Hand', cat: 'Handwriting', preview: 'Casual marker' },
+  // Mono (10)
   { name: 'Roboto Mono', cat: 'Mono', preview: 'Google monospace' },
   { name: 'Source Code Pro', cat: 'Mono', preview: 'Adobe code font' },
   { name: 'Fira Code', cat: 'Mono', preview: 'Programming ligatures' },
@@ -99,6 +113,15 @@ const ALL_FONTS = [
   { name: 'Inconsolata', cat: 'Mono', preview: 'Humanist monospace' },
   { name: 'Ubuntu Mono', cat: 'Mono', preview: 'Ubuntu terminal' },
   { name: 'Courier Prime', cat: 'Mono', preview: 'Better Courier' },
+  { name: 'Red Hat Mono', cat: 'Mono', preview: 'Red Hat monospace' },
+  // Indian / Multilingual (6)
+  { name: 'Noto Sans Devanagari', cat: 'Indian', preview: 'Devanagari script font' },
+  { name: 'Tiro Devanagari Hindi', cat: 'Indian', preview: 'Hindi reading font' },
+  { name: 'Yatra One', cat: 'Indian', preview: 'Indian display font' },
+  { name: 'Mukta', cat: 'Indian', preview: 'Indian + Latin support' },
+  { name: 'Baloo 2', cat: 'Indian', preview: 'Fun Indian display' },
+  { name: 'Hind', cat: 'Indian', preview: 'Hindi sans-serif' },
+  // System (14)
   { name: 'Arial', cat: 'System', preview: 'Universal Windows font' },
   { name: 'Helvetica', cat: 'System', preview: 'Classic Swiss design' },
   { name: 'Times New Roman', cat: 'System', preview: 'Classic book serif' },
@@ -112,12 +135,13 @@ const ALL_FONTS = [
   { name: 'Consolas', cat: 'System', preview: 'Microsoft code font' },
   { name: 'Lucida Console', cat: 'System', preview: 'Fixed-width classic' },
   { name: 'Impact', cat: 'System', preview: 'Heavy condensed display' },
-  { name: 'Comic Sans MS', cat: 'System', preview: 'Casual handwriting' }
+  { name: 'Comic Sans MS', cat: 'System', preview: 'Casual handwriting' },
 ]
 
 const SYSTEM_FONTS = ['Arial', 'Helvetica', 'Times New Roman', 'Georgia', 'Verdana', 'Calibri', 'Segoe UI', 'Tahoma', 'Trebuchet MS', 'Cambria', 'Consolas', 'Lucida Console', 'Impact', 'Comic Sans MS']
 
-function applyFont(fontName) {
+// Exported so MainLayout can call it on startup
+export function applyFont(fontName) {
   const fontFamily = fontName.replace(/ /g, '+')
 
   const oldLink = document.getElementById('app-font-loader')
@@ -150,16 +174,21 @@ export default function FontSettings() {
   useEffect(() => {
     const saved = localStorage.getItem('selected_font') || 'Inter'
     setSelected(saved)
+    // Apply font immediately on page load
+    applyFont(saved)
 
     if (!fontsLoaded) {
-      const googleFonts = ALL_FONTS
-        .filter(f => f.cat !== 'System')
+      // Only load preview fonts for a subset to avoid massive CSS
+      const previewCategories = ['Modern', 'Professional', 'Serif', 'Unique', 'Elegant', 'Display']
+      const previewFonts = ALL_FONTS
+        .filter(f => previewCategories.includes(f.cat) && !SYSTEM_FONTS.includes(f.name))
+        .slice(0, 40)
         .map(f => f.name.replace(/ /g, '+') + ':wght@400;700')
         .join('&family=')
 
       const link = document.createElement('link')
       link.id = 'all-fonts-preview'
-      link.href = 'https://fonts.googleapis.com/css2?family=' + googleFonts + '&display=swap'
+      link.href = 'https://fonts.googleapis.com/css2?family=' + previewFonts + '&display=swap'
       link.rel = 'stylesheet'
 
       if (!document.getElementById('all-fonts-preview')) {
@@ -185,16 +214,16 @@ export default function FontSettings() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-bold text-white">App Font Settings</h1>
-        <p className="text-slate-400 text-sm">Choose font for entire app - invoices, quotations, everything ({ALL_FONTS.length} fonts)</p>
+        <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>App Font Settings</h1>
+        <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Choose font for entire app ({ALL_FONTS.length} fonts) — invoices, quotations, everything</p>
       </div>
 
-      <div className="glass rounded-2xl p-4 border border-blue-500/30 bg-blue-500/5">
+      <div className="glass rounded-2xl p-4" style={{ border: '1px solid rgba(var(--accent-rgb),0.2)', background: 'rgba(var(--accent-rgb),0.05)' }}>
         <div className="flex items-center gap-3">
-          <Type size={20} className="text-blue-400" />
+          <Type size={20} style={{ color: 'var(--accent)' }} />
           <div>
-            <div className="text-sm font-bold text-white">Current Font: <span className="text-blue-400">{selected}</span></div>
-            <div className="text-xs text-slate-400">Applied to all pages, invoices, quotations, and previews</div>
+            <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Current Font: <span style={{ color: 'var(--accent)' }}>{selected}</span></div>
+            <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Applied to all pages, invoices, quotations, and previews</div>
           </div>
         </div>
       </div>
@@ -202,12 +231,17 @@ export default function FontSettings() {
       <div className="glass rounded-2xl p-4">
         <div className="flex gap-3 flex-wrap items-center">
           <div className="relative flex-1 min-w-[200px]">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search fonts..." className="w-full pl-9 pr-3 py-2 rounded-xl text-sm" autoComplete="off" />
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search fonts..." className="w-full pl-9 pr-3 py-2 rounded-xl text-sm input-field" autoComplete="off" />
           </div>
           <div className="flex flex-wrap gap-1">
             {categories.map(cat => (
-              <button key={cat} onClick={() => setCategory(cat)} className={"px-3 py-1.5 rounded-lg text-xs font-bold transition " + (category === cat ? 'bg-purple-500 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700')}>
+              <button key={cat} onClick={() => setCategory(cat)}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold transition"
+                style={category === cat
+                  ? { background: 'rgba(var(--accent-rgb),0.15)', color: 'var(--accent)', border: '1px solid rgba(var(--accent-rgb),0.25)' }
+                  : { background: 'var(--bg-glass)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }
+                }>
                 {cat} ({cat === 'All' ? ALL_FONTS.length : ALL_FONTS.filter(f => f.cat === cat).length})
               </button>
             ))}
@@ -222,26 +256,30 @@ export default function FontSettings() {
             <button
               key={f.name}
               onClick={() => selectFont(f.name)}
-              className={"p-4 rounded-2xl text-left transition border-2 " + (isSelected ? 'bg-purple-500/20 border-purple-500 shadow-lg shadow-purple-500/20' : 'bg-slate-800/50 hover:bg-slate-800 border-transparent hover:border-slate-600')}
+              className="p-4 rounded-2xl text-left transition"
+              style={isSelected
+                ? { background: 'rgba(var(--accent-rgb),0.12)', border: `2px solid var(--accent)`, boxShadow: `0 0 20px rgba(var(--accent-rgb),0.15)` }
+                : { background: 'var(--bg-glass)', border: '2px solid transparent' }
+              }
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1">
-                  <div style={{ fontFamily: "'" + f.name + "',sans-serif", fontWeight: 700, fontSize: '20px' }} className="text-white leading-tight">
+                  <div style={{ fontFamily: "'" + f.name + "',sans-serif", fontWeight: 700, fontSize: '20px', color: 'var(--text-primary)', lineHeight: '1.2' }}>
                     {f.name}
                   </div>
-                  <div style={{ fontFamily: "'" + f.name + "',sans-serif", fontSize: '14px', fontWeight: 400 }} className="text-slate-300 mt-2">
+                  <div style={{ fontFamily: "'" + f.name + "',sans-serif", fontSize: '14px', fontWeight: 400, color: 'var(--text-secondary)', marginTop: '8px' }}>
                     Glob Fabrication And Enterprises
                   </div>
-                  <div style={{ fontFamily: "'" + f.name + "',sans-serif", fontSize: '16px', fontWeight: 700 }} className="text-emerald-400 mt-1">
+                  <div style={{ fontFamily: "'" + f.name + "',sans-serif", fontSize: '16px', fontWeight: 700, color: '#4ade80', marginTop: '4px' }}>
                     Rs. 18,00,000/- Invoice # GST-001
                   </div>
-                  <div style={{ fontFamily: "'" + f.name + "',sans-serif", fontSize: '12px' }} className="text-slate-500 mt-1">
+                  <div style={{ fontFamily: "'" + f.name + "',sans-serif", fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
                     {f.preview}
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                  <span className="text-[9px] px-2 py-0.5 bg-slate-700 text-slate-400 rounded font-bold">{f.cat}</span>
-                  {isSelected && <div className="w-6 h-6 rounded-full bg-purple-500 flex items-center justify-center"><Check size={14} className="text-white" /></div>}
+                  <span className="text-[9px] px-2 py-0.5 rounded font-bold" style={{ background: 'var(--bg-glass-strong)', color: 'var(--text-muted)' }}>{f.cat}</span>
+                  {isSelected && <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: 'var(--accent)' }}><Check size={14} style={{ color: '#fff' }} /></div>}
                 </div>
               </div>
             </button>
