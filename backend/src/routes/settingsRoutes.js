@@ -268,4 +268,8 @@ router.delete('/upload/:field', auth, adminOnly, async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, msg: 'Delete failed' }); }
 });
 
-module.exports = { router, sendEmail };
+// ═══ THE FIX: Export router as default, sendEmail as property ═══
+// This way: app.use('/api/settings', router) works (Router, not Object)
+// AND: const { sendEmail } = require('./settingsRoutes') still works
+module.exports = router;
+module.exports.sendEmail = sendEmail;
