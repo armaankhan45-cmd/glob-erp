@@ -1,17 +1,17 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 
 // ══════════════════════════════════════════════════════════
-// GLOB ERP — Theme System
-// Day/Night mode + 6 color themes with live accent switching
+// GLOB ERP — Relaxing Theme System
+// Softer, more visible colors. Day/Night + 6 accent themes.
 // ══════════════════════════════════════════════════════════
 
 const THEMES = {
-  cyan:   { name: 'Cyan Nebula',    icon: '💎', color: '#06b6d4' },
-  blue:   { name: 'Blue Galaxy',    icon: '🌊', color: '#4f8fff' },
-  purple: { name: 'Purple Haze',    icon: '🔮', color: '#a855f7' },
-  orange: { name: 'Orange Forge',   icon: '🔥', color: '#ef4d23' },
-  green:  { name: 'Green Circuit',  icon: '⚡', color: '#22c55e' },
-  gold:   { name: 'Gold Precision', icon: '✨', color: '#f59e0b' },
+  cyan:   { name: 'Cyan Nebula',    icon: '💎', color: '#22d3ee' },
+  blue:   { name: 'Blue Galaxy',    icon: '🌊', color: '#6ea8fe' },
+  purple: { name: 'Purple Haze',    icon: '🔮', color: '#c084fc' },
+  orange: { name: 'Orange Forge',   icon: '🔥', color: '#fb923c' },
+  green:  { name: 'Green Circuit',  icon: '⚡', color: '#4ade80' },
+  gold:   { name: 'Gold Precision', icon: '✨', color: '#fbbf24' },
 }
 
 const ThemeContext = createContext()
@@ -30,64 +30,67 @@ export function ThemeProvider({ children }) {
     localStorage.setItem('glob-theme-key', themeKey)
   }, [themeKey])
 
-  // Apply ALL CSS variables to document root — dark AND light mode
+  // Apply ALL CSS variables — dark + light mode with relaxing colors
   useEffect(() => {
-    const accent = THEMES[themeKey]?.color || '#06b6d4'
+    const accent = THEMES[themeKey]?.color || '#22d3ee'
     const r = parseInt(accent.slice(1,3), 16)
     const g = parseInt(accent.slice(3,5), 16)
     const b = parseInt(accent.slice(5,7), 16)
     const root = document.documentElement
 
-    // ── Accent colors (same in both modes) ──
+    // ── Accent colors ──
     root.style.setProperty('--accent', accent)
     root.style.setProperty('--accent-rgb', `${r},${g},${b}`)
     root.style.setProperty('--accent-dark', `${accent}cc`)
     root.style.setProperty('--accent-light', `${accent}44`)
-    root.style.setProperty('--accent2', '#4f8fff')
+    root.style.setProperty('--accent2', '#6ea8fe')
+    root.style.setProperty('--success', '#4ade80')
+    root.style.setProperty('--warning', '#fbbf24')
+    root.style.setProperty('--danger', '#f87171')
 
     // ── Mode-specific colors ──
     if (mode === 'light') {
-      // Light mode — white/gray backgrounds, dark text
-      root.style.setProperty('--bg-primary', '#f5f6fa')
+      // Light mode — warm white backgrounds, dark text
+      root.style.setProperty('--bg-primary', '#f0f2f5')
       root.style.setProperty('--bg-card', '#ffffff')
-      root.style.setProperty('--bg-sidebar', 'rgba(255,255,255,0.95)')
-      root.style.setProperty('--bg-topbar', 'rgba(255,255,255,0.85)')
-      root.style.setProperty('--bg-input', '#f0f1f5')
-      root.style.setProperty('--bg-glass', 'rgba(0,0,0,0.03)')
-      root.style.setProperty('--bg-glass-md', 'rgba(0,0,0,0.05)')
-      root.style.setProperty('--bg-glass-strong', 'rgba(0,0,0,0.07)')
-      root.style.setProperty('--border', 'rgba(0,0,0,0.08)')
+      root.style.setProperty('--bg-sidebar', 'rgba(255,255,255,0.92)')
+      root.style.setProperty('--bg-topbar', 'rgba(255,255,255,0.82)')
+      root.style.setProperty('--bg-input', '#e8eaef')
+      root.style.setProperty('--bg-glass', 'rgba(0,0,0,0.04)')
+      root.style.setProperty('--bg-glass-md', 'rgba(0,0,0,0.06)')
+      root.style.setProperty('--bg-glass-strong', 'rgba(0,0,0,0.08)')
+      root.style.setProperty('--border', 'rgba(0,0,0,0.09)')
       root.style.setProperty('--border-md', 'rgba(0,0,0,0.06)')
-      root.style.setProperty('--border-strong', 'rgba(0,0,0,0.10)')
-      root.style.setProperty('--border-input', 'rgba(0,0,0,0.12)')
-      root.style.setProperty('--text-primary', '#1a1a2e')
-      root.style.setProperty('--text-muted', 'rgba(0,0,0,0.4)')
-      root.style.setProperty('--text-secondary', 'rgba(0,0,0,0.6)')
-      root.style.setProperty('--text-bright', '#000')
-      root.style.setProperty('--text-light', '#555')
-      root.style.setProperty('--navy', '#1a1a2e')
+      root.style.setProperty('--border-strong', 'rgba(0,0,0,0.12)')
+      root.style.setProperty('--border-input', 'rgba(0,0,0,0.14)')
+      root.style.setProperty('--text-primary', '#1e293b')
+      root.style.setProperty('--text-muted', 'rgba(30,41,59,0.45)')
+      root.style.setProperty('--text-secondary', 'rgba(30,41,59,0.65)')
+      root.style.setProperty('--text-bright', '#0f172a')
+      root.style.setProperty('--text-light', '#475569')
+      root.style.setProperty('--navy', '#1e293b')
       root.classList.add('light-mode')
       root.classList.remove('dark-mode')
     } else {
-      // Dark mode — deep navy backgrounds, light text
-      root.style.setProperty('--bg-primary', '#080b14')
-      root.style.setProperty('--bg-card', 'rgba(14,18,36,0.97)')
-      root.style.setProperty('--bg-sidebar', 'rgba(4,6,16,0.96)')
-      root.style.setProperty('--bg-topbar', 'rgba(12,16,32,0.7)')
-      root.style.setProperty('--bg-input', 'rgba(255,255,255,0.05)')
-      root.style.setProperty('--bg-glass', 'rgba(255,255,255,0.04)')
-      root.style.setProperty('--bg-glass-md', 'rgba(255,255,255,0.06)')
-      root.style.setProperty('--bg-glass-strong', 'rgba(255,255,255,0.08)')
-      root.style.setProperty('--border', 'rgba(255,255,255,0.08)')
+      // Dark mode — relaxing soft navy, clear white text
+      root.style.setProperty('--bg-primary', '#0f1419')
+      root.style.setProperty('--bg-card', 'rgba(22,28,38,0.97)')
+      root.style.setProperty('--bg-sidebar', 'rgba(14,20,30,0.96)')
+      root.style.setProperty('--bg-topbar', 'rgba(18,24,34,0.75)')
+      root.style.setProperty('--bg-input', 'rgba(255,255,255,0.06)')
+      root.style.setProperty('--bg-glass', 'rgba(255,255,255,0.05)')
+      root.style.setProperty('--bg-glass-md', 'rgba(255,255,255,0.07)')
+      root.style.setProperty('--bg-glass-strong', 'rgba(255,255,255,0.10)')
+      root.style.setProperty('--border', 'rgba(255,255,255,0.09)')
       root.style.setProperty('--border-md', 'rgba(255,255,255,0.06)')
-      root.style.setProperty('--border-strong', 'rgba(255,255,255,0.10)')
-      root.style.setProperty('--border-input', 'rgba(255,255,255,0.1)')
-      root.style.setProperty('--text-primary', '#ffffff')
-      root.style.setProperty('--text-muted', 'rgba(255,255,255,0.4)')
-      root.style.setProperty('--text-secondary', 'rgba(255,255,255,0.6)')
-      root.style.setProperty('--text-bright', '#fff')
-      root.style.setProperty('--text-light', '#e8eaf0')
-      root.style.setProperty('--navy', '#0d1b2a')
+      root.style.setProperty('--border-strong', 'rgba(255,255,255,0.12)')
+      root.style.setProperty('--border-input', 'rgba(255,255,255,0.12)')
+      root.style.setProperty('--text-primary', '#e2e8f0')
+      root.style.setProperty('--text-muted', 'rgba(226,232,240,0.45)')
+      root.style.setProperty('--text-secondary', 'rgba(226,232,240,0.65)')
+      root.style.setProperty('--text-bright', '#f8fafc')
+      root.style.setProperty('--text-light', '#cbd5e1')
+      root.style.setProperty('--navy', '#1e293b')
       root.classList.add('dark-mode')
       root.classList.remove('light-mode')
     }
