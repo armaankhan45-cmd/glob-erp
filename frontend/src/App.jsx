@@ -1,6 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════
 // App.jsx — Uses MainLayout with Sidebar + TopBar + Theme switching
 // ThemeProvider is HERE (not in main.jsx) to avoid build issues
+// Suspense wrapper added to prevent React error #426
 // ═══════════════════════════════════════════════════════════════════
 
 import { useState, Suspense, lazy } from 'react'
@@ -10,18 +11,20 @@ import { ThemeProvider } from './context/ThemeContext'
 import AutoHealErrorBoundary from './components/AutoHealErrorBoundary'
 import MainLayout from './layouts/MainLayout'
 
-// ─── Lazy load pages ───
+// ─── Suspense fallback for lazy-loaded pages ───
 function PageFallback({ name }) {
   return (
     <div className="flex items-center justify-center h-96">
       <div className="text-center">
-        <h2 className="text-xl font-bold" style={{ color: 'var(--accent)' }}>{name}</h2>
+        <div className="w-10 h-10 border-4 rounded-full animate-spin mx-auto" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}></div>
+        <h2 className="text-xl font-bold mt-4" style={{ color: 'var(--accent)' }}>{name}</h2>
         <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Page loading or updating. Try refreshing if stuck.</p>
       </div>
     </div>
   )
 }
 
+// ─── Lazy load pages ───
 const Dashboard       = lazy(() => import('./pages/Dashboard').catch(() => ({ default: () => <PageFallback name="Dashboard" /> })))
 const Invoices        = lazy(() => import('./pages/Invoices').catch(() => ({ default: () => <PageFallback name="Invoices" /> })))
 const InvoiceDetail   = lazy(() => import('./pages/InvoiceDetail').catch(() => ({ default: () => <PageFallback name="Invoice Detail" /> })))
@@ -117,38 +120,40 @@ export default function App() {
       <AutoHealErrorBoundary>
         <BrowserRouter>
           <AuthProvider>
-            <Routes>
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/app" element={<PrivateRoute><MainLayout /></PrivateRoute>}>
-                <Route path="dashboard" element={<Dashboard />} />
-                <Route path="invoices" element={<Invoices />} />
-                <Route path="invoices/new" element={<InvoiceNew />} />
-                <Route path="invoices/:id" element={<InvoiceDetail />} />
-                <Route path="invoices/:id/edit" element={<InvoiceEdit />} />
-                <Route path="quotations" element={<Quotations />} />
-                <Route path="quotations/new" element={<QuotationForm />} />
-                <Route path="quotations/:id" element={<QuotationDetail />} />
-                <Route path="customers" element={<Customers />} />
-                <Route path="customers/new" element={<CustomerNew />} />
-                <Route path="customers/:id" element={<CustomerDetail />} />
-                <Route path="customers/:id/edit" element={<CustomerEdit />} />
-                <Route path="purchases" element={<Purchases />} />
-                <Route path="purchases/new" element={<PurchaseNew />} />
-                <Route path="purchases/:id" element={<PurchaseDetail />} />
-                <Route path="purchases/:id/edit" element={<PurchaseEdit />} />
-                <Route path="gst" element={<GSTReports />} />
-                <Route path="reports" element={<Reports />} />
-                <Route path="ai-assistant" element={<AIAssistant />} />
-                <Route path="settings" element={<Settings />} />
-                <Route path="fonts" element={<FontSettings />} />
-                <Route path="export" element={<ExportData />} />
-                <Route path="deploy" element={<DeployControl />} />
-                <Route path="diagnostics" element={<Diagnostics />} />
-                <Route path="" element={<Navigate to="/app/dashboard" replace />} />
-              </Route>
-              <Route path="/" element={<Navigate to="/app/dashboard" replace />} />
-              <Route path="*" element={<Navigate to="/app/dashboard" replace />} />
-            </Routes>
+            <Suspense fallback={<InlineLoader />}>
+              <Routes>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/app" element={<PrivateRoute><MainLayout /></PrivateRoute>}>
+                  <Route path="dashboard" element={<Dashboard />} />
+                  <Route path="invoices" element={<Invoices />} />
+                  <Route path="invoices/new" element={<InvoiceNew />} />
+                  <Route path="invoices/:id" element={<InvoiceDetail />} />
+                  <Route path="invoices/:id/edit" element={<InvoiceEdit />} />
+                  <Route path="quotations" element={<Quotations />} />
+                  <Route path="quotations/new" element={<QuotationForm />} />
+                  <Route path="quotations/:id" element={<QuotationDetail />} />
+                  <Route path="customers" element={<Customers />} />
+                  <Route path="customers/new" element={<CustomerNew />} />
+                  <Route path="customers/:id" element={<CustomerDetail />} />
+                  <Route path="customers/:id/edit" element={<CustomerEdit />} />
+                  <Route path="purchases" element={<Purchases />} />
+                  <Route path="purchases/new" element={<PurchaseNew />} />
+                  <Route path="purchases/:id" element={<PurchaseDetail />} />
+                  <Route path="purchases/:id/edit" element={<PurchaseEdit />} />
+                  <Route path="gst" element={<GSTReports />} />
+                  <Route path="reports" element={<Reports />} />
+                  <Route path="ai-assistant" element={<AIAssistant />} />
+                  <Route path="settings" element={<Settings />} />
+                  <Route path="fonts" element={<FontSettings />} />
+                  <Route path="export" element={<ExportData />} />
+                  <Route path="deploy" element={<DeployControl />} />
+                  <Route path="diagnostics" element={<Diagnostics />} />
+                  <Route path="" element={<Navigate to="/app/dashboard" replace />} />
+                </Route>
+                <Route path="/" element={<Navigate to="/app/dashboard" replace />} />
+                <Route path="*" element={<Navigate to="/app/dashboard" replace />} />
+              </Routes>
+            </Suspense>
           </AuthProvider>
         </BrowserRouter>
       </AutoHealErrorBoundary>
