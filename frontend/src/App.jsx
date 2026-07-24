@@ -7,6 +7,11 @@
 // The setTimeout that should hide it got cleared by React cleanup.
 // Overlay had z-index:100000 blocking ALL interaction.
 // FIX: Removed overlay entirely. App shows content immediately.
+//
+// BUILD FIX: Removed lazy imports + Routes for 8 deleted pages
+// (Payments, Expenses, Suppliers, Inventory, CreditNotes, Workers,
+// Machines, Production) — these don't exist in the repo and caused
+// "Could not resolve" build errors.
 // ═══════════════════════════════════════════════════════════════════
 
 import { useState, Suspense, lazy } from 'react'
@@ -33,14 +38,6 @@ const Quotations     = lazy(() => import('./pages/Quotations').catch(() => ({ de
 const QuotationDetail = lazy(() => import('./pages/QuotationDetail').catch(() => ({ default: () => <PageFallback name="Quotation Detail" /> })))
 const Customers      = lazy(() => import('./pages/Customers').catch(() => ({ default: () => <PageFallback name="Customers" /> })))
 const Purchases      = lazy(() => import('./pages/Purchases').catch(() => ({ default: () => <PageFallback name="Purchases" /> })))
-const Payments       = lazy(() => import('./pages/Payments').catch(() => ({ default: () => <PageFallback name="Payments" /> })))
-const Expenses       = lazy(() => import('./pages/Expenses').catch(() => ({ default: () => <PageFallback name="Expenses" /> })))
-const Suppliers      = lazy(() => import('./pages/Suppliers').catch(() => ({ default: () => <PageFallback name="Suppliers" /> })))
-const Inventory      = lazy(() => import('./pages/Inventory').catch(() => ({ default: () => <PageFallback name="Inventory" /> })))
-const CreditNotes    = lazy(() => import('./pages/CreditNotes').catch(() => ({ default: () => <PageFallback name="Credit Notes" /> })))
-const Workers        = lazy(() => import('./pages/Workers').catch(() => ({ default: () => <PageFallback name="Workers" /> })))
-const Machines       = lazy(() => import('./pages/Machines').catch(() => ({ default: () => <PageFallback name="Machines" /> })))
-const Production     = lazy(() => import('./pages/Production').catch(() => ({ default: () => <PageFallback name="Production" /> })))
 const GSTReports     = lazy(() => import('./pages/GSTReports').catch(() => ({ default: () => <PageFallback name="GST Reports" /> })))
 const Reports        = lazy(() => import('./pages/Reports').catch(() => ({ default: () => <PageFallback name="Reports" /> })))
 const AIAssistant    = lazy(() => import('./pages/AIAssistant').catch(() => ({ default: () => <PageFallback name="AI Assistant" /> })))
@@ -151,14 +148,6 @@ function AppLayout() {
             <Route path="quotations/:id" element={<QuotationDetail />} />
             <Route path="customers" element={<Customers />} />
             <Route path="purchases" element={<Purchases />} />
-            <Route path="payments" element={<Payments />} />
-            <Route path="expenses" element={<Expenses />} />
-            <Route path="suppliers" element={<Suppliers />} />
-            <Route path="inventory" element={<Inventory />} />
-            <Route path="credit-notes" element={<CreditNotes />} />
-            <Route path="workers" element={<Workers />} />
-            <Route path="machines" element={<Machines />} />
-            <Route path="production" element={<Production />} />
             <Route path="gst" element={<GSTReports />} />
             <Route path="reports" element={<Reports />} />
             <Route path="ai-assistant" element={<AIAssistant />} />
