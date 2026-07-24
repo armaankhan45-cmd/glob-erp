@@ -2,7 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ═══════════════════════════════════════════════════\n   GLOB ERP — Relaxing Global Styles\n   Dark + Light theme, comprehensive light mode overrides\n   ═══════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════
+   GLOB ERP — Relaxing Global Styles
+   Dark + Light theme, comprehensive light mode overrides
+   ═══════════════════════════════════════════════════ */
 
 :root {
   --bg-primary: #0f1419;
@@ -33,7 +36,11 @@
   --danger: #f87171;
 }
 
-/* ═══════════════════════════════════════════════════\n   LIGHT MODE — COMPREHENSIVE OVERRIDES\n   Fixes ALL hardcoded text-white, bg-white, rgba(255,255,255)\n   across ALL pages without editing each page file\n   ═══════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════
+   LIGHT MODE — COMPREHENSIVE OVERRIDES
+   Fixes ALL hardcoded text-white, bg-white, rgba(255,255,255)
+   across ALL pages without editing each page file
+   ═══════════════════════════════════════════════════ */
 
 .light-mode {
   --bg-primary: #f0f2f5;
@@ -56,7 +63,7 @@
   --navy: #1e293b;
 }
 
-/* ─── LIGHT MODE: Fix ALL text-white opacity classes (15-90) ─── */
+/* ─── LIGHT MODE: Fix ALL text-white opacity classes ─── */
 .light-mode .text-white { color: var(--text-primary) !important; }
 .light-mode .text-white\/5 { color: var(--text-muted) !important; }
 .light-mode .text-white\/10 { color: var(--text-muted) !important; }
@@ -176,7 +183,6 @@
 .app-bold-mode h4,
 .app-bold-mode h5,
 .app-bold-mode h6,
-.app-bold-mode label,
 .app-bold-mode a,
 .app-bold-mode th,
 .app-bold-mode td,
@@ -185,11 +191,14 @@
 .app-bold-mode nav,
 .app-bold-mode input,
 .app-bold-mode select,
-.app-bold-mode textarea {
+.app-bold-mode textarea,
+.app-bold-mode label {
   font-weight: 700 !important;
 }
 
-/* ═══════════════════════════════════════════════════\n   BASE STYLES (shared by both modes)\n   ═══════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════
+   BASE STYLES (shared by both modes)
+   ═══════════════════════════════════════════════════ */
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -509,6 +518,10 @@ tbody tr:hover { background: var(--bg-glass); }
 @keyframes loginFloat3 {
   0%, 100% { transform: translate(-50%, -50%) scale(1); }
   50% { transform: translate(-45%, -55%) scale(1.15); }
+}
+@keyframes loginGradient {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
 }
 
 .stagger > * {
