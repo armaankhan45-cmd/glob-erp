@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { useTheme } from '../main'
+import { useTheme } from '../context/ThemeContext'
 import { Bell, ChevronDown, Search, X, Sun, Moon } from 'lucide-react'
 
 export default function TopBar() {
