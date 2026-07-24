@@ -30,7 +30,7 @@ export function ThemeProvider({ children }) {
     localStorage.setItem('glob-theme-key', themeKey)
   }, [themeKey])
 
-  // Apply theme CSS variables to document root
+  // Apply ALL CSS variables to document root — dark AND light mode
   useEffect(() => {
     const accent = THEMES[themeKey]?.color || '#06b6d4'
     const r = parseInt(accent.slice(1,3), 16)
@@ -38,35 +38,55 @@ export function ThemeProvider({ children }) {
     const b = parseInt(accent.slice(5,7), 16)
     const root = document.documentElement
 
+    // ── Accent colors (same in both modes) ──
     root.style.setProperty('--accent', accent)
     root.style.setProperty('--accent-rgb', `${r},${g},${b}`)
     root.style.setProperty('--accent-dark', `${accent}cc`)
     root.style.setProperty('--accent-light', `${accent}44`)
+    root.style.setProperty('--accent2', '#4f8fff')
 
-    // Mode-specific variables
+    // ── Mode-specific colors ──
     if (mode === 'light') {
+      // Light mode — white/gray backgrounds, dark text
       root.style.setProperty('--bg-primary', '#f5f6fa')
       root.style.setProperty('--bg-card', '#ffffff')
+      root.style.setProperty('--bg-sidebar', 'rgba(255,255,255,0.95)')
+      root.style.setProperty('--bg-topbar', 'rgba(255,255,255,0.85)')
       root.style.setProperty('--bg-input', '#f0f1f5')
+      root.style.setProperty('--bg-glass', 'rgba(0,0,0,0.03)')
+      root.style.setProperty('--bg-glass-md', 'rgba(0,0,0,0.05)')
+      root.style.setProperty('--bg-glass-strong', 'rgba(0,0,0,0.07)')
       root.style.setProperty('--border', 'rgba(0,0,0,0.08)')
+      root.style.setProperty('--border-md', 'rgba(0,0,0,0.06)')
+      root.style.setProperty('--border-strong', 'rgba(0,0,0,0.10)')
       root.style.setProperty('--border-input', 'rgba(0,0,0,0.12)')
       root.style.setProperty('--text-primary', '#1a1a2e')
       root.style.setProperty('--text-muted', 'rgba(0,0,0,0.4)')
       root.style.setProperty('--text-secondary', 'rgba(0,0,0,0.6)')
       root.style.setProperty('--text-bright', '#000')
+      root.style.setProperty('--text-light', '#555')
       root.style.setProperty('--navy', '#1a1a2e')
       root.classList.add('light-mode')
       root.classList.remove('dark-mode')
     } else {
-      root.style.setProperty('--bg-primary', '#0a0a1a')
+      // Dark mode — deep navy backgrounds, light text
+      root.style.setProperty('--bg-primary', '#080b14')
       root.style.setProperty('--bg-card', 'rgba(14,18,36,0.97)')
+      root.style.setProperty('--bg-sidebar', 'rgba(4,6,16,0.96)')
+      root.style.setProperty('--bg-topbar', 'rgba(12,16,32,0.7)')
       root.style.setProperty('--bg-input', 'rgba(255,255,255,0.05)')
+      root.style.setProperty('--bg-glass', 'rgba(255,255,255,0.04)')
+      root.style.setProperty('--bg-glass-md', 'rgba(255,255,255,0.06)')
+      root.style.setProperty('--bg-glass-strong', 'rgba(255,255,255,0.08)')
       root.style.setProperty('--border', 'rgba(255,255,255,0.08)')
+      root.style.setProperty('--border-md', 'rgba(255,255,255,0.06)')
+      root.style.setProperty('--border-strong', 'rgba(255,255,255,0.10)')
       root.style.setProperty('--border-input', 'rgba(255,255,255,0.1)')
       root.style.setProperty('--text-primary', '#ffffff')
       root.style.setProperty('--text-muted', 'rgba(255,255,255,0.4)')
       root.style.setProperty('--text-secondary', 'rgba(255,255,255,0.6)')
       root.style.setProperty('--text-bright', '#fff')
+      root.style.setProperty('--text-light', '#e8eaf0')
       root.style.setProperty('--navy', '#0d1b2a')
       root.classList.add('dark-mode')
       root.classList.remove('light-mode')
