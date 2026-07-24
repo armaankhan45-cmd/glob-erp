@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import { ThemeProvider, useTheme, THEMES } from './context/ThemeContext'
 import AutoHealErrorBoundary from './components/AutoHealErrorBoundary'
 import MainLayout from './layouts/MainLayout'
+import api from './api/client'
 
 // ─── Lazy load pages ───
 function PageFallback({ name }) {
@@ -75,8 +76,22 @@ function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState('')
   const [mounted, setMounted] = useState(false)
+  const [wakingUp, setWakingUp] = useState(!api.isServerReady())
 
   useEffect(() => { setMounted(true) }, [])
+
+  // Check if server is awake every 3 seconds while on login page
+  useEffect(() => {
+    if (wakingUp) {
+      const timer = setInterval(() => {
+        if (api.isServerReady()) {
+          setWakingUp(false)
+          clearInterval(timer)
+        }
+      }, 3000)
+      return () => clearInterval(timer)
+    }
+  }, [wakingUp])
 
   const accentColor = themes[themeKey]?.color || '#06b6d4'
   const themeIcon = themes[themeKey]?.icon || '💎'
@@ -181,6 +196,16 @@ function LoginPage() {
       <div style={cardStyle}>
         {/* Accent glow line */}
         <div style={glowLineStyle} />
+
+        {/* Server status indicator */}
+        {wakingUp && (
+          <div style={{ background: 'rgba(var(--accent-rgb), 0.08)', border: '1px solid rgba(var(--accent-rgb), 0.15)', padding: '10px', borderRadius: '8px', marginBottom: '16px', textAlign: 'center' }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+              <span className="w-3 h-3 border-2 rounded-full animate-spin" style={{ borderColor: accentColor, borderTopColor: 'transparent' }} />
+              <span style={{ color: 'var(--text-secondary)' }}>Server is waking up... This takes ~30s on first visit</span>
+            </div>
+          </div>
+        )}
 
         {/* Logo & branding */}
         <div style={{ textAlign: 'center', marginBottom: '28px' }}>
