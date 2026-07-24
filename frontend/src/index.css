@@ -3,7 +3,8 @@
 @tailwind utilities;
 
 /* ═══════════════════════════════════════════════════
-   GLOB ERP — Global Styles + Original Theme
+   GLOB ERP — Global Styles
+   Dark theme, print-safe GSTIN badge, responsive
    ═══════════════════════════════════════════════════ */
 
 :root {
@@ -15,8 +16,6 @@
   --text-primary: #ffffff;
   --text-muted: rgba(255,255,255,0.4);
   --accent: #06b6d4;
-  --accent-dark: #085a73;
-  --accent-light: #4f8fff;
   --accent-rgb: 6,182,212;
   --accent2: #4f8fff;
   --navy: #0d1b2a;
@@ -86,6 +85,7 @@ body {
   gap: 8px;
 }
 .btn-secondary:hover { background: rgba(var(--accent-rgb), 0.12); }
+.btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .btn-danger {
   padding: 10px 20px;
@@ -110,83 +110,9 @@ body {
   backdrop-filter: blur(20px);
 }
 
-.card-premium {
-  position: relative;
-  overflow: hidden;
-}
-
-/* ─── STAT CARD ─── */
-.stat-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 20px;
-  backdrop-filter: blur(20px);
-}
-
-.stat-pulse-ring {
-  position: absolute;
-  inset: -4px;
-  border-radius: inherit;
-  opacity: 0;
-  animation: pulseRing 2s ease-out infinite;
-}
-
-/* ─── ACTION CARD ─── */
-.action-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 16px;
-  backdrop-filter: blur(20px);
-  transition: all 0.2s;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-}
-.action-card:hover {
-  background: rgba(255,255,255,0.06);
-  border-color: rgba(255,255,255,0.12);
-}
-
-.action-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  flex-shrink: 0;
-}
-
-/* ─── ACCENT TEXT ─── */
-.accent-text {
-  color: var(--accent);
-}
-
-/* ─── BUTTON SHINE ─── */
-.btn-shine {
-  position: relative;
-}
-.btn-shine::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
-  animation: shine 2s ease-in-out infinite;
-}
-
-/* ─── GLASS ─── */
-.glass {
-  background: rgba(255,255,255,0.04);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255,255,255,0.08);
-}
-
-/* ─── GSTIN BADGE ─── */
+/* ─── GSTIN BADGE — Print-safe ─── */
+/* Navy bg + white text = invisible in B&W print
+   Light gray bg + navy border + dark text = visible in B&W and color */
 .gstin-badge, .gstin-badge-inline {
   background: #e8ecf1;
   color: var(--navy);
@@ -199,49 +125,6 @@ body {
   display: inline-block;
 }
 
-/* ─── GST CARD ─── */
-.gst-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow: hidden;
-}
-.gst-card.cgst { border-color: rgba(96,165,250,0.15); }
-.gst-card.sgst { border-color: rgba(6,182,212,0.15); }
-.gst-card.igst { border-color: rgba(239,68,68,0.15); }
-
-/* ─── STATUS BADGE ─── */
-.status-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 6px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.3px;
-}
-.status-paid { background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.2); }
-.status-pending { background: rgba(245,158,11,0.12); color: #f59e0b; border: 1px solid rgba(245,158,11,0.2); }
-.status-overdue { background: rgba(239,68,68,0.12); color: #ef4444; border: 1px solid rgba(239,68,68,0.2); }
-.status-sent { background: rgba(6,182,212,0.12); color: #06b6d4; border: 1px solid rgba(6,182,212,0.2); }
-
-/* ─── CHIP ─── */
-.chip {
-  padding: 4px 12px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.06);
-  color: rgba(255,255,255,0.4);
-  transition: all 0.2s;
-}
-.chip.active {
-  background: rgba(var(--accent-rgb), 0.12);
-  border-color: rgba(var(--accent-rgb), 0.2);
-  color: var(--accent);
-}
-
 /* ─── TABLE ─── */
 table { width: 100%; border-collapse: collapse; }
 th, td { padding: 10px 12px; text-align: left; }
@@ -249,29 +132,6 @@ thead tr { border-bottom: 1px solid rgba(255,255,255,0.1); }
 th { color: rgba(255,255,255,0.4); font-weight: 600; font-size: 12px; }
 tbody tr { border-bottom: 1px solid rgba(255,255,255,0.05); }
 tbody tr:hover { background: rgba(255,255,255,0.03); }
-
-/* ─── GLOW LINE ─── */
-.glow-line {
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
-  margin: 8px 0;
-  opacity: 0.3;
-}
-
-/* ─── SHIMMER ─── */
-.shimmer {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
-  animation: shimmer 1.5s ease-in-out infinite;
-}
-
-/* ─── PRINT ─── */
-.print-area { background: white; }
-.no-print { }
 
 /* ─── SCROLLBAR ─── */
 ::-webkit-scrollbar { width: 6px; }
@@ -285,21 +145,3 @@ tbody tr:hover { background: rgba(255,255,255,0.03); }
   table { font-size: 12px; }
   th, td { padding: 8px; }
 }
-
-/* ─── ANIMATIONS ─── */
-@keyframes spin { to { transform: rotate(360deg); } }
-@keyframes shimmer { 0%,100% { opacity: 0; } 50% { opacity: 1; } }
-@keyframes pulseRing { 0% { opacity: 0.6; transform: scale(0.95); } 100% { opacity: 0; transform: scale(1.1); } }
-@keyframes shine { 0%,100% { transform: translateX(-100%); } 50% { transform: translateX(100%); } }
-@keyframes entranceUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes entranceLeft { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
-@keyframes entranceScale { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-/* ─── STagger animation for children ─── */
-.stagger > * { animation: entranceScale 0.5s cubic-bezier(0.16,1,0.3,1) both; }
-.stagger > *:nth-child(1) { animation-delay: 0.05s; }
-.stagger > *:nth-child(2) { animation-delay: 0.1s; }
-.stagger > *:nth-child(3) { animation-delay: 0.15s; }
-.stagger > *:nth-child(4) { animation-delay: 0.2s; }
-.stagger > *:nth-child(5) { animation-delay: 0.25s; }
