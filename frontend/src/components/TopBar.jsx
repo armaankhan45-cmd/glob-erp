@@ -27,7 +27,7 @@ export default function TopBar() {
         </div>
       </div>
       <div className="flex items-center gap-3">
-        {/* Search */}
+        {/* Search with glow effect */}
         <div className="hidden md:flex items-center gap-2 rounded-xl px-3 h-9 transition-all duration-300"
           style={{
             background: searchFocus ? 'var(--bg-glass-strong)' : 'var(--bg-glass)',
@@ -62,7 +62,7 @@ export default function TopBar() {
               : 'rgba(var(--accent-rgb),0.08)',
             border: mode === 'light'
               ? '1px solid rgba(245,158,11,0.25)'
-              : '1px solid var(--border-strong)',
+              : '1px solid var(--border)',
             color: mode === 'light' ? '#f59e0b' : 'var(--text-secondary)'
           }}
           title={mode === 'dark' ? 'Switch to Light Mode ☀️' : 'Switch to Dark Mode 🌙'}
@@ -79,15 +79,15 @@ export default function TopBar() {
 
         {/* Notification */}
         <button className="w-9 h-9 rounded-xl flex items-center justify-center relative transition-all duration-200 hover:scale-105 active:scale-95"
-          style={{ background: 'var(--bg-glass-md)', border: '1px solid var(--border-strong)' }}>
+          style={{ background: 'var(--bg-glass)', border: '1px solid var(--border)' }}>
           <Bell size={15} style={{ color: 'var(--text-secondary)' }} />
           <div className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full" style={{ background: 'var(--accent)', animation: 'pulseGlow 2s ease-in-out infinite' }}></div>
         </button>
 
         {/* Avatar */}
         <div className="flex items-center gap-2.5 pl-3" style={{ borderLeft: '1px solid var(--border)' }}>
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold transition-all duration-200 hover:scale-105"
-            style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent-light))', boxShadow: '0 0 12px rgba(var(--accent-rgb), 0.2)', padding: 0, minWidth: 32, height: 32, color: '#fff' }}>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-white transition-all duration-200 hover:scale-105"
+            style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent-light))', boxShadow: '0 0 12px rgba(var(--accent-rgb), 0.2)', padding: 0, minWidth: 32, height: 32 }}>
             {user?.name?.charAt(0)?.toUpperCase() || 'U'}
           </div>
           <div className="hidden sm:block">
