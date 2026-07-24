@@ -1,17 +1,13 @@
 // ═══════════════════════════════════════════════════════════════════
-// App.jsx — FIXED: No stuck loading overlay, BrowserRouter included
+// App.jsx — COMPLETE: All pages + detail/edit/new routes
 //
-// THE BUG THAT WAS FIXED:
-// Old code had a "page-transition-overlay" with opacity:h?0:1
-// where h started as false → opacity=1 → overlay VISIBLE forever.
-// The setTimeout that should hide it got cleared by React cleanup.
-// Overlay had z-index:100000 blocking ALL interaction.
-// FIX: Removed overlay entirely. App shows content immediately.
-//
-// BUILD FIX: Removed lazy imports + Routes for 8 deleted pages
+// BUILD FIX: Removed lazy imports for 8 removed sections
 // (Payments, Expenses, Suppliers, Inventory, CreditNotes, Workers,
-// Machines, Production) — these don't exist in the repo and caused
-// "Could not resolve" build errors.
+// Machines, Production) — not in sidebar, not needed.
+//
+// ADDED: Routes for CustomerNew, CustomerEdit, CustomerDetail,
+// InvoiceNew, InvoiceEdit, QuotationForm, PurchaseNew,
+// PurchaseEdit, PurchaseDetail
 // ═══════════════════════════════════════════════════════════════════
 
 import { useState, Suspense, lazy } from 'react'
@@ -34,10 +30,19 @@ function PageFallback({ name }) {
 const Dashboard      = lazy(() => import('./pages/Dashboard').catch(() => ({ default: () => <PageFallback name="Dashboard" /> })))
 const Invoices       = lazy(() => import('./pages/Invoices').catch(() => ({ default: () => <PageFallback name="Invoices" /> })))
 const InvoiceDetail  = lazy(() => import('./pages/InvoiceDetail').catch(() => ({ default: () => <PageFallback name="Invoice Detail" /> })))
+const InvoiceNew     = lazy(() => import('./pages/InvoiceNew').catch(() => ({ default: () => <PageFallback name="New Invoice" /> })))
+const InvoiceEdit    = lazy(() => import('./pages/InvoiceEdit').catch(() => ({ default: () => <PageFallback name="Edit Invoice" /> })))
 const Quotations     = lazy(() => import('./pages/Quotations').catch(() => ({ default: () => <PageFallback name="Quotations" /> })))
 const QuotationDetail = lazy(() => import('./pages/QuotationDetail').catch(() => ({ default: () => <PageFallback name="Quotation Detail" /> })))
+const QuotationForm  = lazy(() => import('./pages/QuotationForm').catch(() => ({ default: () => <PageFallback name="New Quotation" /> })))
 const Customers      = lazy(() => import('./pages/Customers').catch(() => ({ default: () => <PageFallback name="Customers" /> })))
+const CustomerNew    = lazy(() => import('./pages/CustomerNew').catch(() => ({ default: () => <PageFallback name="New Customer" /> })))
+const CustomerDetail = lazy(() => import('./pages/CustomerDetail').catch(() => ({ default: () => <PageFallback name="Customer Detail" /> })))
+const CustomerEdit   = lazy(() => import('./pages/CustomerEdit').catch(() => ({ default: () => <PageFallback name="Edit Customer" /> })))
 const Purchases      = lazy(() => import('./pages/Purchases').catch(() => ({ default: () => <PageFallback name="Purchases" /> })))
+const PurchaseNew    = lazy(() => import('./pages/PurchaseNew').catch(() => ({ default: () => <PageFallback name="New Purchase" /> })))
+const PurchaseDetail = lazy(() => import('./pages/PurchaseDetail').catch(() => ({ default: () => <PageFallback name="Purchase Detail" /> })))
+const PurchaseEdit   = lazy(() => import('./pages/PurchaseEdit').catch(() => ({ default: () => <PageFallback name="Edit Purchase" /> })))
 const GSTReports     = lazy(() => import('./pages/GSTReports').catch(() => ({ default: () => <PageFallback name="GST Reports" /> })))
 const Reports        = lazy(() => import('./pages/Reports').catch(() => ({ default: () => <PageFallback name="Reports" /> })))
 const AIAssistant    = lazy(() => import('./pages/AIAssistant').catch(() => ({ default: () => <PageFallback name="AI Assistant" /> })))
@@ -143,11 +148,20 @@ function AppLayout() {
           <Routes>
             <Route path="" element={<Dashboard />} />
             <Route path="invoices" element={<Invoices />} />
+            <Route path="invoices/new" element={<InvoiceNew />} />
             <Route path="invoices/:id" element={<InvoiceDetail />} />
+            <Route path="invoices/:id/edit" element={<InvoiceEdit />} />
             <Route path="quotations" element={<Quotations />} />
+            <Route path="quotations/new" element={<QuotationForm />} />
             <Route path="quotations/:id" element={<QuotationDetail />} />
             <Route path="customers" element={<Customers />} />
+            <Route path="customers/new" element={<CustomerNew />} />
+            <Route path="customers/:id" element={<CustomerDetail />} />
+            <Route path="customers/:id/edit" element={<CustomerEdit />} />
             <Route path="purchases" element={<Purchases />} />
+            <Route path="purchases/new" element={<PurchaseNew />} />
+            <Route path="purchases/:id" element={<PurchaseDetail />} />
+            <Route path="purchases/:id/edit" element={<PurchaseEdit />} />
             <Route path="gst" element={<GSTReports />} />
             <Route path="reports" element={<Reports />} />
             <Route path="ai-assistant" element={<AIAssistant />} />
