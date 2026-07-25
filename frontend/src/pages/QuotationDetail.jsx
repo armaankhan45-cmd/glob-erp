@@ -18,10 +18,10 @@ function fmtDate(d) {
 /* ═══════════════════════════════════════════════════════════════
    CLASSIC LAYOUT — Original bordered box, no letterhead/stamp
    ═══════════════════════════════════════════════════════════════ */
-function ClassicLayout({ quotation, items, org, boldOn, customerSize, qNum, gstRate, totalGST, subtotal, totalAmount, amountWords, letterheadMm }) {
+function ClassicLayout({ quotation, items, org, boldOn, customerSize, qNum, gstRate, totalGST, subtotal, totalAmount, amountWords, letterheadMm, selectedFont }) {
   return (
     <div className="bg-white shadow-lg mx-auto print-area" style={{
-      fontFamily: (org?.quotation_font_family || 'Georgia, serif'),
+      fontFamily: selectedFont,
       fontSize: (org?.quotation_font_size || '10') + 'pt',
       width: '210mm', minHeight: '297mm',
       display: 'flex', flexDirection: 'column',
@@ -77,7 +77,7 @@ function ClassicLayout({ quotation, items, org, boldOn, customerSize, qNum, gstR
    PRO LAYOUT — With letterhead image header, stamp, signature
    Matches the company's printed letterhead format
    ═══════════════════════════════════════════════════════════════ */
-function ProLayout({ quotation, items, org, boldOn, customerSize, qNum, gstRate, totalGST, subtotal, totalAmount, amountWords }) {
+function ProLayout({ quotation, items, org, boldOn, customerSize, qNum, gstRate, totalGST, subtotal, totalAmount, amountWords, selectedFont }) {
   const NAVY = '#1a2744'
   const bdr = '1px solid #bbb'
 
@@ -87,7 +87,7 @@ function ProLayout({ quotation, items, org, boldOn, customerSize, qNum, gstRate,
 
   return (
     <div className="bg-white shadow-lg mx-auto print-area" style={{
-      fontFamily: (org?.quotation_font_family || 'Arial, sans-serif'),
+      fontFamily: selectedFont,
       fontSize: (org?.quotation_font_size || '10') + 'pt',
       width: '210mm', minHeight: '297mm',
       background: 'white', color: '#000',
@@ -376,8 +376,9 @@ th,td { padding:6px 10px; }
   const subtotal = parseFloat(quotation.subtotal) || 0
   const totalAmount = parseFloat(quotation.total_amount) || 0
   const amountWords = numberToWordsCaps(totalAmount)
+  const selectedFont = localStorage.getItem('selected_font') || org?.quotation_font_family || 'Arial, sans-serif'
 
-  const sharedProps = { quotation, items, org, boldOn, customerSize, qNum, gstRate, totalGST, subtotal, totalAmount, amountWords, letterheadMm }
+  const sharedProps = { quotation, items, org, boldOn, customerSize, qNum, gstRate, totalGST, subtotal, totalAmount, amountWords, letterheadMm, selectedFont }
 
   return (
     <div className="space-y-4">
