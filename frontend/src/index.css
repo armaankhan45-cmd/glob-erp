@@ -602,12 +602,14 @@ tbody tr:hover { background: var(--bg-glass); }
 
 /* ═══════════════════════════════════════════════════
    PRINT — Simple default. No wildcards. No tricks.
-   Just: white background on 4 containers, hide chrome, show invoice.
+   The actual print uses a NEW WINDOW approach (see InvoiceDetail
+   and QuotationDetail handlePrint) which copies only .print-area
+   into a clean white window. This CSS is fallback + hides chrome.
    ═══════════════════════════════════════════════════ */
 @media print {
   @page { margin: 0; size: A4; }
 
-  /* Force white on body + the 3 containers that have dark inline backgrounds */
+  /* White background on main containers */
   body,
   .flex.h-screen,
   .flex-1.flex.flex-col,
@@ -620,7 +622,7 @@ tbody tr:hover { background: var(--bg-glass); }
   }
   main { padding: 0 !important; }
 
-  /* Hide app chrome */
+  /* Hide ALL app chrome including hamburger menu (3 dashes) */
   aside,
   header,
   nav,
@@ -635,11 +637,12 @@ tbody tr:hover { background: var(--bg-glass); }
   .btn-shine,
   .shimmer,
   .glow-line,
-  .stat-pulse-ring {
+  .stat-pulse-ring,
+  .lg:hidden {
     display: none !important;
   }
 
-  /* Show invoice/quotation */
+  /* Invoice/quotation content */
   .print-area {
     display: block !important;
     position: static !important;
