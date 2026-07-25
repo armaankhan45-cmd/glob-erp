@@ -108,6 +108,19 @@
 .light-mode .border-white\/15 { border-color: var(--border) !important; }
 .light-mode .border-white\/20 { border-color: var(--border-strong) !important; }
 
+/* ─── LIGHT MODE: Fix bg-slate-800/80 (used in InvoiceEdit, bare inputs) ─── */
+.light-mode .bg-slate-800\/80 { background: var(--bg-input) !important; }
+.light-mode .bg-slate-800\/50 { background: #e8eaef !important; }
+
+/* ─── LIGHT MODE: Fix border-slate classes ─── */
+.light-mode .border-slate-600 { border-color: var(--border-input) !important; }
+.light-mode .border-slate-700 { border-color: rgba(0,0,0,0.10) !important; }
+
+/* ─── LIGHT MODE: Fix text-slate label colors ─── */
+.light-mode .text-slate-400 { color: var(--text-secondary) !important; }
+.light-mode .text-slate-500 { color: var(--text-secondary) !important; }
+.light-mode .text-slate-600 { color: var(--text-light) !important; }
+
 /* ─── LIGHT MODE: Fix colored bg overlays ─── */
 .light-mode .bg-blue-500\/20 { background: rgba(110,168,254,0.08) !important; }
 .light-mode .bg-purple-500\/20 { background: rgba(192,132,252,0.08) !important; }
@@ -171,6 +184,29 @@
 
 /* ─── LIGHT MODE: Fix glass class ─── */
 .light-mode .glass { background: var(--bg-card) !important; border: 1px solid var(--border) !important; }
+
+/* ─── GLOBAL: Fix gray text classes for both themes ─── */
+/* text-gray-700 (#374151) is DARK text — invisible on dark background */
+/* Override to use theme-aware CSS variables */
+.text-gray-700 { color: var(--text-secondary) !important; }
+.text-gray-600 { color: var(--text-secondary) !important; }
+.text-gray-500 { color: var(--text-muted) !important; }
+.text-gray-400 { color: var(--text-muted) !important; }
+.text-gray-300 { color: var(--text-muted) !important; }
+.text-gray-50 { border-color: var(--border-md) !important; }
+
+/* ─── GLOBAL: Make ALL bare inputs/selects/textareas visible ─── */
+/* Inputs that have NO bg/color classes get invisible text in light/dark mode */
+.glass input:not(.input-field):not([class*="bg-"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="submit"]):not([type="button"]),
+.glass select:not(.input-field):not([class*="bg-"]),
+.glass textarea:not(.input-field):not([class*="bg-"]),
+.card input:not(.input-field):not([class*="bg-"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="submit"]):not([type="button"]),
+.card select:not(.input-field):not([class*="bg-"]),
+.card textarea:not(.input-field):not([class*="bg-"]) {
+  background: var(--bg-input) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-input) !important;
+}
 
 /* ─── GLOBAL APP BOLD TOGGLE ─── */
 .app-bold-mode body,
@@ -566,31 +602,67 @@ tbody tr:hover { background: var(--bg-glass); }
 
 /* ─── PRINT ─── */
 @media print {
-  /* Hide ALL app chrome — only print-area shows */
-  body { background: white; color: black; margin: 0; padding: 0; }
-  .card { background: white; border: 1px solid #ccc; }
-  /* Hide sidebar, topbar, AI chat, buttons, all navigation */
-  aside, header, nav, .sidebar-link, .btn-primary, .btn-secondary, .btn-danger, .btn-shine, .shimmer, .glow-line, .stat-pulse-ring, .fab, .no-print { display: none !important; }
-  /* Hide the main layout wrapper except print-area */
-  .flex.h-screen, .flex-1, main, .page-transition-overlay { display: block !important; overflow: visible !important; height: auto !important; }
-  .status-badge { border: 1px solid #ccc; }
-  .app-bold-mode * { font-weight: inherit !important; }
-  /* Remove page URL footer that browsers add */
   @page { margin: 0; size: A4; }
-  /* Hide everything that is NOT print-area */
-  *:not(.print-area):not(.print-area *) {
-    display: none !important;
-  }
-  /* Show only print-area */
-  .print-area {
-    display: block !important;
-    position: static !important;
-    width: 100% !important;
-    max-width: 100% !important;
+
+  /* Clean white background for print */
+  body {
+    background: white !important;
+    color: #000 !important;
     margin: 0 !important;
     padding: 0 !important;
     overflow: visible !important;
-    box-shadow: none !important;
-    border: none !important;
+    position: relative !important;
   }
+
+  /* KEY FIX: Use visibility:hidden instead of display:none
+     display:none on a parent makes ALL children invisible,
+     even if children try to override — this caused the BLACK SCREEN.
+     visibility:hidden keeps parents in the layout so .print-area
+     can still render, while making everything invisible.
+     Then .print-area overrides to visibility:visible. */
+  body * {
+    visibility: hidden !important;
+  }
+
+  /* Show ONLY .print-area and its descendants
+     In CSS, visibility:visible on a child works even when
+     the parent is visibility:hidden — this is the critical
+     difference from display:none */
+  .print-area {
+    visibility: visible !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 900px !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .print-area * {
+    visibility: visible !important;
+  }
+
+  /* Force lighter label text to be darker for print readability */
+  .print-area [style*="color: '#666'"] { color: #222 !important; }
+  .print-area [style*="color: '#555'"] { color: #222 !important; }
+  .print-area [style*="color: '#999'"] { color: #444 !important; }
+  .print-area [style*="color: '#888'"] { color: #444 !important; }
+  .print-area [style*="color: '#333'"] { color: #111 !important; }
+
+  /* Print borders darker */
+  .print-area [style*="border: 1px solid #ccc"] { border-color: #999 !important; }
+  .print-area [style*="border: 1px solid #e0e0e0"] { border-color: #999 !important; }
+  .print-area [style*="border: 1px solid #e8e8e8"] { border-color: #999 !important; }
+  .print-area [style*="border: 1px solid #ddd"] { border-color: #999 !important; }
+  .print-area [style*="border: 1px solid #bbb"] { border-color: #888 !important; }
+
+  /* Disable app bold mode in print */
+  .app-bold-mode * { font-weight: inherit !important; }
+
+  /* Status badges */
+  .status-badge { border: 1px solid #ccc; }
+  .card { background: white !important; border: 1px solid #ccc !important; }
 }
