@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════
-// App.jsx — PREMIUM Login + MainLayout with Sidebar + TopBar + Theme
-// ThemeProvider is HERE (not in main.jsx) to avoid build issues
+// App.jsx — PREMIUM Login (Stripe/Notion quality) + Main App
+// Background follows theme color throughout the entire website
 // ═══════════════════════════════════════════════════════════════════
 
 import { useState, useEffect, Suspense, lazy } from 'react'
@@ -10,13 +10,12 @@ import { ThemeProvider } from './context/ThemeContext'
 import AutoHealErrorBoundary from './components/AutoHealErrorBoundary'
 import MainLayout from './layouts/MainLayout'
 
-// ─── Lazy load pages ───
 function PageFallback({ name }) {
   return (
     <div className="flex items-center justify-center h-96">
       <div className="text-center">
         <h2 className="text-xl font-bold" style={{ color: 'var(--accent)' }}>{name}</h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Page loading or updating. Try refreshing if stuck.</p>
+        <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Loading…</p>
       </div>
     </div>
   )
@@ -47,7 +46,6 @@ const ExportData      = lazy(() => import('./pages/ExportData').catch(() => ({ d
 const DeployControl   = lazy(() => import('./pages/DeployControl').catch(() => ({ default: () => <PageFallback name="Deploy" /> })))
 const Diagnostics     = lazy(() => import('./pages/Diagnostics').catch(() => ({ default: () => <PageFallback name="Diagnostics" /> })))
 
-// ─── Inline loader ───
 function InlineLoader() {
   return (
     <div className="flex items-center justify-center h-screen" style={{ background: 'var(--bg-primary)' }}>
@@ -56,7 +54,6 @@ function InlineLoader() {
   )
 }
 
-// ─── Auth guard ───
 function PrivateRoute({ children }) {
   const { user, initialized } = useAuth()
   if (!initialized) return <InlineLoader />
@@ -65,280 +62,200 @@ function PrivateRoute({ children }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// PREMIUM LOGIN PAGE — Like Stripe, Notion, Linear quality
-// Clean professional design, proper form UX, real app feel
-// Background follows the theme accent color
+// PREMIUM LOGIN PAGE — Like Stripe, Notion, Linear
+// Two-panel: left = brand showcase, right = clean form
+// Background follows theme color
 // ═══════════════════════════════════════════════════════════════════
 function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
+  const [showPwd, setShowPwd] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [retrying, setRetrying] = useState(false)
   const [mounted, setMounted] = useState(false)
 
-  useEffect(() => { setTimeout(() => setMounted(true), 100) }, [])
+  useEffect(() => { setTimeout(() => setMounted(true), 80) }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
-    if (!email.trim()) { setError('Email is required'); return }
-    if (!password.trim()) { setError('Password is required'); return }
+    if (!email.trim()) { setError('Please enter your email'); return }
+    if (!password.trim()) { setError('Please enter your password'); return }
     setLoading(true)
 
-    const startTime = Date.now()
+    const start = Date.now()
     const result = await login(email, password)
-    const elapsed = Date.now() - startTime
+    const took = Date.now() - start
 
-    // If server was cold and login failed, auto-retry after server wakes
-    if (elapsed > 8000 && !result.success) {
+    if (took > 8000 && !result.success) {
       setLoading(false)
       setRetrying(true)
-      setError('Server is waking up (free tier). Retrying automatically...')
+      setError('Server is waking up — retrying automatically…')
       setTimeout(async () => {
         const retry = await login(email, password)
         setRetrying(false)
-        if (retry.success) {
-          navigate('/app/dashboard')
-        } else {
-          setError(retry.msg || 'Login failed. Check your credentials.')
-        }
+        retry.success ? navigate('/app/dashboard') : setError(retry.msg || 'Login failed. Check credentials.')
       }, 5000)
       return
     }
 
     setLoading(false)
-    if (result.success) {
-      navigate('/app/dashboard')
-    } else {
-      setError(result.msg || 'Invalid email or password')
-    }
+    result.success ? navigate('/app/dashboard') : setError(result.msg || 'Invalid email or password')
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', background: 'var(--bg-primary)', transition: 'background 0.5s ease' }}>
-      {/* ═══ Left Panel — Brand Showcase ═══ */}
-      <div style={{
-        flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center',
-        background: 'linear-gradient(135deg, var(--bg-tint), var(--bg-primary))',
-        padding: '40px 60px',
-        position: 'relative',
-        overflow: 'hidden'
+    <div style={{ minHeight: '100vh', display: 'flex', background: 'var(--bg-primary)', transition: 'background 0.4s ease' }}>
+      
+      {/* ══════ LEFT — Brand Showcase ══════ */}
+      <div className="login-brand" style={{
+        flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center',
+        padding: '60px', position: 'relative', overflow: 'hidden',
+        background: 'linear-gradient(160deg, var(--bg-primary) 0%, var(--bg-card) 100%)'
       }}>
-        {/* Background decorative elements that follow theme */}
-        <div style={{ position: 'absolute', top: '-20%', right: '-10%', width: '500px', height: '500px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(var(--accent-rgb),0.08) 0%, transparent 70%)' }}></div>
-        <div style={{ position: 'absolute', bottom: '-10%', left: '-5%', width: '400px', height: '400px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(var(--accent-rgb),0.06) 0%, transparent 70%)' }}></div>
+        {/* Subtle accent glow in background */}
+        <div style={{ position: 'absolute', bottom: '-20%', left: '-10%', width: '600px', height: '600px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(var(--accent-rgb),0.06), transparent 70%)' }} />
+        <div style={{ position: 'absolute', top: '-10%', right: '-5%', width: '400px', height: '400px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(var(--accent-rgb),0.04), transparent 70%)' }} />
 
-        <div style={{ maxWidth: '480px', position: 'relative', zIndex: 2, transform: mounted ? 'translateY(0)' : 'translateY(30px)', opacity: mounted ? 1 : 0, transition: 'all 0.6s cubic-bezier(0.16,1,0.3,1)' }}>
+        <div style={{ position: 'relative', maxWidth: '440px', transform: mounted ? 'none' : 'translateY(20px)', opacity: mounted ? 1 : 0, transition: 'all 0.6s cubic-bezier(0.16,1,0.3,1)' }}>
+          
           {/* Logo */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '48px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '40px' }}>
             <div style={{
-              width: '52px', height: '52px', borderRadius: '14px',
-              background: 'linear-gradient(135deg, var(--accent), rgba(var(--accent-rgb),0.7))',
+              width: '44px', height: '44px', borderRadius: '12px',
+              background: 'var(--accent)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 8px 32px rgba(var(--accent-rgb),0.3)'
             }}>
-              <span style={{ fontSize: '24px', fontWeight: '900', color: '#fff' }}>G</span>
+              <span style={{ fontSize: '22px', fontWeight: '900', color: '#fff' }}>G</span>
             </div>
             <div>
-              <h1 style={{ fontSize: '24px', fontWeight: '800', letterSpacing: '2px', color: 'var(--text-primary)' }}>GLOB ERP</h1>
-              <p style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '1px', color: 'var(--accent)' }}>FABRICATION & ENTERPRISES</p>
+              <span style={{ fontSize: '20px', fontWeight: '800', letterSpacing: '1.5px', color: 'var(--text-primary)' }}>GLOB ERP</span>
+              <span style={{ display: 'block', fontSize: '11px', fontWeight: '600', color: 'var(--accent)', letterSpacing: '0.5px', marginTop: '2px' }}>Fabrication & Enterprises</span>
             </div>
           </div>
 
-          {/* Tagline */}
-          <h2 style={{ fontSize: '36px', fontWeight: '700', lineHeight: '1.2', color: 'var(--text-primary)', marginBottom: '16px' }}>
-            Your Complete <br/>
-            <span style={{ color: 'var(--accent)' }}>GST-Compliant</span><br/>
-            Fabrication ERP
+          {/* Headline */}
+          <h2 style={{ fontSize: '32px', fontWeight: '700', lineHeight: '1.3', color: 'var(--text-primary)', marginBottom: '12px' }}>
+            GST-Compliant<br/><span style={{ color: 'var(--accent)' }}>Fabrication ERP</span>
           </h2>
-          <p style={{ fontSize: '16px', lineHeight: '1.6', color: 'var(--text-secondary)', marginBottom: '32px' }}>
-            Invoices, Quotations, Purchase Bills, GST Reports — all in one system. Built for Indian manufacturing businesses.
+          <p style={{ fontSize: '15px', lineHeight: '1.6', color: 'var(--text-secondary)', marginBottom: '28px' }}>
+            Invoices, Quotations, Purchase Bills, GST Reports — everything in one system. Built for Indian manufacturing.
           </p>
 
-          {/* GSTIN Badge */}
-          <div style={{ display: 'inline-block', padding: '10px 20px', borderRadius: '10px', background: 'rgba(var(--accent-rgb),0.08)', border: '1px solid rgba(var(--accent-rgb),0.15)', marginBottom: '40px' }}>
-            <div style={{ fontSize: '10px', fontWeight: '700', letterSpacing: '1px', color: 'var(--text-muted)' }}>GSTIN</div>
-            <div style={{ fontSize: '14px', fontWeight: '700', fontFamily: 'monospace', color: 'var(--accent)', letterSpacing: '1px' }}>27AWAPK1209R1ZC</div>
+          {/* GSTIN */}
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '8px', background: 'rgba(var(--accent-rgb),0.08)', border: '1px solid rgba(var(--accent-rgb),0.12)' }}>
+            <span style={{ fontSize: '9px', fontWeight: '700', letterSpacing: '1px', color: 'var(--text-muted)' }}>GSTIN</span>
+            <span style={{ fontSize: '13px', fontWeight: '700', fontFamily: 'monospace', color: 'var(--accent)' }}>27AWAPK1209R1ZC</span>
           </div>
 
-          {/* Feature pills */}
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {['✓ GST Invoicing', '✓ Quotation Management', '✓ Purchase Tracking', '✓ GSTR-1/GSTR-3B', '✓ Customer Database'].map((f, i) => (
-              <span key={i} style={{ padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: '600', background: 'rgba(var(--accent-rgb),0.06)', border: '1px solid rgba(var(--accent-rgb),0.1)', color: 'var(--text-secondary)' }}>{f}</span>
+          {/* Features */}
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '28px' }}>
+            {['✓ GST Invoicing', '✓ Quotations', '✓ Purchase Bills', '✓ GSTR Reports', '✓ Customer DB'].map((f, i) => (
+              <span key={i} style={{ padding: '5px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', background: 'rgba(var(--accent-rgb),0.05)', color: 'var(--text-secondary)' }}>{f}</span>
             ))}
           </div>
         </div>
       </div>
 
-      {/* ═══ Right Panel — Login Form ═══ */}
-      <div style={{
-        width: '460px', minWidth: '460px', display: 'flex', flexDirection: 'column', justifyContent: 'center',
-        padding: '48px 40px',
-        background: 'var(--bg-card)',
+      {/* ══════ RIGHT — Login Form ══════ */}
+      <div className="login-form-panel" style={{
+        width: '440px', minWidth: '380px', display: 'flex', flexDirection: 'column', justifyContent: 'center',
+        padding: '48px 40px', background: 'var(--bg-card)',
         borderLeft: '1px solid var(--border)',
-        position: 'relative'
       }}>
-        <div style={{ maxWidth: '380px', margin: '0 auto', width: '100%', transform: mounted ? 'translateY(0)' : 'translateY(20px)', opacity: mounted ? 1 : 0, transition: 'all 0.5s cubic-bezier(0.16,1,0.3,1) 0.1s' }}>
+        <div style={{ maxWidth: '360px', margin: '0 auto', width: '100%', transform: mounted ? 'none' : 'translateY(10px)', opacity: mounted ? 1 : 0, transition: 'all 0.5s cubic-bezier(0.16,1,0.3,1) 0.1s' }}>
           
-          {/* Form Header */}
-          <div style={{ marginBottom: '32px' }}>
-            <p style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px' }}>Sign in to your account</p>
-            <h2 style={{ fontSize: '28px', fontWeight: '700', color: 'var(--text-primary)' }}>Welcome back</h2>
+          {/* Header */}
+          <div style={{ marginBottom: '28px' }}>
+            <p style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '4px' }}>GLOB ERP</p>
+            <h2 style={{ fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)' }}>Sign in</h2>
           </div>
 
-          {/* Error Message */}
+          {/* Error */}
           {error && (
             <div style={{
-              padding: '14px 16px', borderRadius: '10px', marginBottom: '24px',
-              background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)',
-              color: '#f87171', fontSize: '14px', fontWeight: '500',
-              display: 'flex', alignItems: 'center', gap: '10px',
-              animation: 'slideUp 0.3s cubic-bezier(0.16,1,0.3,1)'
+              padding: '12px 14px', borderRadius: '8px', marginBottom: '20px',
+              background: retrying ? 'rgba(var(--accent-rgb),0.08)' : 'rgba(239,68,68,0.08)',
+              border: retrying ? '1px solid rgba(var(--accent-rgb),0.15)' : '1px solid rgba(239,68,68,0.15)',
+              color: retrying ? 'var(--accent)' : '#f87171',
+              fontSize: '13px', fontWeight: '500',
+              display: 'flex', alignItems: 'center', gap: '8px',
             }}>
-              {retrying && (
-                <div style={{ width: '16px', height: '16px', border: '2px solid rgba(248,113,113,0.2)', borderTopColor: '#f87171', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-              )}
-              {!retrying && <span style={{ fontSize: '14px' }}>⚠️</span>}
+              {(loading || retrying) && <div style={{ width: '14px', height: '14px', border: '2px solid rgba(var(--accent-rgb),0.2)', borderTopColor: retrying ? 'var(--accent)' : '#f87171', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />}
               {error}
             </div>
           )}
 
           {/* Form */}
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {/* Email Field */}
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px' }}>Email address</label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="admin@globfabrication.com"
-                required
-                autoComplete="email"
-                style={{
-                  width: '100%', padding: '12px 16px',
-                  background: 'var(--bg-input)',
-                  border: '1px solid var(--border-input)',
-                  borderRadius: '10px',
-                  color: 'var(--text-primary)',
-                  fontSize: '15px',
-                  outline: 'none',
-                  transition: 'all 0.2s ease'
-                }}
-                onFocus={(e) => { e.target.style.borderColor = 'rgba(var(--accent-rgb),0.4)'; e.target.style.boxShadow = '0 0 0 3px rgba(var(--accent-rgb),0.08)' }}
-                onBlur={(e) => { e.target.style.borderColor = 'var(--border-input)'; e.target.style.boxShadow = 'none' }}
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>Email</label>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="admin@globfabrication.com" required autoComplete="email"
+                style={{ width: '100%', padding: '10px 14px', background: 'var(--bg-input)', border: '1px solid var(--border-input)', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', transition: 'border-color 0.15s, box-shadow 0.15s' }}
+                onFocus={e => { e.target.style.borderColor = 'rgba(var(--accent-rgb),0.4)'; e.target.style.boxShadow = '0 0 0 2px rgba(var(--accent-rgb),0.08)' }}
+                onBlur={e => { e.target.style.borderColor = 'var(--border-input)'; e.target.style.boxShadow = 'none' }}
               />
             </div>
 
-            {/* Password Field */}
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px' }}>Password</label>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>Password</label>
               <div style={{ position: 'relative' }}>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  required
-                  autoComplete="current-password"
-                  style={{
-                    width: '100%', padding: '12px 16px', paddingRight: '100px',
-                    background: 'var(--bg-input)',
-                    border: '1px solid var(--border-input)',
-                    borderRadius: '10px',
-                    color: 'var(--text-primary)',
-                    fontSize: '15px',
-                    outline: 'none',
-                    transition: 'all 0.2s ease'
-                  }}
-                  onFocus={(e) => { e.target.style.borderColor = 'rgba(var(--accent-rgb),0.4)'; e.target.style.boxShadow = '0 0 0 3px rgba(var(--accent-rgb),0.08)' }}
-                  onBlur={(e) => { e.target.style.borderColor = 'var(--border-input)'; e.target.style.boxShadow = 'none' }}
+                <input type={showPwd ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Enter password" required autoComplete="current-password"
+                  style={{ width: '100%', padding: '10px 14px', paddingRight: '64px', background: 'var(--bg-input)', border: '1px solid var(--border-input)', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', transition: 'border-color 0.15s, box-shadow 0.15s' }}
+                  onFocus={e => { e.target.style.borderColor = 'rgba(var(--accent-rgb),0.4)'; e.target.style.boxShadow = '0 0 0 2px rgba(var(--accent-rgb),0.08)' }}
+                  onBlur={e => { e.target.style.borderColor = 'var(--border-input)'; e.target.style.boxShadow = 'none' }}
                 />
-                {/* Show/Hide Toggle */}
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  style={{
-                    position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)',
-                    padding: '6px 12px', borderRadius: '8px',
-                    background: showPassword ? 'rgba(var(--accent-rgb),0.12)' : 'var(--bg-glass)',
-                    border: `1px solid ${showPassword ? 'rgba(var(--accent-rgb),0.2)' : 'var(--border)'}`,
-                    color: showPassword ? 'var(--accent)' : 'var(--text-muted)',
-                    fontSize: '12px', fontWeight: '600',
-                    cursor: 'pointer', transition: 'all 0.2s'
-                  }}
-                >
-                  {showPassword ? 'Hide' : 'Show'}
-                </button>
+                <button type="button" onClick={() => setShowPwd(!showPwd)}
+                  style={{ position: 'absolute', right: '6px', top: '50%', transform: 'translateY(-50%)', padding: '4px 10px', borderRadius: '6px', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: '11px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.15s' }}
+                >{showPwd ? 'Hide' : 'Show'}</button>
               </div>
             </div>
 
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={loading || retrying}
+            <button type="submit" disabled={loading || retrying}
               style={{
-                width: '100%', padding: '14px',
-                background: loading || retrying
-                  ? 'rgba(var(--accent-rgb),0.15)'
-                  : 'var(--accent)',
-                border: 'none',
-                borderRadius: '10px',
-                color: '#fff',
-                fontSize: '15px',
-                fontWeight: '600',
+                width: '100%', padding: '12px', marginTop: '8px',
+                background: loading || retrying ? 'rgba(var(--accent-rgb),0.12)' : 'var(--accent)',
+                border: 'none', borderRadius: '8px',
+                color: '#fff', fontSize: '14px', fontWeight: '600',
                 cursor: loading || retrying ? 'not-allowed' : 'pointer',
-                transition: 'all 0.2s ease',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
-                boxShadow: loading || retrying ? 'none' : '0 4px 16px rgba(var(--accent-rgb),0.25)'
+                transition: 'background 0.2s, transform 0.1s',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                boxShadow: loading || retrying ? 'none' : '0 2px 8px rgba(var(--accent-rgb),0.2)',
               }}
+              onMouseDown={e => { if (!loading && !retrying) e.currentTarget.style.transform = 'scale(0.98)' }}
+              onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
             >
-              {(loading || retrying) && (
-                <div style={{ width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-              )}
-              {retrying ? 'Waking Server...' : loading ? 'Signing in...' : 'Sign in'}
+              {(loading || retrying) && <div style={{ width: '14px', height: '14px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />}
+              {retrying ? 'Waking server…' : loading ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
 
-          {/* Server Info */}
-          <div style={{ marginTop: '24px', textAlign: 'center' }}>
-            <p style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
-              First visit may take ~30 seconds — server sleeps on free tier when idle.<br/>
-              Subsequent logins are instant (~0.3s).
-            </p>
-          </div>
+          {/* Note */}
+          <p style={{ textAlign: 'center', marginTop: '20px', fontSize: '11px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
+            First visit may take ~30s — free-tier server sleeps when idle.<br/>Subsequent logins are instant.
+          </p>
 
           {/* Footer */}
-          <div style={{ marginTop: '40px', textAlign: 'center' }}>
-            <p style={{ fontSize: '10px', color: 'var(--text-muted)', letterSpacing: '0.5px' }}>
-              © 2024 Glob Fabrication and Enterprises • Maharashtra, India
-            </p>
-          </div>
+          <p style={{ textAlign: 'center', marginTop: '32px', fontSize: '10px', color: 'var(--text-muted)' }}>
+            © 2024 Glob Fabrication and Enterprises · Maharashtra, India
+          </p>
         </div>
       </div>
 
-      {/* ─── Animations ─── */}
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes slideUp {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @media (max-width: 960px) {
-          .login-split { flex-direction: column; }
-          .login-brand { width: 100%; min-width: unset; padding: 30px 24px; }
-          .login-form-panel { width: 100%; min-width: unset; border-left: none; border-top: 1px solid var(--border); }
+        @media (max-width: 900px) {
+          .login-brand { display: none !important; }
+          .login-form-panel { width: 100% !important; min-width: unset !important; border-left: none !important; }
         }
       `}</style>
     </div>
   )
 }
 
-// ─── Root App component ───
+// ─── Root App ───
 export default function App() {
   return (
     <ThemeProvider>
@@ -356,6 +273,7 @@ export default function App() {
                 <Route path="quotations" element={<Quotations />} />
                 <Route path="quotations/new" element={<QuotationForm />} />
                 <Route path="quotations/:id" element={<QuotationDetail />} />
+                <Route path="quotations/:id/edit" element={<QuotationForm />} />
                 <Route path="customers" element={<Customers />} />
                 <Route path="customers/new" element={<CustomerNew />} />
                 <Route path="customers/:id" element={<CustomerDetail />} />
