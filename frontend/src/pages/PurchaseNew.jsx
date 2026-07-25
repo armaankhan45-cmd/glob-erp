@@ -7,7 +7,7 @@ import { Save, Plus, X, ArrowLeft } from 'lucide-react'
 export default function PurchaseNew() {
   const navigate = useNavigate()
   const [form, setForm] = useState({
-    bill_number: '', supplier_name: '', supplier_gstin: '', supplier_state: '', supplier_state_code: '', supplier_address: '', supplier_phone: '',
+    bill_number: '', supplier_name: localStorage.getItem('lastPurchaseSupplier') || '', supplier_gstin: localStorage.getItem('lastPurchaseSupplierGSTIN') || '', supplier_state: localStorage.getItem('lastPurchaseSupplierState') || '', supplier_state_code: localStorage.getItem('lastPurchaseSupplierStateCode') || '', supplier_address: localStorage.getItem('lastPurchaseSupplierAddress') || '', supplier_phone: localStorage.getItem('lastPurchaseSupplierPhone') || '',
     bill_date: new Date().toISOString().split('T')[0], discount: 0, round_off: 0, notes: '', payment_status: 'Unpaid'
   })
   const [items, setItems] = useState([{ description: '', hsn_code: '', quantity: 1, unit: 'NOS', rate: 0, cgst_rate: 9, sgst_rate: 9, igst_rate: 0, amount: 0 }])
@@ -99,6 +99,12 @@ export default function PurchaseNew() {
         ...calculated,
         items: items.map(i => ({ ...i, quantity: parseFloat(i.quantity), rate: parseFloat(i.rate), amount: parseFloat(i.amount) }))
       })
+      localStorage.setItem('lastPurchaseSupplier', form.supplier_name)
+      localStorage.setItem('lastPurchaseSupplierGSTIN', form.supplier_gstin)
+      localStorage.setItem('lastPurchaseSupplierState', form.supplier_state)
+      localStorage.setItem('lastPurchaseSupplierStateCode', form.supplier_state_code)
+      localStorage.setItem('lastPurchaseSupplierAddress', form.supplier_address)
+      localStorage.setItem('lastPurchaseSupplierPhone', form.supplier_phone)
       navigate('/app/purchases')
     } catch (err) {
       alert(err.response?.data?.msg || 'Failed')
