@@ -4,8 +4,7 @@ import api from '../api/client'
 import { HSN_CODES } from '../data/hsnCodes'
 import { Save, Plus, X, ArrowLeft } from 'lucide-react'
 
-const DEFAULT_TEMPLATE = `MODEL NO - TATA SIGNA 4425.T
-DESIGN, MANUFACTURE & FABRICATION OF TOP-LOADING SS304CR TANK USING JINDAL-CERTIFIED MATERIAL WITH TC REPORT. TANKER CAPACITY: 37KL DIVIDED INTO 6 COMPARTMENTS
+const DEFAULT_TEMPLATE = `DESIGN, MANUFACTURE & FABRICATION OF TOP-LOADING SS304CR TANK USING JINDAL-CERTIFIED MATERIAL WITH TC REPORT. TANKER CAPACITY: 37KL DIVIDED INTO 6 COMPARTMENTS
 CONSTRUCTED WITH:
 • SHELL: 3.5 MM THICK
 • DISH END: 3.5 MM THICK
@@ -30,12 +29,13 @@ export default function QuotationForm() {
   const isEdit = !!id
 
   const [form, setForm] = useState({
-    customer_name: '',
+    customer_name: localStorage.getItem('lastQuotationCustomer') || '',
     additional_info: '',
     actual_notes: '',
     igst_rate: 18,
     quotation_number: '',
   })
+  const [customers, setCustomers] = useState([])
   const [items, setItems] = useState([{ description: '', quantity: 1, unit: 'Unit', rate: 0, igst_rate: 18, amount: 0 }])
   const [calculated, setCalculated] = useState({ subtotal: 0, igst_amount: 0, total_amount: 0 })
   const [saving, setSaving] = useState(false)
@@ -48,7 +48,15 @@ export default function QuotationForm() {
   useEffect(() => {
     if (isEdit) loadQuotation()
     else { loadTemplate(); fetchNextQuotationNo(); }
+    loadCustomers()
   }, [])
+
+  const loadCustomers = async () => {
+    try {
+      const r = await api.get('/customers')
+      setCustomers(r.data.customers || [])
+    } catch (e) {}
+  }
 
   const fetchNextQuotationNo = async () => {
     try {
@@ -161,11 +169,19 @@ export default function QuotationForm() {
       } else {
         await api.post('/quotations', data)
       }
+      localStorage.setItem('lastQuotationCustomer', form.customer_name)
       navigate('/app/quotations')
     } catch (err) {
       alert(err.response?.data?.msg || 'Failed')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const selectQuotationCustomer = (id) => {
+    const c = customers.find(x => String(x.id) === String(id))
+    if (c) {
+      setForm({ ...form, customer_name: c.name })
     }
   }
 
@@ -220,10 +236,16 @@ export default function QuotationForm() {
           <p className="text-xs text-white/45 mt-1">Type your quotation number. Next time it will auto-suggest the next number.</p>
         </div>
 
-        {/* Customer Name */}
+        {/* Customer Name — Dropdown + Text */}
         <div>
           <label className="block text-sm font-semibold text-white/80 mb-1">Customer Name *</label>
-          <input value={form.customer_name} onChange={e => setForm({...form, customer_name: e.target.value})} className="input-field" placeholder="Type customer name" />
+          {customers.length > 0 && (
+            <select onChange={e => selectQuotationCustomer(e.target.value)} className="input-field mb-2" value="">
+              <option value="">— Pick from Customer Database —</option>
+              {customers.map(c => <option key={c.id} value={c.id}>{c.name} {c.gstin ? `(${c.gstin})` : ''}</option>)}
+            </select>
+          )}
+          <input value={form.customer_name} onChange={e => setForm({...form, customer_name: e.target.value})} className="input-field" placeholder="Type customer name or select above" />
         </div>
 
         {/* GSTIN Auto-fetch */}
