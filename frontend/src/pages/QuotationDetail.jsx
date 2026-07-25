@@ -235,7 +235,7 @@ function ProLayout({ quotation, items, org, boldOn, customerSize, detailSize, qN
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   MAIN COMPONENT
+   MAIN COMPONENT — FIXED: derived vars moved BEFORE early return
    ═══════════════════════════════════════════════════════════════ */
 export default function QuotationDetail() {
   const { id } = useParams()
@@ -250,6 +250,13 @@ export default function QuotationDetail() {
   const [shareOpen, setShareOpen] = useState(false)
   const [sharing, setSharing] = useState(false)
 
+  // ═══ KEY FIX: Compute derived vars BEFORE hooks that reference them ═══
+  // This prevents "Cannot access before initialization" when quotation is null
+  const selectedFont = org?.quotation_font_family || localStorage.getItem('quotation_font_family') || localStorage.getItem('selected_font') || 'Arial, sans-serif'
+  const selectedFontSize = (org?.quotation_font_size || localStorage.getItem('quotation_font_size') || '10') + 'pt'
+  const letterheadMm = parseInt(org?.print_letterhead_mm || localStorage.getItem('print_letterhead_mm') || '65')
+  const footerMm = parseInt(org?.print_footer_mm || localStorage.getItem('print_footer_mm') || '50')
+
   useEffect(() => { loadQuotation() }, [id])
 
   // Load the quotation's Google Font on page mount so it displays correctly
@@ -260,10 +267,10 @@ export default function QuotationDetail() {
     const primary = selectedFont.split(',')[0].replace(/'/g, '').trim()
     if (SYSTEM.includes(primary)) return
     const family = primary.replace(/ /g, '+')
-    const id = 'quot-font-' + primary
-    if (!document.getElementById(id)) {
+    const fontId = 'quot-font-' + primary
+    if (!document.getElementById(fontId)) {
       const link = document.createElement('link')
-      link.id = id
+      link.id = fontId
       link.rel = 'stylesheet'
       link.href = `https://fonts.googleapis.com/css2?family=${family}:wght@300;400;500;600;700;800;900&display=swap`
       document.head.appendChild(link)
@@ -374,6 +381,7 @@ th,td { padding:6px 10px; }
     setShareOpen(false); setSharing(false)
   }
 
+  // ═══ EARLY RETURN (loading spinner) — NOW safe because derived vars are above ═══
   if (!quotation) return <div className="flex justify-center py-20"><div className="animate-spin h-8 w-8 border-4 border-primary-500 border-t-transparent rounded-full"></div></div>
 
   const rawNum = quotation.quotation_number?.split('/')[0] || ''
@@ -388,10 +396,6 @@ th,td { padding:6px 10px; }
   const subtotal = parseFloat(quotation.subtotal) || 0
   const totalAmount = parseFloat(quotation.total_amount) || 0
   const amountWords = numberToWordsCaps(totalAmount)
-  const selectedFont = org?.quotation_font_family || localStorage.getItem('quotation_font_family') || localStorage.getItem('selected_font') || 'Arial, sans-serif'
-  const selectedFontSize = (org?.quotation_font_size || localStorage.getItem('quotation_font_size') || '10') + 'pt'
-  const letterheadMm = parseInt(org?.print_letterhead_mm || localStorage.getItem('print_letterhead_mm') || '65')
-  const footerMm = parseInt(org?.print_footer_mm || localStorage.getItem('print_footer_mm') || '50')
 
   const sharedProps = { quotation, items, org, boldOn, customerSize, detailSize, qNum, gstRate, totalGST, subtotal, totalAmount, amountWords, letterheadMm, footerMm, selectedFont, selectedFontSize }
 
