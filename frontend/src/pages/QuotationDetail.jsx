@@ -40,7 +40,7 @@ function ClassicLayout({ quotation, items, org, boldOn, customerSize, detailSize
         </div>
         <div style={{ padding: '2px 4px 0', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10.5pt', tableLayout: 'fixed' }}>
-            <colgroup><col style={{ width: '6%' }} /><col style={{ width: '60%' }} /><col style={{ width: '10%' }} /><col style={{ width: '12%' }} /><col style={{ width: '12%' }} /></colgroup>
+            <colgroup><col style={{ width: '6%' }} /><col style={{ width: '56%' }} /><col style={{ width: '10%' }} /><col style={{ width: '14%' }} /><col style={{ width: '14%' }} /></colgroup>
             <thead><tr>
               <th style={{ border: '1.5px solid #000', padding: '6px 4px', background: '#e8e8e8', textAlign: 'center', fontWeight: 'bold', fontSize: '10pt' }}>SR No.</th>
               <th style={{ border: '1.5px solid #000', padding: '6px 4px', background: '#e8e8e8', textAlign: 'left', fontWeight: 'bold', fontSize: '10pt' }}>Particulars</th>
@@ -154,7 +154,7 @@ function ProLayout({ quotation, items, org, boldOn, customerSize, detailSize, qN
 
       {/* ITEMS TABLE */}
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10pt', border: `1.5px solid ${NAVY}`, borderTop: 'none' }}>
-        <colgroup><col style={{ width: '5%' }} /><col style={{ width: '55%' }} /><col style={{ width: '8%' }} /><col style={{ width: '8%' }} /><col style={{ width: '12%' }} /><col style={{ width: '12%' }} /></colgroup>
+        <colgroup><col style={{ width: '5%' }} /><col style={{ width: '53%' }} /><col style={{ width: '7%' }} /><col style={{ width: '7%' }} /><col style={{ width: '14%' }} /><col style={{ width: '14%' }} /></colgroup>
         <thead><tr style={{ background: '#d5dae0' }}>
           <th style={{ padding: '7px 5px', border: bdr, fontWeight: 800, fontSize: '9pt', color: '#1a1a2e', textAlign: 'center' }}>#</th>
           <th style={{ padding: '7px 5px', border: bdr, fontWeight: 800, fontSize: '9pt', color: '#1a1a2e', textAlign: 'left' }}>DESCRIPTION</th>
