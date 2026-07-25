@@ -2,8 +2,12 @@ import { useState, useEffect } from 'react'
 import api from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import { Save, Upload, Plus, Eye, EyeOff, Trash2, Mail, Send } from 'lucide-react'
+import { ALL_FONTS } from './FontSettings'
 
-const FONTS = ['Arial', 'Georgia', 'Times New Roman', 'Courier New', 'Trebuchet MS', 'Verdana', 'Palatino', 'Garamond', 'Book Antiqua', 'Lucida Console']
+// Extract just font names for dropdowns, plus system-only fonts not in ALL_FONTS
+const FONT_NAMES = ALL_FONTS.map(f => f.name)
+const SYSTEM_ONLY = ['Courier New', 'Palatino', 'Garamond', 'Book Antiqua', 'Lucida Console', 'Gill Sans', 'Century Gothic', 'Franklin Gothic Medium']
+const ALL_FONT_NAMES = [...FONT_NAMES, ...SYSTEM_ONLY].sort((a, b) => a.localeCompare(b))
 
 export default function Settings() {
   const { user, refreshUser } = useAuth()
@@ -27,20 +31,34 @@ export default function Settings() {
     try {
       const res = await api.get('/settings')
       setOrg(res.data.organization || {})
-      setSettings(res.data.settings || {})
+      // Merge backend settings with localStorage defaults so the UI shows current values
+      const backendSettings = res.data.settings || {}
+      const mergedSettings = {
+        ...backendSettings,
+        print_font_family: backendSettings.print_font_family || localStorage.getItem('invoice_font_family') || 'Arial',
+        print_font_size: backendSettings.print_font_size || localStorage.getItem('invoice_font_size') || '10',
+        quotation_font_family: backendSettings.quotation_font_family || localStorage.getItem('quotation_font_family') || 'Georgia',
+        quotation_font_size: backendSettings.quotation_font_size || localStorage.getItem('quotation_font_size') || '9',
+        invoice_desc_size: backendSettings.invoice_desc_size || localStorage.getItem('invoice_desc_size') || '10',
+        invoice_item_bold: backendSettings.invoice_item_bold || localStorage.getItem('invoice_item_bold') || 'false',
+        app_font_family: backendSettings.app_font_family || localStorage.getItem('selected_font') || 'Inter',
+      }
+      setSettings(mergedSettings)
       const usersRes = await api.get('/auth/users')
       setUsers(usersRes.data.users || [])
       // Cache settings to localStorage so invoice/quotation pages can use them
+      // Use existing localStorage as fallback BEFORE hardcoded defaults
+      // This prevents resetting user's custom font/spacing on every Settings page load
       const s = res.data.settings || {}
       const o = res.data.organization || {}
-      localStorage.setItem('invoice_font_family', s.print_font_family || 'Arial')
-      localStorage.setItem('invoice_font_size', s.print_font_size || '10')
-      localStorage.setItem('quotation_font_family', s.quotation_font_family || 'Georgia')
-      localStorage.setItem('quotation_font_size', s.quotation_font_size || '9')
-      localStorage.setItem('invoice_desc_size', s.invoice_desc_size || '10')
-      localStorage.setItem('invoice_item_bold', s.invoice_item_bold || 'false')
-      localStorage.setItem('print_letterhead_mm', String(parseInt(o.print_letterhead_mm) || 65))
-      localStorage.setItem('print_footer_mm', String(parseInt(o.print_footer_mm) || 50))
+      localStorage.setItem('invoice_font_family', s.print_font_family || localStorage.getItem('invoice_font_family') || 'Arial')
+      localStorage.setItem('invoice_font_size', s.print_font_size || localStorage.getItem('invoice_font_size') || '10')
+      localStorage.setItem('quotation_font_family', s.quotation_font_family || localStorage.getItem('quotation_font_family') || 'Georgia')
+      localStorage.setItem('quotation_font_size', s.quotation_font_size || localStorage.getItem('quotation_font_size') || '9')
+      localStorage.setItem('invoice_desc_size', s.invoice_desc_size || localStorage.getItem('invoice_desc_size') || '10')
+      localStorage.setItem('invoice_item_bold', s.invoice_item_bold || localStorage.getItem('invoice_item_bold') || 'false')
+      localStorage.setItem('print_letterhead_mm', String(parseInt(o.print_letterhead_mm) || parseInt(localStorage.getItem('print_letterhead_mm')) || 65))
+      localStorage.setItem('print_footer_mm', String(parseInt(o.print_footer_mm) || parseInt(localStorage.getItem('print_footer_mm')) || 50))
     } catch (err) { console.error('Settings load error:', err) }
   }
 
@@ -170,7 +188,28 @@ export default function Settings() {
   }
 
   const update = (key, val) => setOrg({ ...org, [key]: val })
-  const updateSetting = (key, val) => setSettings({ ...settings, [key]: val })
+  const updateSetting = (key, val) => {
+    setSettings({ ...settings, [key]: val })
+    // When font family changes, load the Google Font immediately so preview shows it
+    if (key === 'quotation_font_family' || key === 'print_font_family' || key === 'app_font_family') {
+      loadFontForPreview(val)
+    }
+  }
+
+  // Load a Google Font dynamically so it appears in preview and in quotation/invoice pages
+  const loadFontForPreview = (fontName) => {
+    const SYSTEM_FONTS = ['Arial', 'Helvetica', 'Times New Roman', 'Georgia', 'Verdana', 'Calibri', 'Segoe UI', 'Tahoma', 'Trebuchet MS', 'Cambria', 'Consolas', 'Lucida Console', 'Impact', 'Comic Sans MS', 'Courier New', 'Palatino', 'Garamond', 'Book Antiqua', 'Lucida Console', 'Gill Sans', 'Century Gothic', 'Franklin Gothic Medium']
+    if (SYSTEM_FONTS.includes(fontName)) return
+    const family = fontName.replace(/ /g, '+')
+    // Check if already loaded
+    const existingLink = document.querySelector(`link[data-font="${fontName}"]`)
+    if (existingLink) return
+    const link = document.createElement('link')
+    link.setAttribute('data-font', fontName)
+    link.rel = 'stylesheet'
+    link.href = `https://fonts.googleapis.com/css2?family=${family}:wght@300;400;500;600;700;800;900&display=swap`
+    document.head.appendChild(link)
+  }
 
   const UploadRow = ({ label, field, accept='.png,.jpg,.jpeg,.webp', previewUrl, circular }) => (
     <div className="flex items-center gap-4 flex-wrap">
@@ -259,7 +298,7 @@ export default function Settings() {
           <div>
             <label className="block text-sm font-medium text-white/70 mb-1">Invoice Font Family</label>
             <select value={settings.print_font_family || 'Arial'} onChange={e => updateSetting('print_font_family', e.target.value)} className="input-field">
-              {FONTS.map(f => <option key={f} value={f}>{f}</option>)}
+              {ALL_FONT_NAMES.map(f => <option key={f} value={f}>{f}</option>)}
             </select>
           </div>
           <div>
@@ -287,7 +326,7 @@ export default function Settings() {
           <div>
             <label className="block text-sm font-medium text-white/70 mb-1">Quotation Font Family</label>
             <select value={settings.quotation_font_family || 'Georgia'} onChange={e => updateSetting('quotation_font_family', e.target.value)} className="input-field">
-              {FONTS.map(f => <option key={f} value={f}>{f}</option>)}
+              {ALL_FONT_NAMES.map(f => <option key={f} value={f}>{f}</option>)}
             </select>
           </div>
           <div>
@@ -295,8 +334,8 @@ export default function Settings() {
             <input type="range" min="7" max="14" step="0.5" value={settings.quotation_font_size || 9} onChange={e => updateSetting('quotation_font_size', e.target.value)} className="w-full" />
           </div>
         </div>
-        <div className="border rounded-lg p-4 print-preview" style={{ fontFamily: settings.quotation_font_family || 'Georgia', fontSize: `${settings.quotation_font_size || 9}pt`, background: '#fff' }}>
-          <p style={{ lineHeight: 1.35 }}>DESIGN & FABRICATION OF SS304 TANK<br />• SHELL: 3.5 MM THICK<br />• DISH END: 3.5 MM THICK</p>
+        <div className="border rounded-lg p-4 print-preview" style={{ fontFamily: `'${settings.quotation_font_family || 'Georgia'}', Georgia, serif`, fontSize: `${settings.quotation_font_size || 9}pt`, background: '#fff', color: '#000' }}>
+          <p style={{ lineHeight: 1.35, fontWeight: 600 }}>DESIGN & FABRICATION OF SS304 TANK<br />• SHELL: 3.5 MM THICK<br />• DISH END: 3.5 MM THICK</p>
         </div>
       </div>
 
@@ -304,7 +343,7 @@ export default function Settings() {
       <div className="card space-y-4">
         <h3 className="font-bold text-lg">App Font Settings</h3>
         <select value={settings.app_font_family || 'Inter'} onChange={e => updateSetting('app_font_family', e.target.value)} className="input-field">
-          {['Inter', 'Arial', 'Roboto', 'Helvetica', 'Segoe UI', 'Verdana', 'Georgia', 'Times New Roman'].map(f => <option key={f} value={f}>{f}</option>)}
+          {ALL_FONT_NAMES.map(f => <option key={f} value={f}>{f}</option>)}
         </select>
       </div>
 
