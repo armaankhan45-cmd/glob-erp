@@ -18,7 +18,7 @@ function fmtDate(d) {
 /* ═══════════════════════════════════════════════════════════════
    CLASSIC LAYOUT — Original bordered box, no letterhead/stamp
    ═══════════════════════════════════════════════════════════════ */
-function ClassicLayout({ quotation, items, org, boldOn, customerSize, qNum, gstRate, totalGST, subtotal, totalAmount, amountWords, letterheadMm, footerMm, selectedFont, selectedFontSize }) {
+function ClassicLayout({ quotation, items, org, boldOn, customerSize, detailSize, qNum, gstRate, totalGST, subtotal, totalAmount, amountWords, letterheadMm, footerMm, selectedFont, selectedFontSize }) {
   return (
     <div className="bg-white shadow-lg mx-auto print-area" style={{
       fontFamily: selectedFont,
@@ -36,17 +36,17 @@ function ClassicLayout({ quotation, items, org, boldOn, customerSize, qNum, gstR
           <div style={{ fontSize: `${customerSize}pt`, fontWeight: 'bold', textTransform: 'uppercase', lineHeight: 1.2, color: '#000' }}>
             {(quotation.customer_name || '').toUpperCase()}
           </div>
-          {quotation.additional_info && <div style={{ fontSize: '10pt', marginTop: '3px', color: '#000', fontWeight: 800 }}>{quotation.additional_info}</div>}
+          {quotation.additional_info && <div style={{ fontSize: `${detailSize}pt`, marginTop: '3px', color: '#000', fontWeight: 800 }}>{quotation.additional_info}</div>}
         </div>
         <div style={{ padding: '2px 4px 0', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10.5pt', tableLayout: 'fixed' }}>
-            <colgroup><col style={{ width: '6%' }} /><col style={{ width: '44%' }} /><col style={{ width: '10%' }} /><col style={{ width: '20%' }} /><col style={{ width: '20%' }} /></colgroup>
+            <colgroup><col style={{ width: '6%' }} /><col style={{ width: '60%' }} /><col style={{ width: '10%' }} /><col style={{ width: '12%' }} /><col style={{ width: '12%' }} /></colgroup>
             <thead><tr>
               <th style={{ border: '1.5px solid #000', padding: '6px 4px', background: '#e8e8e8', textAlign: 'center', fontWeight: 'bold', fontSize: '10pt' }}>SR No.</th>
               <th style={{ border: '1.5px solid #000', padding: '6px 4px', background: '#e8e8e8', textAlign: 'left', fontWeight: 'bold', fontSize: '10pt' }}>Particulars</th>
               <th style={{ border: '1.5px solid #000', padding: '6px 4px', background: '#e8e8e8', textAlign: 'center', fontWeight: 'bold', fontSize: '10pt' }}>Qty</th>
-              <th style={{ border: '1.5px solid #000', padding: '6px 4px', background: '#e8e8e8', textAlign: 'right', fontWeight: 'bold', fontSize: '10pt' }}>Rate (INR)</th>
-              <th style={{ border: '1.5px solid #000', padding: '6px 4px', background: '#e8e8e8', textAlign: 'right', fontWeight: 'bold', fontSize: '10pt' }}>Amount (INR)</th>
+              <th style={{ border: '1.5px solid #000', padding: '6px 4px', background: '#e8e8e8', textAlign: 'right', fontWeight: 'bold', fontSize: '10pt' }}>Rate</th>
+              <th style={{ border: '1.5px solid #000', padding: '6px 4px', background: '#e8e8e8', textAlign: 'right', fontWeight: 'bold', fontSize: '10pt' }}>Amount</th>
             </tr></thead>
             <tbody>{items.map((item, i) => (
               <tr key={i}>
@@ -76,7 +76,7 @@ function ClassicLayout({ quotation, items, org, boldOn, customerSize, qNum, gstR
    PRO LAYOUT — With letterhead image header, stamp, signature
    Matches the company's printed letterhead format
    ═══════════════════════════════════════════════════════════════ */
-function ProLayout({ quotation, items, org, boldOn, customerSize, qNum, gstRate, totalGST, subtotal, totalAmount, amountWords, selectedFont, selectedFontSize, letterheadMm, footerMm }) {
+function ProLayout({ quotation, items, org, boldOn, customerSize, detailSize, qNum, gstRate, totalGST, subtotal, totalAmount, amountWords, selectedFont, selectedFontSize, letterheadMm, footerMm }) {
   const NAVY = '#1a2744'
   const bdr = '1px solid #bbb'
 
@@ -144,7 +144,7 @@ function ProLayout({ quotation, items, org, boldOn, customerSize, qNum, gstRate,
         <div style={{ flex: 1, padding: '8px 14px', borderRight: `1px solid #ccc` }}>
           <div style={{ fontSize: '8pt', textTransform: 'uppercase', letterSpacing: 1, color: '#666', fontWeight: 700, marginBottom: 2 }}>Quotation To</div>
           <div style={{ fontSize: `${customerSize}pt`, fontWeight: 800, color: '#1a1a2e', textTransform: 'uppercase', lineHeight: 1.2 }}>{(quotation.customer_name || '').toUpperCase()}</div>
-          {quotation.additional_info && <div style={{ fontSize: '9pt', color: '#000', fontWeight: 800, marginTop: 2 }}>{quotation.additional_info}</div>}
+          {quotation.additional_info && <div style={{ fontSize: `${detailSize}pt`, color: '#000', fontWeight: 800, marginTop: 2 }}>{quotation.additional_info}</div>}
         </div>
         <div style={{ width: '200px', padding: '8px 14px', fontSize: '9pt', color: '#666', fontWeight: 600 }}>
           {quotation.customer_gstin && <div><span style={{ color: '#666' }}>GSTIN:</span> {quotation.customer_gstin}</div>}
@@ -154,7 +154,7 @@ function ProLayout({ quotation, items, org, boldOn, customerSize, qNum, gstRate,
 
       {/* ITEMS TABLE */}
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10pt', border: `1.5px solid ${NAVY}`, borderTop: 'none' }}>
-        <colgroup><col style={{ width: '5%' }} /><col style={{ width: '42%' }} /><col style={{ width: '8%' }} /><col style={{ width: '8%' }} /><col style={{ width: '18%' }} /><col style={{ width: '19%' }} /></colgroup>
+        <colgroup><col style={{ width: '5%' }} /><col style={{ width: '55%' }} /><col style={{ width: '8%' }} /><col style={{ width: '8%' }} /><col style={{ width: '12%' }} /><col style={{ width: '12%' }} /></colgroup>
         <thead><tr style={{ background: '#d5dae0' }}>
           <th style={{ padding: '7px 5px', border: bdr, fontWeight: 800, fontSize: '9pt', color: '#1a1a2e', textAlign: 'center' }}>#</th>
           <th style={{ padding: '7px 5px', border: bdr, fontWeight: 800, fontSize: '9pt', color: '#1a1a2e', textAlign: 'left' }}>DESCRIPTION</th>
@@ -245,11 +245,30 @@ export default function QuotationDetail() {
   const [org, setOrg] = useState(null)
   const [boldOn, setBoldOn] = useState(() => localStorage.getItem('quotBold') === 'true')
   const [customerSize, setCustomerSize] = useState(() => localStorage.getItem('quotCustSize') || '14')
+  const [detailSize, setDetailSize] = useState(() => localStorage.getItem('quotDetailSize') || '10')
   const [layout, setLayout] = useState(() => localStorage.getItem('quotLayout') || 'classic')
   const [shareOpen, setShareOpen] = useState(false)
   const [sharing, setSharing] = useState(false)
 
   useEffect(() => { loadQuotation() }, [id])
+
+  // Load the quotation's Google Font on page mount so it displays correctly
+  useEffect(() => {
+    if (!selectedFont) return
+    const SYSTEM = ['Arial', 'Helvetica', 'Times New Roman', 'Georgia', 'Verdana', 'Calibri', 'Segoe UI', 'Tahoma', 'Trebuchet MS', 'Cambria', 'Consolas', 'Lucida Console', 'Impact', 'Comic Sans MS', 'Courier New', 'Palatino', 'Garamond', 'Book Antiqua', 'Gill Sans', 'Century Gothic', 'Franklin Gothic Medium']
+    // Strip fallback fonts to get just the primary font name
+    const primary = selectedFont.split(',')[0].replace(/'/g, '').trim()
+    if (SYSTEM.includes(primary)) return
+    const family = primary.replace(/ /g, '+')
+    const id = 'quot-font-' + primary
+    if (!document.getElementById(id)) {
+      const link = document.createElement('link')
+      link.id = id
+      link.rel = 'stylesheet'
+      link.href = `https://fonts.googleapis.com/css2?family=${family}:wght@300;400;500;600;700;800;900&display=swap`
+      document.head.appendChild(link)
+    }
+  }, [selectedFont])
 
   const loadQuotation = async () => {
     try {
@@ -265,6 +284,7 @@ export default function QuotationDetail() {
 
   const toggleBold = () => { const val = !boldOn; setBoldOn(val); localStorage.setItem('quotBold', val) }
   const changeCustomerSize = (size) => { setCustomerSize(size); localStorage.setItem('quotCustSize', size) }
+  const changeDetailSize = (size) => { setDetailSize(size); localStorage.setItem('quotDetailSize', size) }
   const switchLayout = (val) => { setLayout(val); localStorage.setItem('quotLayout', val) }
 
   const getGoogleFontUrl = (fontName) => {
@@ -373,7 +393,7 @@ th,td { padding:6px 10px; }
   const letterheadMm = parseInt(org?.print_letterhead_mm || localStorage.getItem('print_letterhead_mm') || '65')
   const footerMm = parseInt(org?.print_footer_mm || localStorage.getItem('print_footer_mm') || '50')
 
-  const sharedProps = { quotation, items, org, boldOn, customerSize, qNum, gstRate, totalGST, subtotal, totalAmount, amountWords, letterheadMm, footerMm, selectedFont, selectedFontSize }
+  const sharedProps = { quotation, items, org, boldOn, customerSize, detailSize, qNum, gstRate, totalGST, subtotal, totalAmount, amountWords, letterheadMm, footerMm, selectedFont, selectedFontSize }
 
   return (
     <div className="space-y-4">
@@ -393,6 +413,15 @@ th,td { padding:6px 10px; }
           {[10,12,14,16,18,20].map(s => (
             <button key={s} onClick={() => changeCustomerSize(String(s))}
               className={`w-7 h-7 rounded text-xs font-medium transition-all ${customerSize === String(s) ? 'btn-primary' : 'btn-secondary'}`}>
+              {s}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1 text-sm">
+          <span className="text-white/35 text-xs">Detail:</span>
+          {[8,9,10,11,12,14].map(s => (
+            <button key={s} onClick={() => changeDetailSize(String(s))}
+              className={`w-7 h-7 rounded text-xs font-medium transition-all ${detailSize === String(s) ? 'btn-primary' : 'btn-secondary'}`}>
               {s}
             </button>
           ))}
