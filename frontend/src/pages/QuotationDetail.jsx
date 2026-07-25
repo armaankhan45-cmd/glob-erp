@@ -92,7 +92,9 @@ function ProLayout({ quotation, items, org, boldOn, customerSize, qNum, gstRate,
       WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact',
       display: 'flex', flexDirection: 'column'
     }}>
+      {/* Top accent stripe */}
       <div style={{ height: 4, background: NAVY }}></div>
+      {/* Letterhead top spacer */}
       {letterheadMm > 0 && <div style={{ height: letterheadMm + 'mm', flexShrink: 0 }}></div>}
 
       {hasLetterhead ? (
@@ -102,10 +104,10 @@ function ProLayout({ quotation, items, org, boldOn, customerSize, qNum, gstRate,
           </div>
           <div style={{ flex: 1, textAlign: 'center' }}>
             <div style={{ fontSize: '17pt', fontWeight: 900, color: '#1a1a2e', letterSpacing: 2, textTransform: 'uppercase', lineHeight: 1.2 }}>{companyName}</div>
-            <div style={{ fontSize: '9pt', color: '#000', marginTop: 3, fontWeight: 600, lineHeight: 1.5 }}>
+            <div style={{ fontSize: '9pt', color: '#333', marginTop: 3, fontWeight: 600, lineHeight: 1.5 }}>
               {[org?.address, org?.city, org?.state, org?.pincode].filter(Boolean).join(', ')}
             </div>
-            <div style={{ fontSize: '9pt', color: '#000', fontWeight: 600 }}>
+            <div style={{ fontSize: '9pt', color: '#333', fontWeight: 600 }}>
               {org?.phone ? `Ph: ${org.phone}` : ''}{org?.email ? `  |  ${org.email}` : ''}
             </div>
             {org?.gstin && (
@@ -117,36 +119,40 @@ function ProLayout({ quotation, items, org, boldOn, customerSize, qNum, gstRate,
       ) : (
         <div style={{ padding: '12px 14px 8px', textAlign: 'center', borderBottom: `2px solid ${NAVY}` }}>
           <div style={{ fontSize: '18pt', fontWeight: 900, color: '#1a1a2e', letterSpacing: 2.5, textTransform: 'uppercase' }}>{companyName}</div>
-          <div style={{ fontSize: '9pt', color: '#000', marginTop: 2, fontWeight: 600 }}>{[org?.address, org?.city, org?.state, org?.pincode].filter(Boolean).join(', ')}</div>
-          <div style={{ fontSize: '9pt', color: '#000', fontWeight: 600 }}>{org?.phone ? `Ph: ${org.phone}` : ''}{org?.email ? `  |  ${org.email}` : ''}</div>
+          <div style={{ fontSize: '9pt', color: '#333', marginTop: 2, fontWeight: 600 }}>{[org?.address, org?.city, org?.state, org?.pincode].filter(Boolean).join(', ')}</div>
+          <div style={{ fontSize: '9pt', color: '#333', fontWeight: 600 }}>{org?.phone ? `Ph: ${org.phone}` : ''}{org?.email ? `  |  ${org.email}` : ''}</div>
           {org?.gstin && <span style={{ display: 'inline-block', background: NAVY, color: '#fff', padding: '1px 10px', borderRadius: 3, fontSize: '8.5pt', fontWeight: 700, marginTop: 3 }}>GSTIN: {org.gstin}</span>}
         </div>
       )}
 
+      {/* Thin accent line under header */}
       <div style={{ height: 2, background: `linear-gradient(90deg, ${NAVY}, #06b6d4, ${NAVY})` }}></div>
 
+      {/* QUOTATION TITLE BAR */}
       <div style={{ display: 'flex', background: '#f5f7fa', borderBottom: `1.5px solid ${NAVY}`, padding: '6px 14px', alignItems: 'center' }}>
         <div style={{ flex: 1 }}>
           <span style={{ fontSize: '14pt', fontWeight: 900, color: NAVY, letterSpacing: 3 }}>QUOTATION</span>
         </div>
-        <div style={{ textAlign: 'right', fontSize: '9pt', fontWeight: 700, color: '#000' }}>
+        <div style={{ textAlign: 'right', fontSize: '9pt', fontWeight: 700, color: '#666' }}>
           <div>No: <span style={{ color: NAVY, fontSize: '11pt' }}>{qNum}</span></div>
           {quotation.quotation_date && <div>Date: {fmtDate(quotation.quotation_date)}</div>}
         </div>
       </div>
 
+      {/* CUSTOMER INFO BAR */}
       <div style={{ display: 'flex', border: `1.5px solid ${NAVY}`, borderTop: 'none' }}>
         <div style={{ flex: 1, padding: '8px 14px', borderRight: `1px solid #ccc` }}>
-          <div style={{ fontSize: '8pt', textTransform: 'uppercase', letterSpacing: 1, color: '#000', fontWeight: 700, marginBottom: 2 }}>Quotation To</div>
-          <div style={{ fontSize: `${customerSize}pt`, fontWeight: 800, color: '#000', textTransform: 'uppercase', lineHeight: 1.2 }}>{(quotation.customer_name || '').toUpperCase()}</div>
+          <div style={{ fontSize: '8pt', textTransform: 'uppercase', letterSpacing: 1, color: '#666', fontWeight: 700, marginBottom: 2 }}>Quotation To</div>
+          <div style={{ fontSize: `${customerSize}pt`, fontWeight: 800, color: '#1a1a2e', textTransform: 'uppercase', lineHeight: 1.2 }}>{(quotation.customer_name || '').toUpperCase()}</div>
           {quotation.additional_info && <div style={{ fontSize: '9pt', color: '#000', fontWeight: 800, marginTop: 2 }}>{quotation.additional_info}</div>}
         </div>
-        <div style={{ width: '200px', padding: '8px 14px', fontSize: '9pt', color: '#000', fontWeight: 600 }}>
-          {quotation.customer_gstin && <div><span style={{ color: '#000' }}>GSTIN:</span> {quotation.customer_gstin}</div>}
-          {quotation.customer_state && <div><span style={{ color: '#000' }}>State:</span> {quotation.customer_state}</div>}
+        <div style={{ width: '200px', padding: '8px 14px', fontSize: '9pt', color: '#666', fontWeight: 600 }}>
+          {quotation.customer_gstin && <div><span style={{ color: '#666' }}>GSTIN:</span> {quotation.customer_gstin}</div>}
+          {quotation.customer_state && <div><span style={{ color: '#666' }}>State:</span> {quotation.customer_state}</div>}
         </div>
       </div>
 
+      {/* ITEMS TABLE */}
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10pt', border: `1.5px solid ${NAVY}`, borderTop: 'none' }}>
         <colgroup><col style={{ width: '5%' }} /><col style={{ width: '42%' }} /><col style={{ width: '8%' }} /><col style={{ width: '8%' }} /><col style={{ width: '18%' }} /><col style={{ width: '19%' }} /></colgroup>
         <thead><tr style={{ background: '#d5dae0' }}>
@@ -174,11 +180,12 @@ function ProLayout({ quotation, items, org, boldOn, customerSize, qNum, gstRate,
         </tbody>
       </table>
 
+      {/* TOTALS — Subtotal REMOVED */}
       <div style={{ border: `1.5px solid ${NAVY}`, borderTop: 'none' }}>
         {gstRate > 0 && (
           <div style={{ display: 'flex', borderBottom: bdr }}>
-            <div style={{ flex: 1, padding: '5px 12px', fontSize: '10pt', fontWeight: 700, color: '#000' }}>GST: {gstRate}%</div>
-            <div style={{ width: '180px', padding: '5px 12px', textAlign: 'right', fontSize: '10pt', fontWeight: 700, color: '#000' }}>₹{fmt(totalGST)}</div>
+            <div style={{ flex: 1, padding: '5px 12px', fontSize: '10pt', fontWeight: 700, color: '#1565c0' }}>GST: {gstRate}%</div>
+            <div style={{ width: '180px', padding: '5px 12px', textAlign: 'right', fontSize: '10pt', fontWeight: 700, color: '#1565c0' }}>₹{fmt(totalGST)}</div>
           </div>
         )}
         <div style={{ background: '#f5f7fa', padding: '6px 12px', borderBottom: bdr }}>
@@ -190,8 +197,9 @@ function ProLayout({ quotation, items, org, boldOn, customerSize, qNum, gstRate,
         </div>
       </div>
 
+      {/* TERMS + BANK + SIGNATURE ROW */}
       <div style={{ display: 'flex', border: `1.5px solid ${NAVY}`, borderTop: 'none' }}>
-        <div style={{ flex: 1, padding: '8px 14px', borderRight: `1px solid #ccc`, fontSize: '9pt', lineHeight: 1.6, color: '#000', fontWeight: 600 }}>
+        <div style={{ flex: 1, padding: '8px 14px', borderRight: `1px solid #ccc`, fontSize: '9pt', lineHeight: 1.6, color: '#333', fontWeight: 600 }}>
           <div style={{ fontSize: '9pt', fontWeight: 800, color: '#1a1a2e', marginBottom: 3, textTransform: 'uppercase', letterSpacing: 0.5 }}>Terms & Conditions</div>
           <ol style={{ paddingLeft: 14, margin: 0 }}>
             <li>Goods once sold cannot be taken back or exchanged.</li>
@@ -200,7 +208,7 @@ function ProLayout({ quotation, items, org, boldOn, customerSize, qNum, gstRate,
           </ol>
         </div>
         {(org?.bank_name || org?.account_no) && (
-          <div style={{ width: '200px', padding: '8px 14px', borderRight: `1px solid #ccc`, fontSize: '8.5pt', lineHeight: 1.6, color: '#000', fontWeight: 600 }}>
+          <div style={{ width: '200px', padding: '8px 14px', borderRight: `1px solid #ccc`, fontSize: '8.5pt', lineHeight: 1.6, color: '#333', fontWeight: 600 }}>
             <div style={{ fontWeight: 800, color: '#1a1a2e', marginBottom: 3, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '9pt' }}>Bank Details</div>
             {org?.bank_name && <div>Bank: <b>{org.bank_name}</b></div>}
             {org?.account_no && <div>A/C: <b>{org.account_no}</b></div>}
@@ -219,7 +227,7 @@ function ProLayout({ quotation, items, org, boldOn, customerSize, qNum, gstRate,
 
       {footerMm > 0 && <div style={{ height: footerMm + 'mm', flexShrink: 0 }}></div>}
       <div style={{ height: 3, background: `linear-gradient(90deg, ${NAVY}, #06b6d4, ${NAVY})` }}></div>
-      <div style={{ textAlign: 'center', padding: '6px 0', fontSize: '8pt', color: '#000', fontWeight: 600, letterSpacing: 0.5 }}>
+      <div style={{ textAlign: 'center', padding: '6px 0', fontSize: '8pt', color: '#999', fontWeight: 600, letterSpacing: 0.5 }}>
         This is a computer generated quotation. • E & O.E
       </div>
     </div>
@@ -287,7 +295,6 @@ th,td { padding:6px 10px; }
     w.document.close()
     setTimeout(() => { w.print(); w.close() }, 500)
   }
-
   const handleDelete = async () => {
     if (!confirm('Delete this quotation?')) return
     await api.delete(`/quotations/${id}`)
@@ -370,10 +377,12 @@ th,td { padding:6px 10px; }
 
   return (
     <div className="space-y-4">
+      {/* Action buttons */}
       <div className="flex flex-wrap items-center gap-2 no-print">
         <button onClick={() => navigate('/app/quotations')} className="p-2 rounded-xl hover:bg-white/5 text-white/60 hover:text-white transition-all btn-shine"><ArrowLeft size={20} /></button>
         <h1 className="text-xl font-bold text-white flex-1">Quotation {quotation.quotation_number}</h1>
 
+        {/* Layout Switcher */}
         <button onClick={() => switchLayout(layout === 'pro' ? 'classic' : 'pro')} className="btn-secondary flex items-center gap-2" title="Switch layout">
           <LayoutTemplate size={16} />
           <span className="text-xs font-bold tracking-wide uppercase">{layout === 'pro' ? 'PRO' : 'Classic'}</span>
@@ -408,6 +417,7 @@ th,td { padding:6px 10px; }
         <button onClick={handleDelete} className="btn-danger flex items-center gap-2"><Trash2 size={16} /> Delete</button>
       </div>
 
+      {/* ═══ LAYOUT SWITCH ═══ */}
       {layout === 'pro'
         ? <ProLayout {...sharedProps} />
         : <ClassicLayout {...sharedProps} />
