@@ -231,6 +231,25 @@ body {
 .input-field:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(var(--accent-rgb),0.1); }
 .input-field::placeholder { color: var(--text-muted); }
 
+/* ─── SELECT DROPDOWN FIX ─── */
+select.input-field {
+  color: var(--text-primary);
+  background-color: var(--bg-input);
+}
+select.input-field option {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  padding: 8px;
+}
+.light-mode select.input-field option {
+  background: #ffffff;
+  color: #1a1a2e;
+}
+.dark-mode select.input-field option {
+  background: #1a2232;
+  color: #e2e8f0;
+}
+
 /* ─── BUTTONS ─── */
 .btn-primary {
   padding: 10px 20px;
@@ -547,9 +566,31 @@ tbody tr:hover { background: var(--bg-glass); }
 
 /* ─── PRINT ─── */
 @media print {
-  body { background: white; color: black; }
+  /* Hide ALL app chrome — only print-area shows */
+  body { background: white; color: black; margin: 0; padding: 0; }
   .card { background: white; border: 1px solid #ccc; }
-  aside, .sidebar-link, .btn-primary, .btn-secondary, .btn-danger, .btn-shine, .shimmer, .glow-line, .stat-pulse-ring { display: none !important; }
+  /* Hide sidebar, topbar, AI chat, buttons, all navigation */
+  aside, header, nav, .sidebar-link, .btn-primary, .btn-secondary, .btn-danger, .btn-shine, .shimmer, .glow-line, .stat-pulse-ring, .fab, .no-print { display: none !important; }
+  /* Hide the main layout wrapper except print-area */
+  .flex.h-screen, .flex-1, main, .page-transition-overlay { display: block !important; overflow: visible !important; height: auto !important; }
   .status-badge { border: 1px solid #ccc; }
   .app-bold-mode * { font-weight: inherit !important; }
+  /* Remove page URL footer that browsers add */
+  @page { margin: 0; size: A4; }
+  /* Hide everything that is NOT print-area */
+  *:not(.print-area):not(.print-area *) {
+    display: none !important;
+  }
+  /* Show only print-area */
+  .print-area {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
 }
