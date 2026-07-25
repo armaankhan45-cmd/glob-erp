@@ -600,72 +600,27 @@ tbody tr:hover { background: var(--bg-glass); }
   th, td { padding: 8px; }
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   PRINT CSS — Everything white, no dark backgrounds anywhere.
-   
-   Problem: parent containers have inline style="background: var(--bg-primary)"
-   which in dark mode = #0f1419 (near-black). This caused black edges
-   around the white invoice. Fix: force ALL containers to white during print.
-   ═══════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════
+   PRINT — Simple default. No wildcards. No tricks.
+   Just: white background on 4 containers, hide chrome, show invoice.
+   ═══════════════════════════════════════════════════ */
 @media print {
   @page { margin: 0; size: A4; }
 
-  /* ─── 1. FORCE WHITE on body AND every parent container ─── */
-  /* MainLayout wraps content in: .flex.h-screen > .flex-1 > main
-     Each has inline background: var(--bg-primary) = #0f1419 in dark mode.
-     Must override ALL of them to white. */
+  /* Force white on body + the 3 containers that have dark inline backgrounds */
   body,
-  body > div,
-  body > div > div,
-  body > div > div > div,
-  body > div > div > div > div,
-  body > div > div > div > div > div,
-  main,
-  main > div,
-  main > div > div,
   .flex.h-screen,
-  .flex-1,
-  .flex-1.flex.flex-col {
+  .flex-1.flex.flex-col,
+  main {
     background: white !important;
-    background-color: white !important;
-    color: #000 !important;
+    color: black !important;
     display: block !important;
     height: auto !important;
     overflow: visible !important;
-    margin: 0 !important;
   }
-  body { padding: 0 !important; }
   main { padding: 0 !important; }
 
-  /* ─── 2. Override ANY inline style that uses dark CSS variables ─── */
-  /* Elements with style="background: var(--bg-primary)" etc. */
-  [style*="var(--bg-primary)"],
-  [style*="var(--bg-card)"],
-  [style*="var(--bg-sidebar)"],
-  [style*="var(--bg-topbar)"],
-  [style*="var(--bg-input)"],
-  [style*="var(--bg-glass)"],
-  [style*="rgba(22,28,38"],
-  [style*="rgba(14,20,30"],
-  [style*="rgba(18,24,34"],
-  [style*="#0f1419"],
-  [style*="#0d1b2a"],
-  [style*="rgba(255,255,255,0.05"],
-  [style*="rgba(255,255,255,0.06"],
-  [style*="rgba(255,255,255,0.07"],
-  [style*="rgba(255,255,255,0.08"],
-  [style*="rgba(255,255,255,0.10"],
-  .card,
-  .glass,
-  .stat-card,
-  .gst-card {
-    background: white !important;
-    background-color: white !important;
-    color: #000 !important;
-    border-color: #ccc !important;
-  }
-
-  /* ─── 3. HIDE ALL APP CHROME ─── */
+  /* Hide app chrome */
   aside,
   header,
   nav,
@@ -684,37 +639,17 @@ tbody tr:hover { background: var(--bg-glass); }
     display: none !important;
   }
 
-  /* ─── 4. print-area renders as full page content ─── */
+  /* Show invoice/quotation */
   .print-area {
     display: block !important;
     position: static !important;
     width: 100% !important;
     max-width: 900px !important;
     margin: 0 auto !important;
-    padding: 0 !important;
-    overflow: visible !important;
-    box-shadow: none !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
-  /* ─── 5. Force darker text for print readability ─── */
-  .print-area [style*="color: '#666'"] { color: #222 !important; }
-  .print-area [style*="color: '#555'"] { color: #222 !important; }
-  .print-area [style*="color: '#999'"] { color: #444 !important; }
-  .print-area [style*="color: '#888'"] { color: #444 !important; }
-  .print-area [style*="color: '#333'"] { color: #111 !important; }
-
-  /* ─── 6. Force darker borders for print ─── */
-  .print-area [style*="1px solid #ccc"] { border-color: #999 !important; }
-  .print-area [style*="1px solid #e0e0e0"] { border-color: #999 !important; }
-  .print-area [style*="1px solid #e8e8e8"] { border-color: #999 !important; }
-  .print-area [style*="1px solid #ddd"] { border-color: #999 !important; }
-  .print-area [style*="1px solid #bbb"] { border-color: #888 !important; }
-
-  /* ─── 7. Disable app bold mode ─── */
+  /* App bold off in print */
   .app-bold-mode * { font-weight: inherit !important; }
-
-  /* ─── 8. Cards & badges ─── */
-  .status-badge { border: 1px solid #ccc; }
 }
