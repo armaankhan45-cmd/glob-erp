@@ -208,7 +208,7 @@ th,td { padding:6px 10px; }
   const upiAmount = parseFloat(inv.total_amount || 0).toFixed(2)
   const qrUrl = upiId ? `https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=${encodeURIComponent(`upi://pay?pa=${encodeURIComponent(upiId)}&pn=${upiName}&am=${upiAmount}&cu=INR&tn=${encodeURIComponent('Invoice ' + invNum)}`)}` : ''
 
-  const fontFamily = org.invoice_font_family || "'Segoe UI', Arial, sans-serif"
+  const fontFamily = localStorage.getItem('selected_font') || org.invoice_font_family || "'Segoe UI', Arial, sans-serif"
 
   // ═══════════════════════════════════════════
   //  SHARED DATA for both layouts
