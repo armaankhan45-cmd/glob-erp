@@ -2,12 +2,53 @@ import { useState, useEffect } from 'react'
 import api from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import { Save, Upload, Plus, Eye, EyeOff, Trash2, Mail, Send } from 'lucide-react'
-import { ALL_FONTS } from './FontSettings'
 
-// Extract just font names for dropdowns, plus system-only fonts not in ALL_FONTS
-const FONT_NAMES = ALL_FONTS.map(f => f.name)
-const SYSTEM_ONLY = ['Courier New', 'Palatino', 'Garamond', 'Book Antiqua', 'Lucida Console', 'Gill Sans', 'Century Gothic', 'Franklin Gothic Medium']
-const ALL_FONT_NAMES = [...FONT_NAMES, ...SYSTEM_ONLY].sort((a, b) => a.localeCompare(b))
+// Complete font name list — 132 fonts (all categories)
+// Defined inline so Settings.jsx has NO dependency on FontSettings.jsx (fixes build error)
+const ALL_FONT_NAMES = [
+  // Modern (26)
+  'Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Poppins', 'Raleway', 'Nunito',
+  'Source Sans Pro', 'Ubuntu', 'Work Sans', 'Mulish', 'Karla', 'Manrope', 'DM Sans',
+  'Plus Jakarta Sans', 'Outfit', 'Sora', 'Public Sans', 'IBM Plex Sans', 'Figtree',
+  'Lexend', 'Albert Sans', 'Red Hat Display', 'Space Grotesk', 'Atkinson Hyperlegible',
+  // Professional (10)
+  'PT Sans', 'Noto Sans', 'Heebo', 'Rubik', 'Barlow', 'Cabin', 'Exo 2', 'Titillium Web',
+  'Archivo', 'Overpass',
+  // Serif (16)
+  'Playfair Display', 'Merriweather', 'Lora', 'PT Serif', 'Roboto Slab', 'Bitter',
+  'Crimson Text', 'Libre Baskerville', 'EB Garamond', 'Cormorant Garamond', 'Source Serif Pro',
+  'Spectral', 'Vollkorn', 'Noto Serif', 'Cardo', 'Fraunces',
+  // Display (10)
+  'Oswald', 'Bebas Neue', 'Anton', 'Archivo Black', 'Russo One', 'Fjalla One', 'Righteous',
+  'Bungee', 'Teko', 'Saira Condensed',
+  // Unique (12)
+  'Quicksand', 'Comfortaa', 'Josefin Sans', 'Fredoka', 'Acme', 'Asap', 'Varela Round',
+  'Signika', 'Catamaran', 'ABeeZee', 'Urbanist', 'Geologica',
+  // Elegant (8)
+  'Cinzel', 'Marcellus', 'Italiana', 'Tenor Sans', 'Cormorant', 'Forum', 'Oranienbaum', 'Yeseva One',
+  // Handwriting (12)
+  'Pacifico', 'Caveat', 'Dancing Script', 'Great Vibes', 'Satisfy', 'Kaushan Script',
+  'Sacramento', 'Yellowtail', 'Indie Flower', 'Permanent Marker', 'Kalam', 'Gochi Hand',
+  // Mono (10)
+  'Roboto Mono', 'Source Code Pro', 'Fira Code', 'JetBrains Mono', 'IBM Plex Mono',
+  'Space Mono', 'Inconsolata', 'Ubuntu Mono', 'Courier Prime', 'Red Hat Mono',
+  // Indian / Multilingual (6)
+  'Noto Sans Devanagari', 'Tiro Devanagari Hindi', 'Yatra One', 'Mukta', 'Baloo 2', 'Hind',
+  // System (14)
+  'Arial', 'Helvetica', 'Times New Roman', 'Georgia', 'Verdana', 'Calibri', 'Segoe UI',
+  'Tahoma', 'Trebuchet MS', 'Cambria', 'Consolas', 'Lucida Console', 'Impact', 'Comic Sans MS',
+  // Extra system fonts (8)
+  'Courier New', 'Palatino', 'Garamond', 'Book Antiqua', 'Gill Sans', 'Century Gothic',
+  'Franklin Gothic Medium', 'Lucida Bright',
+].sort((a, b) => a.localeCompare(b))
+
+// Google Fonts that need dynamic loading (not system fonts)
+const SYSTEM_FONT_SET = new Set([
+  'Arial', 'Helvetica', 'Times New Roman', 'Georgia', 'Verdana', 'Calibri', 'Segoe UI',
+  'Tahoma', 'Trebuchet MS', 'Cambria', 'Consolas', 'Lucida Console', 'Impact', 'Comic Sans MS',
+  'Courier New', 'Palatino', 'Garamond', 'Book Antiqua', 'Gill Sans', 'Century Gothic',
+  'Franklin Gothic Medium', 'Lucida Bright',
+])
 
 export default function Settings() {
   const { user, refreshUser } = useAuth()
@@ -198,8 +239,7 @@ export default function Settings() {
 
   // Load a Google Font dynamically so it appears in preview and in quotation/invoice pages
   const loadFontForPreview = (fontName) => {
-    const SYSTEM_FONTS = ['Arial', 'Helvetica', 'Times New Roman', 'Georgia', 'Verdana', 'Calibri', 'Segoe UI', 'Tahoma', 'Trebuchet MS', 'Cambria', 'Consolas', 'Lucida Console', 'Impact', 'Comic Sans MS', 'Courier New', 'Palatino', 'Garamond', 'Book Antiqua', 'Lucida Console', 'Gill Sans', 'Century Gothic', 'Franklin Gothic Medium']
-    if (SYSTEM_FONTS.includes(fontName)) return
+    if (SYSTEM_FONT_SET.has(fontName)) return
     const family = fontName.replace(/ /g, '+')
     // Check if already loaded
     const existingLink = document.querySelector(`link[data-font="${fontName}"]`)
