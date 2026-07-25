@@ -25,7 +25,7 @@ export default function InvoiceNew() {
   const COMPANY_STATE = '27'
 
   const [invoiceNumber, setInvoiceNumber] = useState('')
-  const [customerId, setCustomerId] = useState(params.get('customer') || '')
+  const [customerId, setCustomerId] = useState(params.get('customer') || localStorage.getItem('lastInvoiceCustomer') || '')
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0])
   const [dueDate, setDueDate] = useState('')
   const [discount, setDiscount] = useState('')
@@ -195,6 +195,7 @@ export default function InvoiceNew() {
         }))
       }
       await api.post('/invoices', data)
+      localStorage.setItem('lastInvoiceCustomer', customerId)
       setMessage({ type: 'success', text: 'Invoice created successfully!' })
       setTimeout(() => navigate('/app/invoices'), 800)
     } catch (err) {
