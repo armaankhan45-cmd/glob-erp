@@ -144,29 +144,29 @@ export default function PurchaseEdit() {
     }
   }
 
-  if (loading) return <div className="flex justify-center py-20"><div className="animate-spin h-8 w-8 border-4 border-primary-500 border-t-transparent rounded-full"></div></div>
+  if (loading) return <div className="flex items-center justify-center h-96"><div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-6" style={{ animation: 'entranceUp 0.5s cubic-bezier(0.16,1,0.3,1) both' }}>
       <div className="flex items-center gap-3">
-        <button onClick={() => navigate(`/app/purchases/${id}`)} className="p-2 hover:bg-gray-100 rounded-lg"><ArrowLeft size={20} /></button>
-        <h1 className="text-2xl font-bold">Edit Purchase Bill</h1>
+        <button onClick={() => navigate(`/app/purchases/${id}`)} className="p-2 rounded-xl hover:bg-white/5 transition-all btn-shine"><ArrowLeft size={20} /></button>
+        <h1 className="text-2xl font-bold text-white">Edit Purchase Bill</h1>
       </div>
 
-      <div className="card space-y-4">
+      <div className="card card-premium space-y-4" style={{ animation: 'entranceScale 0.5s cubic-bezier(0.16,1,0.3,1) 0.1s both' }}>
         <div className="grid md:grid-cols-3 gap-4">
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Bill Number *</label><input value={form.bill_number} onChange={e => setForm({...form, bill_number: e.target.value})} className="input-field" required /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Supplier Name *</label><input value={form.supplier_name} onChange={e => setForm({...form, supplier_name: e.target.value})} className="input-field" required /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Supplier GSTIN</label><input value={form.supplier_gstin} onChange={e => setForm({...form, supplier_gstin: e.target.value.toUpperCase(), supplier_state_code: e.target.value.substring(0,2)})} className="input-field" /></div>
+          <div><label className="block text-xs text-white/55 font-semibold mb-1">Bill Number *</label><input value={form.bill_number} onChange={e => setForm({...form, bill_number: e.target.value})} className="input-field" required /></div>
+          <div><label className="block text-xs text-white/55 font-semibold mb-1">Supplier Name *</label><input value={form.supplier_name} onChange={e => setForm({...form, supplier_name: e.target.value})} className="input-field" required /></div>
+          <div><label className="block text-xs text-white/55 font-semibold mb-1">Supplier GSTIN</label><input value={form.supplier_gstin} onChange={e => setForm({...form, supplier_gstin: e.target.value.toUpperCase(), supplier_state_code: e.target.value.substring(0,2)})} className="input-field" /></div>
         </div>
         <div className="grid md:grid-cols-3 gap-4">
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Bill Date</label><input type="date" value={form.bill_date} onChange={e => setForm({...form, bill_date: e.target.value})} className="input-field" /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Supplier Phone</label><input value={form.supplier_phone} onChange={e => setForm({...form, supplier_phone: e.target.value})} className="input-field" /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Supplier Address</label><input value={form.supplier_address} onChange={e => setForm({...form, supplier_address: e.target.value})} className="input-field" /></div>
+          <div><label className="block text-xs text-white/55 font-semibold mb-1">Bill Date</label><input type="date" value={form.bill_date} onChange={e => setForm({...form, bill_date: e.target.value})} className="input-field" /></div>
+          <div><label className="block text-xs text-white/55 font-semibold mb-1">Supplier Phone</label><input value={form.supplier_phone} onChange={e => setForm({...form, supplier_phone: e.target.value})} className="input-field" /></div>
+          <div><label className="block text-xs text-white/55 font-semibold mb-1">Supplier Address</label><input value={form.supplier_address} onChange={e => setForm({...form, supplier_address: e.target.value})} className="input-field" /></div>
         </div>
         <div className="grid md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Payment Status</label>
+            <label className="block text-xs text-white/55 font-semibold mb-1">Payment Status</label>
             <select value={form.payment_status} onChange={e => setForm({...form, payment_status: e.target.value})} className="input-field">
               <option value="Unpaid">Unpaid</option>
               <option value="Paid">Paid</option>
@@ -176,16 +176,16 @@ export default function PurchaseEdit() {
         </div>
       </div>
 
-      <div className="card">
-        <h3 className="font-bold mb-3">Items</h3>
+      <div className="card card-premium space-y-4" style={{ animation: 'entranceScale 0.5s cubic-bezier(0.16,1,0.3,1) 0.15s both' }}>
+        <h3 className="font-bold text-white text-sm">Items</h3>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead><tr className="border-b text-gray-500 text-left">
-              <th className="pb-2">Description</th><th className="pb-2">HSN</th><th className="pb-2 w-20">Qty</th><th className="pb-2 w-20">Unit</th><th className="pb-2 w-24">Rate</th><th className="pb-2 w-20">GST%</th><th className="pb-2 w-24 text-right">Amount</th><th className="pb-2 w-10"></th>
+          <table className="w-full text-sm nebula-table">
+            <thead><tr>
+              <th>Description</th><th>HSN</th><th className="w-20">Qty</th><th className="w-20">Unit</th><th className="w-24">Rate</th><th className="w-20">GST%</th><th className="w-24 text-right">Amount</th><th className="w-10"></th>
             </tr></thead>
             <tbody>
               {items.map((item, idx) => (
-                <tr key={idx} className="border-b border-gray-50">
+                <tr key={idx}>
                   <td className="py-2 pr-2"><input value={item.description || ''} onChange={e => updateItem(idx, 'description', e.target.value)} className="input-field text-sm" placeholder="e.g. SS TANK" /></td>
                   <td className="py-2 pr-2"><input value={item.hsn_code || ''} onChange={e => updateItem(idx, 'hsn_code', e.target.value)} list="hsn-list-pedit" className="input-field text-sm w-32" /><datalist id="hsn-list-pedit">{HSN_CODES.map(h => <option key={h.code} value={h.code}>{h.label}</option>)}</datalist></td>
                   <td className="py-2 pr-2"><input type="number" value={item.quantity} onChange={e => updateItem(idx, 'quantity', e.target.value)} className="input-field text-sm" /></td>
@@ -193,36 +193,36 @@ export default function PurchaseEdit() {
                   <td className="py-2 pr-2"><input type="number" value={item.rate} onChange={e => updateItem(idx, 'rate', e.target.value)} className="input-field text-sm" /></td>
                   <td className="py-2 pr-2"><input type="number" value={item.igst_rate > 0 ? item.igst_rate : (parseFloat(item.cgst_rate) + parseFloat(item.sgst_rate))} onChange={e => { const r = parseFloat(e.target.value)||0; const sc = form.supplier_state_code; const orgSC = '27'; if(sc===orgSC){updateItem(idx,'cgst_rate',r/2);updateItem(idx,'sgst_rate',r/2);updateItem(idx,'igst_rate',0)}else{updateItem(idx,'igst_rate',r);updateItem(idx,'cgst_rate',0);updateItem(idx,'sgst_rate',0)} }} className="input-field text-sm" /></td>
                   <td className="py-2 text-right font-medium">{(parseFloat(item.amount)||0).toFixed(2)}</td>
-                  <td className="py-2">{items.length > 1 && <button onClick={() => removeItem(idx)} className="text-red-400"><X size={16} /></button>}</td>
+                  <td className="py-2">{items.length > 1 && <button onClick={() => removeItem(idx)} className="text-red-400 hover:text-red-300"><X size={16} /></button>}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <button onClick={addItem} className="btn-secondary mt-3 text-sm flex items-center gap-1"><Plus size={14} /> Add Item</button>
+        <button onClick={addItem} className="btn-secondary text-sm flex items-center gap-1 btn-shine"><Plus size={14} /> Add Item</button>
       </div>
 
-      <div className="card">
+      <div className="card card-premium">
         <div className="max-w-sm ml-auto space-y-2 text-sm">
-          <div className="flex justify-between"><span>Subtotal</span><span>₹{calculated.subtotal.toFixed(2)}</span></div>
-          <div className="flex justify-between"><span>CGST</span><span>₹{calculated.cgst_amount.toFixed(2)}</span></div>
-          <div className="flex justify-between"><span>SGST</span><span>₹{calculated.sgst_amount.toFixed(2)}</span></div>
-          <div className="flex justify-between"><span>IGST</span><span>₹{calculated.igst_amount.toFixed(2)}</span></div>
-          <div className="flex justify-between items-center"><span>Discount</span><input type="number" value={form.discount} onChange={e => {setForm({...form, discount: e.target.value}); recalc(items, e.target.value, form.round_off)}} className="input-field w-28 text-right text-sm" /></div>
-          <div className="flex justify-between items-center"><span>Round Off</span><input type="number" step="0.01" value={form.round_off} onChange={e => {setForm({...form, round_off: e.target.value}); recalc(items, form.discount, e.target.value)}} className="input-field w-28 text-right text-sm" /></div>
-          <hr />
-          <div className="flex justify-between text-base font-bold"><span>TOTAL</span><span>₹{calculated.total_amount.toFixed(2)}</span></div>
+          <div className="flex justify-between text-white/60"><span>Subtotal</span><span className="font-semibold text-white">₹{calculated.subtotal.toFixed(2)}</span></div>
+          <div className="flex justify-between text-white/60"><span>CGST</span><span className="font-semibold accent-text">₹{calculated.cgst_amount.toFixed(2)}</span></div>
+          <div className="flex justify-between text-white/60"><span>SGST</span><span className="font-semibold accent-text">₹{calculated.sgst_amount.toFixed(2)}</span></div>
+          <div className="flex justify-between text-white/60"><span>IGST</span><span className="font-semibold text-orange-400">₹{calculated.igst_amount.toFixed(2)}</span></div>
+          <div className="flex justify-between items-center text-white/60"><span>Discount</span><input type="number" value={form.discount} onChange={e => {setForm({...form, discount: e.target.value}); recalc(items, e.target.value, form.round_off)}} className="input-field w-28 text-right text-sm" /></div>
+          <div className="flex justify-between items-center text-white/60"><span>Round Off</span><input type="number" step="0.01" value={form.round_off} onChange={e => {setForm({...form, round_off: e.target.value}); recalc(items, form.discount, e.target.value)}} className="input-field w-28 text-right text-sm" /></div>
+          <hr className="border-white/10" />
+          <div className="flex justify-between text-base font-bold text-white"><span>TOTAL</span><span>₹{calculated.total_amount.toFixed(2)}</span></div>
         </div>
       </div>
 
-      <div className="card">
-        <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+      <div className="card card-premium">
+        <label className="block text-xs text-white/55 font-semibold mb-1">Notes</label>
         <textarea value={form.notes || ''} onChange={e => setForm({...form, notes: e.target.value})} className="input-field" rows={3} />
       </div>
 
       <div className="flex justify-end gap-3">
         <button onClick={() => navigate(`/app/purchases/${id}`)} className="btn-secondary">Cancel</button>
-        <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2"><Save size={16} /> {saving ? 'Saving...' : 'Update Purchase Bill'}</button>
+        <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2 btn-shine"><Save size={16} /> {saving ? 'Saving...' : 'Update Purchase Bill'}</button>
       </div>
     </div>
   )
