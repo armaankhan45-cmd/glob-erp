@@ -30,6 +30,17 @@ export default function Settings() {
       setSettings(res.data.settings || {})
       const usersRes = await api.get('/auth/users')
       setUsers(usersRes.data.users || [])
+      // Cache settings to localStorage so invoice/quotation pages can use them
+      const s = res.data.settings || {}
+      const o = res.data.organization || {}
+      localStorage.setItem('invoice_font_family', s.print_font_family || 'Arial')
+      localStorage.setItem('invoice_font_size', s.print_font_size || '10')
+      localStorage.setItem('quotation_font_family', s.quotation_font_family || 'Georgia')
+      localStorage.setItem('quotation_font_size', s.quotation_font_size || '9')
+      localStorage.setItem('invoice_desc_size', s.invoice_desc_size || '10')
+      localStorage.setItem('invoice_item_bold', s.invoice_item_bold || 'false')
+      localStorage.setItem('print_letterhead_mm', String(parseInt(o.print_letterhead_mm) || 65))
+      localStorage.setItem('print_footer_mm', String(parseInt(o.print_footer_mm) || 50))
     } catch (err) { console.error('Settings load error:', err) }
   }
 
@@ -57,6 +68,19 @@ export default function Settings() {
           default_gst_rate: settings.default_gst_rate || '18'
         }
       })
+      // ALSO save to localStorage so invoice/quotation pages pick it up immediately
+      localStorage.setItem('invoice_font_family', settings.print_font_family || 'Arial')
+      localStorage.setItem('invoice_font_size', settings.print_font_size || '10')
+      localStorage.setItem('quotation_font_family', settings.quotation_font_family || 'Georgia')
+      localStorage.setItem('quotation_font_size', settings.quotation_font_size || '9')
+      localStorage.setItem('invoice_desc_size', settings.invoice_desc_size || '10')
+      localStorage.setItem('invoice_item_bold', settings.invoice_item_bold || 'false')
+      localStorage.setItem('print_letterhead_mm', String(parseInt(org.print_letterhead_mm) || 65))
+      localStorage.setItem('print_footer_mm', String(parseInt(org.print_footer_mm) || 50))
+      localStorage.setItem('selected_font', settings.app_font_family || 'Inter')
+      // Apply app font immediately
+      const { applyFont } = await import('./FontSettings')
+      applyFont(settings.app_font_family || 'Inter')
       await refreshUser()
       setMsg('✓ Settings saved successfully!')
     } catch (err) { setMsg('✗ Failed to save settings') }
