@@ -282,7 +282,26 @@ export default function QuotationDetail() {
   const changeCustomerSize = (size) => { setCustomerSize(size); localStorage.setItem('quotCustSize', size) }
   const switchLayout = (val) => { setLayout(val); localStorage.setItem('quotLayout', val) }
 
-  const handlePrint = () => window.print()
+  const handlePrint = () => {
+    /* Open a CLEAN new window with ONLY the quotation content.
+       This completely bypasses the dark theme / dark background issue. */
+    const printEl = document.querySelector('.print-area')
+    if (!printEl) { window.print(); return }
+    const html = printEl.innerHTML
+    const title = quotation?.quotation_number || 'Quotation'
+    const w = window.open('', '_blank', 'width=900,height=600')
+    w.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
+<style>
+@page { margin: 0; size: A4; }
+* { box-sizing: border-box; }
+body { margin:0; padding:0; background:white; color:#000; font-family:'Segoe UI',Arial,sans-serif; }
+img { max-width:100%; }
+table { border-collapse:collapse; width:100%; }
+th,td { padding:6px 10px; }
+</style></head><body>${html}</body></html>`)
+    w.document.close()
+    setTimeout(() => { w.print(); w.close() }, 300)
+  }
   const handleDelete = async () => {
     if (!confirm('Delete this quotation?')) return
     await api.delete(`/quotations/${id}`)
