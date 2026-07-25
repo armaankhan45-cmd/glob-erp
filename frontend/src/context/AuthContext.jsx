@@ -15,65 +15,71 @@ export function AuthProvider({ children }) {
   const [error, setError] = useState(null)
   const [initialized, setInitialized] = useState(false)
 
-  // ── SAFE AUTH CHECK: Never gets stuck ──
-  // If backend is sleeping (Render cold start), we timeout in 10s
-  // and show the app anyway — user can retry later
+  // ── FAST AUTH: Use cached user IMMEDIATELY, verify in background ──
   useEffect(() => {
     let cancelled = false
+    const token = localStorage.getItem('token')
+    const savedUser = localStorage.getItem('user')
+
+    // If we have saved user data, use it RIGHT NOW — no waiting
+    if (token && savedUser) {
+      try { setUser(JSON.parse(savedUser)) } catch {}
+    }
+
+    if (!token) {
+      // No token — skip auth check entirely
+      setLoading(false)
+      setInitialized(true)
+      return
+    }
+
+    // If no saved user but have token, need to check
+    if (!savedUser) {
+      setLoading(true)
+    } else {
+      // We have cached data — show app immediately, verify in background
+      setLoading(false)
+      setInitialized(true)
+    }
+
+    // Verify token in background (2s timeout — fast)
     const timeoutId = setTimeout(() => {
       if (!cancelled && !initialized) {
-        console.warn('⚠️ Auth check timed out — showing app anyway')
         setLoading(false)
         setInitialized(true)
-        // Check if we have a token in localStorage — if so, assume valid
-        const savedUser = localStorage.getItem('user')
-        if (savedUser) {
-          try { setUser(JSON.parse(savedUser)) } catch {}
-        }
       }
-    }, 10000) // 10 second safety timeout — NEVER stuck forever
+    }, 2000)
 
-    const checkAuth = async () => {
-      const token = localStorage.getItem('token')
-      if (!token) {
+    api.get('/auth/me', { timeout: 2000 }).then(res => {
+      if (!cancelled) {
+        setUser(res.data.user)
+        localStorage.setItem('user', JSON.stringify(res.data.user))
         setLoading(false)
         setInitialized(true)
         clearTimeout(timeoutId)
-        return
       }
-
-      try {
-        const res = await api.get('/auth/me', { timeout: 8000 })
-        if (!cancelled) {
-          setUser(res.data.user)
-          localStorage.setItem('user', JSON.stringify(res.data.user))
-          setLoading(false)
-          setInitialized(true)
-          clearTimeout(timeoutId)
-        }
-      } catch (err) {
-        if (!cancelled) {
-          // If 401, token is invalid — clear it
-          if (err.response?.status === 401) {
-            localStorage.removeItem('token')
-            localStorage.removeItem('user')
-            setUser(null)
-          } else {
-            // Network error (backend sleeping) — use cached user data
-            console.warn('⚠️ Auth check failed (backend might be sleeping):', err.message)
-            const savedUser = localStorage.getItem('user')
-            if (savedUser) {
-              try { setUser(JSON.parse(savedUser)) } catch {}
-            }
+    }).catch(err => {
+      if (!cancelled) {
+        if (err.response?.status === 401) {
+          // Token is invalid — clear everything, redirect to login
+          localStorage.removeItem('token')
+          localStorage.removeItem('user')
+          setUser(null)
+          if (!window.location.pathname.includes('/login')) {
+            window.location.href = '/login'
           }
-          setLoading(false)
-          setInitialized(true)
-          clearTimeout(timeoutId)
+        } else {
+          // Network error (server sleeping) — use cached data, that's fine
+          if (savedUser) {
+            try { setUser(JSON.parse(savedUser)) } catch {}
+          }
         }
+        setLoading(false)
+        setInitialized(true)
+        clearTimeout(timeoutId)
       }
-    }
+    })
 
-    checkAuth()
     return () => { cancelled = true; clearTimeout(timeoutId) }
   }, [])
 
@@ -107,29 +113,12 @@ export function AuthProvider({ children }) {
     } catch {}
   }, [])
 
-  // While loading, show a minimal splash (NOT stuck forever)
-  if (loading) {
+  // NO loading screen — if we have cached data, show app immediately
+  // Only show a tiny spinner if we have NO cached data at all
+  if (loading && !localStorage.getItem('user')) {
     return (
-      <div style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'linear-gradient(135deg, #0a0a1a, #0d1b2a)',
-        color: '#fff',
-        flexDirection: 'column',
-        gap: '12px'
-      }}>
-        <div style={{
-          width: '48px', height: '48px',
-          border: '3px solid rgba(6,182,212,0.2)',
-          borderTopColor: '#06b6d4',
-          borderRadius: '50%',
-          animation: 'spin 1s linear infinite'
-        }} />
-        <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)' }}>
-          Checking session...
-        </p>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)' }}>
+        <div style={{ width: '32px', height: '32px', border: '3px solid rgba(var(--accent-rgb),0.2)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
         <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
       </div>
     )
