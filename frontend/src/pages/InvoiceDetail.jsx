@@ -208,12 +208,16 @@ th,td { padding:6px 10px; }
   const upiAmount = parseFloat(inv.total_amount || 0).toFixed(2)
   const qrUrl = upiId ? `https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=${encodeURIComponent(`upi://pay?pa=${encodeURIComponent(upiId)}&pn=${upiName}&am=${upiAmount}&cu=INR&tn=${encodeURIComponent('Invoice ' + invNum)}`)}` : ''
 
-  const fontFamily = localStorage.getItem('selected_font') || org.invoice_font_family || "'Segoe UI', Arial, sans-serif"
+  const fontFamily = org.invoice_font_family || localStorage.getItem('invoice_font_family') || localStorage.getItem('selected_font') || "'Segoe UI', Arial, sans-serif"
+  const fontSize = (org.invoice_font_size || localStorage.getItem('invoice_font_size') || '10') + 'pt'
+  const descSize = (org.invoice_desc_size || localStorage.getItem('invoice_desc_size') || '10') + 'pt'
+  const letterheadMm = parseInt(org.print_letterhead_mm || localStorage.getItem('print_letterhead_mm') || '0')
+  const footerMm = parseInt(org.print_footer_mm || localStorage.getItem('print_footer_mm') || '0')
 
   // ═══════════════════════════════════════════
   //  SHARED DATA for both layouts
   // ═══════════════════════════════════════════
-  const shared = { inv, items, org, invNum, isPaid, placeOfSupply, invoiceDate, totalQty, isPrintIntraState, totalCgst, totalSgst, totalIgst, totalTax, hsnMap, qrUrl, custGstin, custStateCode, orgStateCode, fontFamily, boldOn, fmt }
+  const shared = { inv, items, org, invNum, isPaid, placeOfSupply, invoiceDate, totalQty, isPrintIntraState, totalCgst, totalSgst, totalIgst, totalTax, hsnMap, qrUrl, custGstin, custStateCode, orgStateCode, fontFamily, fontSize, descSize, letterheadMm, footerMm, boldOn, fmt }
 
   return (
     <div className="space-y-4">
@@ -276,14 +280,16 @@ th,td { padding:6px 10px; }
 /* ═══════════════════════════════════════════════════════════════
    PRO LAYOUT — Dark Navy Header, Accent Stripes, Modern
    ═══════════════════════════════════════════════════════════════ */
-function ProLayout({ inv, items, org, invNum, isPaid, placeOfSupply, invoiceDate, totalQty, isPrintIntraState, totalCgst, totalSgst, totalIgst, totalTax, hsnMap, qrUrl, custGstin, custStateCode, orgStateCode, fontFamily, boldOn, fmt }) {
+function ProLayout({ inv, items, org, invNum, isPaid, placeOfSupply, invoiceDate, totalQty, isPrintIntraState, totalCgst, totalSgst, totalIgst, totalTax, hsnMap, qrUrl, custGstin, custStateCode, orgStateCode, fontFamily, fontSize, descSize, letterheadMm, footerMm, boldOn, fmt }) {
   const NAVY = '#0d1b2a'
   const B = `1.5px solid ${NAVY}`
   const DIVIDER = '1.5px solid #ccc'
 
   return (
-    <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily, maxWidth: 900, margin: '0 auto', background: '#fff', border: `2px solid ${NAVY}`, color: '#000', fontWeight: 600, WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact', padding: '0 8px' }}>
+    <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily, fontSize, maxWidth: 900, margin: '0 auto', background: '#fff', border: `2px solid ${NAVY}`, color: '#000', fontWeight: 600, WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact', padding: '0 8px' }}>
 
+      {/* Letterhead top spacer */}
+      {letterheadMm > 0 && <div style={{ height: letterheadMm + 'mm', flexShrink: 0 }}></div>}
       {/* ═══ HEADER BAR — B&W print-safe: dark text, light bg, navy borders ═══ */}
       <div style={{ padding: '16px 24px', display: 'flex', alignItems: 'center', gap: 16, background: '#f5f7fa', borderTop: `4px solid ${NAVY}`, borderBottom: `2px solid ${NAVY}` }}>
         <div style={{ width: 68, height: 68, flexShrink: 0, borderRadius: 6, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${NAVY}`, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
@@ -561,6 +567,8 @@ function ProLayout({ inv, items, org, invNum, isPaid, placeOfSupply, invoiceDate
       {/* Accent stripe bottom */}
       <div style={{ height: 3, background: 'linear-gradient(90deg, #06b6d4, #3b82f6, #8b5cf6, #06b6d4)' }} />
 
+      {/* Footer bottom spacer */}
+      {footerMm > 0 && <div style={{ height: footerMm + 'mm', flexShrink: 0 }}></div>}
       {/* PAGE NOTE */}
       <div style={{ textAlign: 'center', padding: '8px 20px', fontSize: 10, color: '#999', borderTop: B, fontWeight: 600, letterSpacing: 0.5 }}>
         PAGE 1 / 1 &nbsp;•&nbsp; This is a computer generated invoice.
@@ -572,12 +580,14 @@ function ProLayout({ inv, items, org, invNum, isPaid, placeOfSupply, invoiceDate
 /* ═══════════════════════════════════════════════════════════════
    CLASSIC LAYOUT — Original HUL/ITC style, all-black borders
    ═══════════════════════════════════════════════════════════════ */
-function ClassicLayout({ inv, items, org, invNum, isPaid, placeOfSupply, invoiceDate, totalQty, isPrintIntraState, totalCgst, totalSgst, totalIgst, totalTax, hsnMap, qrUrl, custGstin, custStateCode, orgStateCode, fontFamily, boldOn, fmt }) {
+function ClassicLayout({ inv, items, org, invNum, isPaid, placeOfSupply, invoiceDate, totalQty, isPrintIntraState, totalCgst, totalSgst, totalIgst, totalTax, hsnMap, qrUrl, custGstin, custStateCode, orgStateCode, fontFamily, fontSize, descSize, letterheadMm, footerMm, boldOn, fmt }) {
   const B = '1.5px solid #1a1a1a'
 
   return (
-    <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily, maxWidth: 900, margin: '0 auto', background: '#fff', border: B, color: '#000', fontWeight: 600, WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact', padding: '0 8px' }}>
+    <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily, fontSize, maxWidth: 900, margin: '0 auto', background: '#fff', border: B, color: '#000', fontWeight: 600, WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact', padding: '0 8px' }}>
 
+      {/* Letterhead top spacer */}
+      {letterheadMm > 0 && <div style={{ height: letterheadMm + 'mm', flexShrink: 0 }}></div>}
       {/* TAX INVOICE TITLE */}
       <div style={{ textAlign: 'center', padding: '14px 0 8px', position: 'relative', borderBottom: B }}>
         <h1 style={{ fontSize: 22, letterSpacing: 6, margin: 0, fontWeight: 900, color: '#000' }}>TAX INVOICE</h1>
@@ -853,6 +863,8 @@ function ClassicLayout({ inv, items, org, invNum, isPaid, placeOfSupply, invoice
         </div>
       </div>
 
+      {/* Footer bottom spacer */}
+      {footerMm > 0 && <div style={{ height: footerMm + 'mm', flexShrink: 0 }}></div>}
       {/* PAGE NOTE */}
       <div style={{ textAlign: 'left', padding: '8px 20px', fontSize: '11.5px', color: '#000', borderTop: B, fontWeight: 600 }}>
         Page 1 / 1 &nbsp; This is a computer generated invoice.
