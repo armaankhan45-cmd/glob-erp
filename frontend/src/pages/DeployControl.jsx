@@ -47,7 +47,9 @@ export default function DeployControl() {
     setLoading(false)
   }
 
-  const runSetup = () => { addLog('🔧 Opening /api/setup in new tab...'); window.open('https://glob-erp-api.onrender.com/api/setup', '_blank') }
+  // FIX #2: Setup now requires SETUP_SECRET — no longer opens bare /api/setup URL
+  const runSetup = () => { addLog('⚠️ /api/setup is now secured with SETUP_SECRET. Use Render dashboard to set env vars.') }
+
 
   const handleAction = (action) => { setConfirmAction(action) }
 
@@ -78,6 +80,7 @@ export default function DeployControl() {
   ]
 
   return (
+
     <div className="space-y-6" style={{ animation: 'slideUp 0.5s ease-out' }}>
       <div className="flex items-center justify-between">
         <div>
@@ -170,5 +173,6 @@ export default function DeployControl() {
         </div>
       )}
     </div>
-  )
+  
+)
 }
