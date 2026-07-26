@@ -22,7 +22,9 @@ export default function InvoiceNew() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState({ type: '', text: '' })
 
-  const COMPANY_STATE = '27'
+  // FIX #7: Pull state code from org settings instead of hardcoding '27' (Maharashtra)
+  // This makes the ERP work for ANY organization, not just Maharashtra-based ones
+  const [orgStateCode, setOrgStateCode] = useState(localStorage.getItem('orgStateCode') || '27')
 
   const [invoiceNumber, setInvoiceNumber] = useState('')
   const [customerId, setCustomerId] = useState(params.get('customer') || localStorage.getItem('lastInvoiceCustomer') || '')
@@ -44,7 +46,19 @@ export default function InvoiceNew() {
   useEffect(() => {
     loadCustomers()
     genNumber()
+    loadOrgState()
   }, [])
+
+  // Load org state code from settings API (instead of hardcoded '27')
+  const loadOrgState = async () => {
+    try {
+      const res = await api.get('/settings')
+      const org = res.data.organization || {}
+      const code = org.state_code || (org.gstin ? org.gstin.substring(0, 2) : '27')
+      setOrgStateCode(code)
+      localStorage.setItem('orgStateCode', code)
+    } catch (e) { /* fallback to localStorage or '27' */ }
+  }
 
   useEffect(() => {
     if (customerId && customers.length) {
@@ -105,7 +119,7 @@ export default function InvoiceNew() {
   }
 
   const isIntraState = selectedCust
-    ? (selectedCust.state_code || (selectedCust.gstin ? selectedCust.gstin.substring(0, 2) : '27')) === COMPANY_STATE
+    ? (selectedCust.state_code || (selectedCust.gstin ? selectedCust.gstin.substring(0, 2) : orgStateCode)) === orgStateCode
     : true
 
   const addItem = () => {
