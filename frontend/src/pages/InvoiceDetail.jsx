@@ -87,43 +87,70 @@ export default function InvoiceDetail() {
     try { await api.put('/invoices/' + id, { status: data.invoice.status, payment_status }); load(parseInt(id)) } catch (e) { alert('Failed') }
   }
 
+  /* ═══ GOOGLE FONT HELPER ═══
+     Determines if a font needs a Google Fonts link and builds the URL */
+  const getGoogleFontUrl = (fontName) => {
+    const SYSTEM_FONTS = ['Arial', 'Helvetica', 'Times New Roman', 'Georgia', 'Verdana', 'Calibri', 'Segoe UI', 'Tahoma', 'Trebuchet MS', 'Cambria', 'Consolas', 'Lucida Console', 'Impact', 'Comic Sans MS']
+    if (SYSTEM_FONTS.includes(fontName)) return null
+    const family = fontName.replace(/ /g, '+')
+    return `https://fonts.googleapis.com/css2?family=${family}:wght@300;400;500;600;700;800;900&display=swap`
+  }
+
   const handlePrint = () => {
     /* Open a CLEAN new window with ONLY the invoice content.
-       This completely bypasses the dark theme / dark background issue. */
+       This completely bypasses the dark theme / dark background issue.
+       Also loads the selected Google Font so it appears correctly in print. */
     const printEl = document.querySelector('.print-area')
     if (!printEl) { window.print(); return }
     const html = printEl.innerHTML
+
+    // Build Google Fonts link for the selected font
+    const fontUrl = getGoogleFontUrl(fontFamily)
+    const fontLinkTag = fontUrl ? `<link href="${fontUrl}" rel="stylesheet">` : ''
+
     const w = window.open('', '_blank', 'width=900,height=600')
     w.document.write(`<!DOCTYPE html><html><head><title>Invoice ${invNum}</title>
+${fontLinkTag}
 <style>
 @page { margin: 0; size: A4; }
-* { box-sizing: border-box; }
-body { margin:0; padding:0; background:white; color:#000; font-family:'Segoe UI',Arial,sans-serif; }
+* { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { margin:0; padding:0; background:white; color:#000; font-family:'${fontFamily}', 'Segoe UI', Arial, sans-serif; }
 img { max-width:100%; }
 table { border-collapse:collapse; width:100%; }
 th,td { padding:6px 10px; }
 </style></head><body>${html}</body></html>`)
     w.document.close()
-    setTimeout(() => { w.print(); w.close() }, 300)
+    setTimeout(() => { w.print(); w.close() }, 500)
   }
 
-  const handleAction = async (action) => {
+  // FIX #1: PDF download uses fetch + blob (no token in URL — prevents browser history/log leak)
+  const handleDownloadPDF = async () => {
     try {
       const token = localStorage.getItem('token')
-      const url = `${api.defaults.baseURL}/invoices/${id}/pdf?token=${token}&layout=${layout}`
-      if (action === 'download' || action === 'preview') window.open(url, '_blank')
-      else if (action === 'print') { const w = window.open(url, '_blank'); if (w) w.onload = () => w.print() }
-    } catch (e) { alert('Failed: ' + e.message) }
+      const response = await fetch(`${api.defaults.baseURL}/invoices/${id}/pdf?token=${token}&layout=${layout}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Invoice_${(inv.invoice_number || '').replace(/\//g, '-')}.html`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (e) { alert('PDF download failed: ' + e.message) }
   }
 
   const handleWhatsApp = async () => {
     setSharing(true)
     try {
       const inv = data.invoice; const token = localStorage.getItem('token')
-      const pdfUrl = `${api.defaults.baseURL}/invoices/${id}/pdf?token=${token}&layout=${layout}`
+      // FIX: Use fetch + blob for PDF instead of token-in-URL
+      const pdfResponse = await fetch(`${api.defaults.baseURL}/invoices/${id}/pdf?token=${token}&layout=${layout}`, { headers: { Authorization: `Bearer ${token}` } })
+      const htmlBlob = await pdfResponse.blob()
       const invNum = inv.invoice_number || ''; const custName = inv.customer_name || ''; const total = fmt(inv.total_amount)
       try {
-        const response = await fetch(pdfUrl); const htmlBlob = await response.blob()
         const file = new File([htmlBlob], `Invoice_${invNum.replace(/\//g, '-')}.html`, { type: 'text/html' })
         if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
           await navigator.share({ text: `*TAX INVOICE ${invNum}*\nCustomer: ${custName}\nTotal: ₹${total}`, files: [file] })
@@ -131,7 +158,7 @@ th,td { padding:6px 10px; }
         }
       } catch (e) { }
       const viewUrl = `${window.location.origin}/app/invoices/${id}`
-      const msg = `*TAX INVOICE ${invNum}*\nCustomer: ${custName}\nTotal: ₹${total}\n\n📄 View & Print: ${viewUrl}\n📥 Direct PDF: ${pdfUrl}`
+      const msg = `*TAX INVOICE ${invNum}*\nCustomer: ${custName}\nTotal: ₹${total}\n\n📄 View & Print: ${viewUrl}`
       window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
     } catch (err) { alert('Share failed: ' + err.message) }
     setShareOpen(false); setSharing(false)
@@ -140,8 +167,7 @@ th,td { padding:6px 10px; }
   const handleEmail = async () => {
     setSharing(true)
     try {
-      const inv = data.invoice; const token = localStorage.getItem('token')
-      const pdfUrl = `${api.defaults.baseURL}/invoices/${id}/pdf?token=${token}&layout=${layout}`
+      const inv = data.invoice
       const invNum = inv.invoice_number || ''; const custName = inv.customer_name || ''; const total = fmt(inv.total_amount)
       const emailTo = prompt('Enter email address to send invoice:')
       if (!emailTo) { setSharing(false); return }
@@ -150,7 +176,7 @@ th,td { padding:6px 10px; }
       } catch (e) {
         const org = data.organization
         const subject = `Tax Invoice ${invNum} - ${org?.name || 'Our Company'}`
-        const body = `Dear ${custName},\n\nPlease find your tax invoice below:\n\nInvoice No: ${invNum}\nTotal Amount: ₹${total}\n\n📄 View: ${window.location.origin}/app/invoices/${id}\n📥 PDF: ${pdfUrl}\n\nBest regards,\n${org?.name || 'Our Company'}`
+        const body = `Dear ${custName},\n\nPlease find your tax invoice below:\n\nInvoice No: ${invNum}\nTotal Amount: ₹${total}\n\n📄 View: ${window.location.origin}/app/invoices/${id}\n\nBest regards,\n${org?.name || 'Our Company'}`
         window.open(`mailto:${emailTo}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank')
       }
     } catch (err) { alert('Email share failed: ' + err.message) }
@@ -211,13 +237,13 @@ th,td { padding:6px 10px; }
   const fontFamily = org.invoice_font_family || localStorage.getItem('invoice_font_family') || localStorage.getItem('selected_font') || "'Segoe UI', Arial, sans-serif"
   const fontSize = (org.invoice_font_size || localStorage.getItem('invoice_font_size') || '10') + 'pt'
   const descSize = (org.invoice_desc_size || localStorage.getItem('invoice_desc_size') || '10') + 'pt'
-  const letterheadMm = parseInt(org.print_letterhead_mm || localStorage.getItem('print_letterhead_mm') || '0')
-  const footerMm = parseInt(org.print_footer_mm || localStorage.getItem('print_footer_mm') || '0')
+  // Invoice always uses fixed A4 layout — NO letterhead/footer spacers (those are only for Quotation)
+
 
   // ═══════════════════════════════════════════
   //  SHARED DATA for both layouts
   // ═══════════════════════════════════════════
-  const shared = { inv, items, org, invNum, isPaid, placeOfSupply, invoiceDate, totalQty, isPrintIntraState, totalCgst, totalSgst, totalIgst, totalTax, hsnMap, qrUrl, custGstin, custStateCode, orgStateCode, fontFamily, fontSize, descSize, letterheadMm, footerMm, boldOn, fmt }
+  const shared = { inv, items, org, invNum, isPaid, placeOfSupply, invoiceDate, totalQty, isPrintIntraState, totalCgst, totalSgst, totalIgst, totalTax, hsnMap, qrUrl, custGstin, custStateCode, orgStateCode, fontFamily, fontSize, descSize, boldOn, fmt }
 
   return (
     <div className="space-y-4">
@@ -243,7 +269,7 @@ th,td { padding:6px 10px; }
 
         <BoldToggle />
         <button onClick={handlePrint} className="btn-secondary flex items-center gap-2"><Printer size={16} /> Print</button>
-        <button onClick={() => handleAction('download')} className="btn-secondary flex items-center gap-2"><Download size={16} /> PDF</button>
+        <button onClick={handleDownloadPDF} className="btn-secondary flex items-center gap-2"><Download size={16} /> PDF</button>
 
         <div className="relative">
           <button onClick={() => setShareOpen(!shareOpen)} className="btn-secondary flex items-center gap-2"><Share2 size={16} /> Share</button>
@@ -280,7 +306,7 @@ th,td { padding:6px 10px; }
 /* ═══════════════════════════════════════════════════════════════
    PRO LAYOUT — Dark Navy Header, Accent Stripes, Modern
    ═══════════════════════════════════════════════════════════════ */
-function ProLayout({ inv, items, org, invNum, isPaid, placeOfSupply, invoiceDate, totalQty, isPrintIntraState, totalCgst, totalSgst, totalIgst, totalTax, hsnMap, qrUrl, custGstin, custStateCode, orgStateCode, fontFamily, fontSize, descSize, letterheadMm, footerMm, boldOn, fmt }) {
+function ProLayout({ inv, items, org, invNum, isPaid, placeOfSupply, invoiceDate, totalQty, isPrintIntraState, totalCgst, totalSgst, totalIgst, totalTax, hsnMap, qrUrl, custGstin, custStateCode, orgStateCode, fontFamily, fontSize, descSize, boldOn, fmt }) {
   const NAVY = '#0d1b2a'
   const B = `1.5px solid ${NAVY}`
   const DIVIDER = '1.5px solid #ccc'
@@ -288,8 +314,6 @@ function ProLayout({ inv, items, org, invNum, isPaid, placeOfSupply, invoiceDate
   return (
     <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily, fontSize, maxWidth: 900, margin: '0 auto', background: '#fff', border: `2px solid ${NAVY}`, color: '#000', fontWeight: 600, WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact', padding: '0 8px' }}>
 
-      {/* Letterhead top spacer */}
-      {letterheadMm > 0 && <div style={{ height: letterheadMm + 'mm', flexShrink: 0 }}></div>}
       {/* ═══ HEADER BAR — B&W print-safe: dark text, light bg, navy borders ═══ */}
       <div style={{ padding: '16px 24px', display: 'flex', alignItems: 'center', gap: 16, background: '#f5f7fa', borderTop: `4px solid ${NAVY}`, borderBottom: `2px solid ${NAVY}` }}>
         <div style={{ width: 68, height: 68, flexShrink: 0, borderRadius: 6, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${NAVY}`, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
@@ -568,7 +592,6 @@ function ProLayout({ inv, items, org, invNum, isPaid, placeOfSupply, invoiceDate
       <div style={{ height: 3, background: 'linear-gradient(90deg, #06b6d4, #3b82f6, #8b5cf6, #06b6d4)' }} />
 
       {/* Footer bottom spacer */}
-      {footerMm > 0 && <div style={{ height: footerMm + 'mm', flexShrink: 0 }}></div>}
       {/* PAGE NOTE */}
       <div style={{ textAlign: 'center', padding: '8px 20px', fontSize: 10, color: '#999', borderTop: B, fontWeight: 600, letterSpacing: 0.5 }}>
         PAGE 1 / 1 &nbsp;•&nbsp; This is a computer generated invoice.
@@ -580,14 +603,13 @@ function ProLayout({ inv, items, org, invNum, isPaid, placeOfSupply, invoiceDate
 /* ═══════════════════════════════════════════════════════════════
    CLASSIC LAYOUT — Original HUL/ITC style, all-black borders
    ═══════════════════════════════════════════════════════════════ */
-function ClassicLayout({ inv, items, org, invNum, isPaid, placeOfSupply, invoiceDate, totalQty, isPrintIntraState, totalCgst, totalSgst, totalIgst, totalTax, hsnMap, qrUrl, custGstin, custStateCode, orgStateCode, fontFamily, fontSize, descSize, letterheadMm, footerMm, boldOn, fmt }) {
+function ClassicLayout({ inv, items, org, invNum, isPaid, placeOfSupply, invoiceDate, totalQty, isPrintIntraState, totalCgst, totalSgst, totalIgst, totalTax, hsnMap, qrUrl, custGstin, custStateCode, orgStateCode, fontFamily, fontSize, descSize, boldOn, fmt }) {
   const B = '1.5px solid #1a1a1a'
 
   return (
     <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily, fontSize, maxWidth: 900, margin: '0 auto', background: '#fff', border: B, color: '#000', fontWeight: 600, WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact', padding: '0 8px' }}>
 
       {/* Letterhead top spacer */}
-      {letterheadMm > 0 && <div style={{ height: letterheadMm + 'mm', flexShrink: 0 }}></div>}
       {/* TAX INVOICE TITLE */}
       <div style={{ textAlign: 'center', padding: '14px 0 8px', position: 'relative', borderBottom: B }}>
         <h1 style={{ fontSize: 22, letterSpacing: 6, margin: 0, fontWeight: 900, color: '#000' }}>TAX INVOICE</h1>
@@ -864,7 +886,6 @@ function ClassicLayout({ inv, items, org, invNum, isPaid, placeOfSupply, invoice
       </div>
 
       {/* Footer bottom spacer */}
-      {footerMm > 0 && <div style={{ height: footerMm + 'mm', flexShrink: 0 }}></div>}
       {/* PAGE NOTE */}
       <div style={{ textAlign: 'left', padding: '8px 20px', fontSize: '11.5px', color: '#000', borderTop: B, fontWeight: 600 }}>
         Page 1 / 1 &nbsp; This is a computer generated invoice.
