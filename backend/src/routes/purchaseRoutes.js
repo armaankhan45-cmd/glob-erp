@@ -1,8 +1,28 @@
 const express = require('express');
 const router = express.Router();
 const getDb = require('../config/db');
-const { auth } = require('../middleware/auth');
+const { auth, canWrite } = require('../middleware/auth');
 const auditLog = require('../middleware/auditLog');
+
+const PURCHASE_COLUMNS = [
+  'bill_number', 'supplier_name', 'supplier_gstin', 'bill_date',
+  'subtotal', 'cgst_amount', 'sgst_amount', 'igst_amount',
+  'discount', 'round_off', 'total_amount', 'payment_status', 'notes'
+];
+
+const PURCHASE_ITEM_COLUMNS = [
+  'description', 'hsn_code', 'quantity', 'unit', 'rate',
+  'cgst_rate', 'sgst_rate', 'igst_rate', 'amount'
+];
+
+function sanitizeDates(data) {
+  const dateFields = ['bill_date'];
+  const clean = { ...data };
+  dateFields.forEach(f => {
+    if (clean[f] === '' || clean[f] === undefined) clean[f] = null;
+  });
+  return clean;
+}
 
 router.get('/', auth, async (req, res) => {
   try {
@@ -35,17 +55,24 @@ router.get('/:id', auth, async (req, res) => {
   }
 });
 
-router.post('/', auth, async (req, res) => {
+router.post('/', auth, canWrite, async (req, res) => {
   try {
     const db = getDb();
-    const { items, ...data } = req.body;
-    data.organization_id = req.user.organization_id;
-    const [purchase] = await db('purchase_bills').insert(data).returning('id');
+    const { items, ...rawData } = req.body;
+    const data = { organization_id: req.user.organization_id };
+    PURCHASE_COLUMNS.forEach(col => { if (rawData[col] !== undefined) data[col] = rawData[col]; });
+    const cleanData = sanitizeDates(data);
+    const [purchase] = await db('purchase_bills').insert(cleanData).returning('id');
     const pId = purchase.id || purchase;
     if (items && items.length > 0) {
-      await db('purchase_bill_items').insert(items.map(i => ({ ...i, purchase_id: pId })));
+      const itemRows = items.map(i => {
+        const row = { purchase_id: pId };
+        PURCHASE_ITEM_COLUMNS.forEach(col => { if (i[col] !== undefined) row[col] = i[col]; });
+        return row;
+      });
+      await db('purchase_bill_items').insert(itemRows);
     }
-    await auditLog(req.user.id, req.user.organization_id, 'CREATE', 'purchase_bills', pId, null, data, req.ip);
+    await auditLog(req.user.id, req.user.organization_id, 'CREATE', 'purchase_bills', pId, null, cleanData, req.ip);
     res.status(201).json({ success: true, purchase: { id: pId } });
   } catch (err) {
     console.error('Create purchase error:', err);
@@ -53,18 +80,26 @@ router.post('/', auth, async (req, res) => {
   }
 });
 
-router.put('/:id', auth, async (req, res) => {
+router.put('/:id', auth, canWrite, async (req, res) => {
   try {
     const db = getDb();
-    const { items, ...data } = req.body;
+    const { items, ...rawData } = req.body;
     const old = await db('purchase_bills').where({ id: req.params.id, organization_id: req.user.organization_id }).first();
     if (!old) return res.status(404).json({ success: false, msg: 'Not found' });
-    await db('purchase_bills').where({ id: req.params.id }).update(data);
+    const data = {};
+    PURCHASE_COLUMNS.forEach(col => { if (rawData[col] !== undefined) data[col] = rawData[col]; });
+    const cleanData = sanitizeDates(data);
+    await db('purchase_bills').where({ id: req.params.id }).update(cleanData);
     await db('purchase_bill_items').where({ purchase_id: req.params.id }).del();
     if (items && items.length > 0) {
-      await db('purchase_bill_items').insert(items.map(i => ({ ...i, purchase_id: req.params.id })));
+      const itemRows = items.map(i => {
+        const row = { purchase_id: req.params.id };
+        PURCHASE_ITEM_COLUMNS.forEach(col => { if (i[col] !== undefined) row[col] = i[col]; });
+        return row;
+      });
+      await db('purchase_bill_items').insert(itemRows);
     }
-    await auditLog(req.user.id, req.user.organization_id, 'UPDATE', 'purchase_bills', req.params.id, old, data, req.ip);
+    await auditLog(req.user.id, req.user.organization_id, 'UPDATE', 'purchase_bills', req.params.id, old, cleanData, req.ip);
     res.json({ success: true, msg: 'Purchase updated' });
   } catch (err) {
     console.error('Update purchase error:', err);
@@ -72,7 +107,7 @@ router.put('/:id', auth, async (req, res) => {
   }
 });
 
-router.delete('/:id', auth, async (req, res) => {
+router.delete('/:id', auth, canWrite, async (req, res) => {
   try {
     const db = getDb();
     const purchase = await db('purchase_bills').where({ id: req.params.id, organization_id: req.user.organization_id }).first();
