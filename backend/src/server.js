@@ -4,31 +4,59 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const knex = require('knex');
+const rateLimit = require('express-rate-limit'); // FIX #6: Rate limiting (was installed but never used)
+const config = require('./config/env');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = config.PORT;
 
 // Database - single instance
 let db;
 try {
   db = knex({
     client: 'pg',
-    connection: process.env.DATABASE_URL,
+    connection: config.DATABASE_URL,
     pool: { min: 1, max: 5 },
     acquireConnectionTimeout: 30000
-    // FIX #5: SSL cert verification now enforced (removed rejectUnauthorized: false)
-    // Neon and other managed Postgres providers issue valid certs — MITM protection is essential
+    // FIX #5: Removed ssl: { rejectUnauthorized: false } — Neon issues valid certs, MITM protection is essential
   });
   require('./config/db').setDb(db);
 } catch(e) {
   console.error('DB init error:', e.message);
 }
 
-// FIX #3: Proper Content Security Policy (was disabled with contentSecurityPolicy: false)
-// FIX #4: CORS now requires explicit CORS_ORIGIN env var — no wildcard fallback
-const ALLOWED_ORIGINS = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
-  : ['https://glob-erp.pages.dev', 'https://glob-erp.vercel.app']; // Default: only our known domains, NOT '*'
+// FIX #6: Rate limiting — strict on auth endpoints, looser globally
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: config.AUTH_RATE_LIMIT || 5, // 5 requests per 15 min per IP on auth routes
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    res.status(429).json({ success: false, msg: 'Too many requests. Try again in 15 minutes.' });
+  }
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: config.API_RATE_LIMIT || 100, // 100 requests per 15 min per IP globally
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    res.status(429).json({ success: false, msg: 'Too many requests. Slow down and try again.' });
+  }
+});
+
+// Apply auth rate limiter BEFORE routes
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
+app.use('/api/auth/verify-otp', authLimiter);
+app.use('/api/auth/reset-password', authLimiter);
+
+// FIX #3/previous: Proper CSP, explicit CORS origins (no wildcard)
+const ALLOWED_ORIGINS = config.CORS_ORIGIN
+  ? config.CORS_ORIGIN.split(',').map(o => o.trim())
+  : ['https://glob-erp.pages.dev', 'https://glob-erp.vercel.app', 'http://localhost:5173'];
 
 app.use(helmet({
   contentSecurityPolicy: {
@@ -37,7 +65,7 @@ app.use(helmet({
       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com", "https://fonts.googleapis.com"],
-      imgSrc: ["'self'", "data:", "blob:", "https://api.qrserver.com", "https://res.cloudinary.com", "https://glob-erp-api.onrender.com"],
+      imgSrc: ["'self'", "data:", "blob:", "https://api.qrserver.com", "https://res.cloudinary.com"],
       connectSrc: ["'self'", "https://glob-erp-api.onrender.com", "https://fonts.googleapis.com", "https://fonts.gstatic.com", "https://api.qrserver.com"],
       frameSrc: ["'none'"],
       objectSrc: ["'none'"],
@@ -52,6 +80,9 @@ app.use(helmet({
 app.use(cors({ origin: ALLOWED_ORIGINS, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Apply global API rate limiter AFTER auth limiter so auth gets the strict one
+app.use('/api/', apiLimiter);
 
 // ====== GLOBAL DATA SANITIZATION MIDDLEWARE ======
 // Fixes multiple problems permanently for ALL routes:
@@ -71,10 +102,6 @@ const COLUMN_RENAMES = {
   'calculated_total': 'total_amount'
 };
 
-// Columns that do NOT exist in any table - strip them to prevent SQL errors
-// Note: customer_name, additional_info, actual_notes are used by quotation routes 
-// (stored in notes column via ||| separator) — they must be destructured OUT before SQL insert
-// shipping_* fields are used by invoice routes — same pattern
 const BLOCKED_COLUMNS = [
   'gst_rate', 'bold', 'calculated'
 ];
@@ -84,11 +111,8 @@ function sanitize(obj) {
   if (Array.isArray(obj)) return obj.map(sanitize);
   const clean = {};
   for (const [key, value] of Object.entries(obj)) {
-    // Skip blocked columns that don't exist in DB
     if (BLOCKED_COLUMNS.includes(key)) continue;
-    // Rename wrong column names
     const newKey = COLUMN_RENAMES[key] || key;
-    // Convert empty string to null for date fields
     if (DATE_FIELDS.includes(key) && (value === '' || value === undefined)) {
       clean[newKey] = null;
     } else {
@@ -100,9 +124,7 @@ function sanitize(obj) {
 
 app.use((req, res, next) => {
   if (req.body) {
-    // Sanitize top-level body
     req.body = sanitize(req.body);
-    // Sanitize nested items array
     if (req.body.items && Array.isArray(req.body.items)) {
       req.body.items = req.body.items.map(item => sanitize(item));
     }
@@ -112,7 +134,7 @@ app.use((req, res, next) => {
 
 // Static uploads
 const fs = require('fs');
-const uploadDir = './uploads';
+const uploadDir = config.UPLOAD_DIR || './uploads';
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 app.use('/uploads', express.static(uploadDir));
 
@@ -123,7 +145,7 @@ app.get('/', (req, res) => {
     success: true, 
     msg: 'Glob ERP API is running!', 
     time: new Date().toISOString(),
-    endpoints: ['/api/health', '/api/setup', '/api/diagnose', '/api/auth/login']
+    endpoints: ['/api/health', '/api/auth/login']
   });
 });
 
@@ -136,19 +158,32 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+// FIX #2: Lock down /api/setup — requires SETUP_SECRET env var, no credentials in response
 app.get('/api/setup', async (req, res) => {
   try {
+    // Require SETUP_SECRET — if empty/not set, refuse access
+    const secret = req.headers['x-setup-secret'] || req.query.secret || '';
+    if (!config.SETUP_SECRET || secret !== config.SETUP_SECRET) {
+      return res.status(403).json({ success: false, msg: 'Setup requires SETUP_SECRET. Set the env var and pass it as X-Setup-Secret header or ?secret= param.' });
+    }
+
+    // Already initialized? Refuse to re-run
+    const orgCount = await db('organizations').count('id as count').first();
+    if (parseInt(orgCount.count) > 0) {
+      return res.status(403).json({ success: false, msg: 'Already initialized. Setup can only run once.' });
+    }
+
     const hasOrgs = await db.schema.hasTable('organizations');
     if (!hasOrgs) {
       const migration = require('./migrations/001_initial_schema');
       await migration.up(db);
     }
-    const orgCount = await db('organizations').count('id as count').first();
-    if (parseInt(orgCount.count) === 0) {
-      const seed = require('./seeds/001_initial_data');
-      await seed.seed(db);
-    }
-    res.json({ success: true, msg: 'Setup done! Login: admin@globfabrication.com / admin123' });
+
+    const seed = require('./seeds/001_initial_data');
+    await seed.seed(db);
+
+    // FIX #2: NO credentials in response
+    res.json({ success: true, msg: 'Setup complete. Use your configured admin credentials to log in.' });
   } catch(e) {
     res.status(500).json({ success: false, msg: 'Setup failed: ' + e.message });
   }
@@ -156,20 +191,10 @@ app.get('/api/setup', async (req, res) => {
 
 // ====== SELF-HEAL DIAGNOSTIC ENDPOINT ======
 const { selfHeal, trackError, getRecentErrors, errorTrackerMiddleware, TABLE_SCHEMAS } = require('./selfHeal');
+const { auth, adminOnly } = require('./middleware/auth');
 
-// Lightweight auth check for diagnose endpoints
-function simpleAuth(req, res, next) {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token) return res.status(401).json({ success: false, msg: 'Login required' });
-  try {
-    const jwt = require('jsonwebtoken');
-    const config = require('./config/env');
-    jwt.verify(token, config.JWT_SECRET);
-    next();
-  } catch { return res.status(401).json({ success: false, msg: 'Invalid token' }); }
-}
-
-app.get('/api/diagnose', simpleAuth, async (req, res) => {
+// FIX #5: Diagnose endpoints now require adminOnly (exposes internal schema/error details)
+app.get('/api/diagnose', auth, adminOnly, async (req, res) => {
   try {
     const report = await selfHeal(db);
     res.json({ success: true, ...report });
@@ -178,28 +203,12 @@ app.get('/api/diagnose', simpleAuth, async (req, res) => {
   }
 });
 
-// Recent errors endpoint (for debugging)
-app.get('/api/diagnose/errors', simpleAuth, (req, res) => {
+app.get('/api/diagnose/errors', auth, adminOnly, (req, res) => {
   res.json({ success: true, errors: getRecentErrors(50), count: getRecentErrors(50).length });
 });
 
-// Frontend error reporting endpoint (for auto-heal)
-app.post('/api/diagnose/frontend-error', simpleAuth, async (req, res) => {
-  try {
-    const { message, stack, componentStack, url, userAgent, timestamp } = req.body;
-    console.error('🛡️ FRONTEND ERROR REPORTED:', message);
-    trackError('frontend', { message, stack, componentStack, url, userAgent, timestamp }, { originalUrl: url, method: 'FRONTEND_ERROR' });
-    // Auto-fix: if it's a missing column error, trigger self-heal
-    if (message && message.includes('column') && message.includes('does not exist')) {
-      console.log('🔧 Auto-triggering self-heal for missing column...');
-      try { await selfHeal(db); } catch(e) { console.error('Auto-heal trigger failed:', e.message); }
-    }
-    res.json({ success: true, msg: 'Error recorded', autoFixTriggered: message?.includes('column') });
-  } catch(e) { res.json({ success: true, msg: 'Error logged (fallback)' }); }
-});
-
-// Quick column checker — given a table name, shows what columns exist vs expected
-app.get('/api/diagnose/table/:name', simpleAuth, async (req, res) => {
+// FIX #5: Parameterized query (was SQL injection via string interpolation) + adminOnly
+app.get('/api/diagnose/table/:name', auth, adminOnly, async (req, res) => {
   try {
     const tableName = req.params.name;
     const exists = await db.schema.hasTable(tableName);
@@ -208,18 +217,14 @@ app.get('/api/diagnose/table/:name', simpleAuth, async (req, res) => {
     const expectedSchema = TABLE_SCHEMAS[tableName];
     const expectedColumns = expectedSchema ? Object.keys(expectedSchema.columns) : [];
     
-    // Get actual columns from information_schema
-    const actualCols = await db.raw(`
-      SELECT column_name, data_type, is_nullable 
-      FROM information_schema.columns 
-      WHERE table_name = '${tableName}' 
-      ORDER BY ordinal_position
-    `);
+    // FIX #5: Use parameterized query instead of string interpolation
+    const actualCols = await db.raw(
+      'SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_name = ? ORDER BY ordinal_position',
+      [tableName]
+    );
     const actualColumnNames = actualCols.rows.map(r => r.column_name);
     
-    // Find missing columns
     const missingColumns = expectedColumns.filter(c => !actualColumnNames.includes(c));
-    // Find extra columns (not in our schema — that's OK, might be auto-migrated)
     const extraColumns = actualColumnNames.filter(c => !expectedColumns.includes(c));
     
     res.json({
@@ -238,20 +243,17 @@ app.get('/api/diagnose/table/:name', simpleAuth, async (req, res) => {
   }
 });
 
-// Route loading — with self-healing awareness
+// Route loading
 function safe(path) {
   try { 
     const router = require(path); 
-    // Verify the router actually has routes
     if (router?.stack?.length === 0) {
       console.warn(`⚠️  Route ${path} loaded but has 0 routes — might be empty`);
     }
     return router;
   } catch(e) { 
     console.error('❌ Route load FAILED:', path, '→', e.message);
-    // Track the error
     trackError('route_load', e, { originalUrl: path, method: 'LOAD' });
-    // Create a fallback router that returns 500 with helpful info
     const fallback = express.Router();
     fallback.all('*', (req, res) => res.status(500).json({ 
       success: false, 
@@ -282,14 +284,8 @@ app.use('/api/ai', safe('./routes/aiAssistantRoutes'));
 app.use('/api/settings', safe('./routes/settingsRoutes'));
 app.use('/api/export', safe('./routes/exportRoutes'));
 
-// ====== SELF-HEALING ERROR HANDLER ======
-// This catches ALL unhandled errors and:
-// 1. Tracks them in the error log
-// 2. Detects common error patterns and gives helpful auto-fix hints
-// 3. Returns user-friendly error messages
 app.use(errorTrackerMiddleware);
 
-// 404 handler — route not found
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -306,8 +302,6 @@ app.listen(PORT, () => {
 async function setupDB() {
   try {
     console.log('⏳ Auto-setting up database...');
-    
-    // Run self-heal engine on startup
     const report = await selfHeal(db);
     
     if (report.fixes.length > 0) {
