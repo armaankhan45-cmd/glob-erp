@@ -46,37 +46,18 @@ export default function Login() {
 
   return (
     <main className="flex min-h-screen w-full p-2 lg:h-screen lg:overflow-hidden lg:p-4" style={{ background: '#06080f' }}>
-      {/* Aurora Left Panel - Enhanced */}
-      <div className="hidden lg:flex w-[52%] relative flex-col items-center justify-end pb-32 px-12 rounded-3xl overflow-hidden" style={{ background: '#06080f' }}>
-        {/* Animated Orbs */}
-        <div className="orb" style={{ width: 400, height: 400, background: 'radial-gradient(circle, rgba(6,182,212,0.3), transparent 70%)', top: '5%', left: '5%', animation: 'orbMove1 20s ease-in-out infinite', position: 'absolute', borderRadius: '50%', filter: 'blur(80px)' }}></div>
-        <div className="orb" style={{ width: 350, height: 350, background: 'radial-gradient(circle, rgba(79,143,255,0.25), transparent 70%)', top: '25%', right: '0%', animation: 'orbMove2 25s ease-in-out infinite', position: 'absolute', borderRadius: '50%', filter: 'blur(80px)' }}></div>
-        <div className="orb" style={{ width: 300, height: 300, background: 'radial-gradient(circle, rgba(168,85,247,0.2), transparent 70%)', bottom: '5%', left: '25%', animation: 'orbMove1 22s ease-in-out infinite reverse', position: 'absolute', borderRadius: '50%', filter: 'blur(80px)' }}></div>
-        {/* Grid pattern */}
-        <div className="absolute inset-0" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px)', backgroundSize: '60px 60px', maskImage: 'radial-gradient(ellipse at center, black 30%, transparent 70%)' }}></div>
-        {/* Particles */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          {Array.from({length: 20}).map((_, i) => (
-            <div key={i} style={{
-              position: 'absolute',
-              width: Math.random() * 3 + 1 + 'px',
-              height: Math.random() * 3 + 1 + 'px',
-              background: i % 3 === 0 ? 'rgba(6,182,212,0.4)' : i % 3 === 1 ? 'rgba(79,143,255,0.3)' : 'rgba(168,85,247,0.3)',
-              borderRadius: '50%',
-              left: Math.random() * 100 + '%',
-              top: Math.random() * 100 + '%',
-              animation: `float ${3 + Math.random() * 4}s ease-in-out infinite`,
-              animationDelay: `${Math.random() * 3}s`,
-            }}></div>
-          ))}
-        </div>
+      {/* Aurora Left Panel - Professional static gradient */}
+      <div className="hidden lg:flex w-[52%] relative flex-col items-center justify-end pb-32 px-12 rounded-3xl overflow-hidden" style={{ background: 'linear-gradient(135deg, #06080f 0%, #0d1a2d 40%, #1a0a2e 70%, #06080f 100%)' }}>
+        {/* Static subtle gradient layers */}
+        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 30% 40%, rgba(6,182,212,0.08), transparent 60%)' }}></div>
+        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 70% 30%, rgba(79,143,255,0.06), transparent 60%)' }}></div>
         <div className="z-10 w-full max-w-xs space-y-8">
           <div className="flex items-center gap-2.5 mb-8">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent-light))', boxShadow: '0 0 15px rgba(var(--accent-rgb), 0.3)', padding: 0, minWidth: 32, height: 32 }}><span className="text-white font-extrabold text-sm">G</span></div>
             <span className="text-xl font-bold tracking-tight text-white">Glob ERP</span>
           </div>
-          <h2 className="text-4xl font-bold tracking-tight text-white">Welcome to <span className="glow-text">Nebula</span></h2>
-          <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.4)', paddingLeft: '1rem' }}>Your fabrication business, powered by AI and modern design.</p>
+          <h2 className="text-4xl font-bold tracking-tight text-white">GST-Compliant <span style={{ color: 'var(--accent)' }}>Fabrication ERP</span></h2>
+          <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.4)', paddingLeft: '1rem' }}>Invoicing, quotations, purchase bills, and GST reports — all in one place.</p>
           <div className="space-y-2 mt-6">
             <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl btn-primary" style={{ animation: 'slideUp 0.5s ease-out 0.2s both' }}><div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: 'rgba(0,0,0,0.2)' }}>1</div><span className="text-sm font-medium">Sign in to your account</span></div>
             <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)', animation: 'slideUp 0.5s ease-out 0.4s both' }}><div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: 'rgba(255,255,255,0.1)' }}>2</div><span className="text-sm font-medium">Configure your workspace</span></div>
@@ -113,8 +94,8 @@ export default function Login() {
             </div>
           )}
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div><label className="block text-sm font-medium text-white mb-1.5">Email</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="admin@globfabrication.com" className="input-field" required /></div>
-            <div><label className="block text-sm font-medium text-white mb-1.5">Password</label><div className="relative"><input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" className="input-field" style={{ paddingRight: '2.75rem' }} required /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 transition-all duration-200 hover:scale-110" style={{ color: 'rgba(255,255,255,0.3)' }}>{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button></div><p className="text-xs mt-1.5" style={{ color: 'rgba(255,255,255,0.2)' }}>Requires at least 8 symbols.</p></div>
+            <div><label className="block text-sm font-medium text-white mb-1.5">Email</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" className="input-field" required /></div>
+            <div><label className="block text-sm font-medium text-white mb-1.5">Password</label><div className="relative"><input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" className="input-field" style={{ paddingRight: '2.75rem' }} required /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 transition-all duration-200 hover:scale-110" style={{ color: 'rgba(255,255,255,0.3)' }}>{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button></div><p className="text-xs mt-1.5" style={{ color: 'rgba(255,255,255,0.2)' }}>Minimum 6 characters.</p></div>
             <button type="submit" disabled={loading} className="w-full h-14 font-semibold rounded-xl mt-4 transition-all duration-150 disabled:opacity-50 flex items-center justify-center gap-2 text-white btn-primary">
               <LogIn size={18} />{loading ? 'Signing in...' : 'Sign In'}
             </button>
