@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { useTheme } from '../main'
+import { useTheme } from '../context/ThemeContext'
 import { Bell, ChevronDown, Search, X, Sun, Moon } from 'lucide-react'
 
 export default function TopBar() {
@@ -11,7 +11,6 @@ export default function TopBar() {
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening'
-  const emoji = hour < 12 ? '🌅' : hour < 17 ? '☀️' : '🌙'
 
   return (
     <header className="h-14 flex items-center justify-between px-5"
@@ -19,7 +18,7 @@ export default function TopBar() {
       <div className="flex items-center gap-3">
         <div>
           <h2 className="text-sm font-bold tracking-tight text-white">
-            {emoji} {greeting}, <span className="glow-text">{user?.name?.split(' ')[0] || 'Admin'}</span>
+            {greeting}, <span className="glow-text">{user?.name?.split(' ')[0] || 'Admin'}</span>
           </h2>
           <p className="text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>
             {user?.organization?.name || 'Glob ERP'}
