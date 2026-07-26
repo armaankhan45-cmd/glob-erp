@@ -52,11 +52,24 @@ router.get('/:id', auth, async (req, res) => {
   }
 });
 
-// Create customer
+// Create customer — FIX #4: explicit field whitelist to prevent mass-assignment
 router.post('/', auth, async (req, res) => {
   try {
     const db = getDb();
-    const data = { ...req.body, organization_id: req.user.organization_id };
+    const { name, gstin, address, city, state, state_code, pincode, phone, email } = req.body;
+    // Only allow these fields — strip id/organization_id from client input
+    const data = {
+      name: name || '',
+      gstin: gstin || '',
+      address: address || '',
+      city: city || '',
+      state: state || '',
+      state_code: state_code || '',
+      pincode: pincode || '',
+      phone: phone || '',
+      email: email || '',
+      organization_id: req.user.organization_id  // Always from authenticated user, never from client
+    };
     
     const [customer] = await db('customers').insert(data).returning('id');
     await auditLog(req.user.id, req.user.organization_id, 'CREATE', 'customers', customer.id || customer, null, data, req.ip);
@@ -68,15 +81,19 @@ router.post('/', auth, async (req, res) => {
   }
 });
 
-// Update customer
+// Update customer — FIX #4: explicit whitelist, strip id and organization_id
 router.put('/:id', auth, async (req, res) => {
   try {
     const db = getDb();
     const old = await db('customers').where({ id: req.params.id, organization_id: req.user.organization_id }).first();
     if (!old) return res.status(404).json({ success: false, msg: 'Customer not found' });
     
-    await db('customers').where({ id: req.params.id }).update(req.body);
-    await auditLog(req.user.id, req.user.organization_id, 'UPDATE', 'customers', req.params.id, old, req.body, req.ip);
+    // Only allow updatable fields — id and organization_id are NEVER updatable from client input
+    const { name, gstin, address, city, state, state_code, pincode, phone, email } = req.body;
+    const updateData = { name, gstin, address, city, state, state_code, pincode, phone, email };
+    
+    await db('customers').where({ id: req.params.id }).update(updateData);
+    await auditLog(req.user.id, req.user.organization_id, 'UPDATE', 'customers', req.params.id, old, updateData, req.ip);
     
     res.json({ success: true, msg: 'Customer updated' });
   } catch (err) {
