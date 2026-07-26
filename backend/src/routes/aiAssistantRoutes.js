@@ -266,16 +266,7 @@ const TOOL_DEFINITIONS = [
     description: "Check Vercel deployment status for the frontend. Shows latest build status and URL.",
     parameters: { type: "OBJECT", properties: {} }
   },
-  {
-    name: "restart_server",
-    description: "Restart the backend server. Use with caution — causes brief downtime. Requires admin confirmation.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        confirm: { type: "BOOLEAN", description: "Set to true only after user explicitly confirms" }
-      }
-    }
-  },
+  // FIX #9: restart_server removed from AI tools — destructive ops need real server-side confirmation, not LLM-decided chat text
   {
     name: "get_env_vars",
     description: "List environment variable names (not values) configured on the server. Useful for checking which API keys are set.",
@@ -561,21 +552,7 @@ async function executeTool(name, args, orgId) {
       };
     }
 
-    case 'restart_server': {
-      if (!args.confirm) {
-        return { 
-          needsConfirmation: true, 
-          message: '⚠️ This will restart the server causing brief downtime. Type "yes, restart" to confirm.' 
-        };
-      }
-      // We can't actually restart from within the process, but we can trigger a graceful shutdown
-      // which Render will detect and restart
-      setTimeout(() => process.exit(0), 2000);
-      return { 
-        success: true, 
-        message: '🔄 Server restart initiated. The server will restart in 2 seconds. Wait ~30 seconds for it to come back up.' 
-      };
-    }
+    // FIX #9: restart_server case removed — no LLM-triggered process control
 
     case 'get_env_vars': {
       const vars = {
