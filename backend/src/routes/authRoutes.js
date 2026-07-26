@@ -8,16 +8,63 @@ const config = require('../config/env');
 const { auth, adminOnly } = require('../middleware/auth');
 const auditLog = require('../middleware/auditLog');
 
+// FIX #7: Joi validation schemas for auth routes
+const Joi = require('joi');
+
+const registerSchema = Joi.object({
+  orgName: Joi.string().min(2).max(200).required(),
+  name: Joi.string().min(2).max(100).required(),
+  email: Joi.string().email().required(),
+  password: Joi.string().min(6).max(100).required(),
+  gstin: Joi.string().max(15).allow('', null),
+  address: Joi.string().max(500).allow('', null),
+  city: Joi.string().max(100).allow('', null),
+  state: Joi.string().max(100).allow('', null),
+  state_code: Joi.string().max(2).allow('', null),
+  pincode: Joi.string().max(10).allow('', null),
+  phone: Joi.string().max(20).allow('', null),
+});
+
+const loginSchema = Joi.object({
+  email: Joi.string().email().required(),
+  password: Joi.string().required(),
+});
+
+const forgotPasswordSchema = Joi.object({
+  email: Joi.string().email().required(),
+});
+
+const verifyOtpSchema = Joi.object({
+  email: Joi.string().email().required(),
+  otp: Joi.string().length(6).required(),
+});
+
+const resetPasswordSchema = Joi.object({
+  resetToken: Joi.string().length(64).required(), // FIX #1: require actual token, not userId
+  newPassword: Joi.string().min(6).max(100).required(),
+});
+
+const changePasswordSchema = Joi.object({
+  currentPassword: Joi.string().required(),
+  newPassword: Joi.string().min(6).max(100).required(),
+});
+
+const addUserSchema = Joi.object({
+  name: Joi.string().min(2).max(100).required(),
+  email: Joi.string().email().required(),
+  password: Joi.string().min(6).max(100).required(),
+  role: Joi.string().valid('admin', 'accountant', 'viewer').default('viewer'),
+  phone: Joi.string().max(20).allow('', null),
+});
+
 // Register - creates organization + admin user
 router.post('/register', async (req, res) => {
   try {
-    const { orgName, gstin, address, city, state, state_code, pincode, phone, email, password, name } = req.body;
-    if (!orgName || !email || !password || !name) {
-      return res.status(400).json({ success: false, msg: 'Organization name, admin name, email, and password are required' });
-    }
-    if (password.length < 6) {
-      return res.status(400).json({ success: false, msg: 'Password must be at least 6 characters' });
-    }
+    // FIX #7: Validate input with Joi before touching DB
+    const { error, value } = registerSchema.validate(req.body);
+    if (error) return res.status(400).json({ success: false, msg: error.details[0].message });
+
+    const { orgName, gstin, address, city, state, state_code, pincode, phone, email, password, name } = value;
 
     const db = getDb();
 
@@ -29,7 +76,7 @@ router.post('/register', async (req, res) => {
 
     const hash = await bcrypt.hash(password, 12);
 
-    // Create organization
+    // Create organization — FIX #4: explicit whitelist only
     const [org] = await db('organizations').insert({
       name: orgName,
       gstin: gstin || '',
@@ -44,7 +91,7 @@ router.post('/register', async (req, res) => {
 
     const orgId = org.id || org;
 
-    // Create admin user
+    // Create admin user — FIX #4: explicit whitelist
     const [user] = await db('users').insert({
       organization_id: orgId,
       name,
@@ -84,10 +131,11 @@ router.post('/register', async (req, res) => {
 // Login
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ success: false, msg: 'Email and password required' });
-    }
+    // FIX #7: Validate input with Joi
+    const { error, value } = loginSchema.validate(req.body);
+    if (error) return res.status(400).json({ success: false, msg: error.details[0].message });
+
+    const { email, password } = value;
 
     const db = getDb();
     const user = await db('users').where({ email }).first();
@@ -130,8 +178,11 @@ router.post('/login', async (req, res) => {
 // Forgot password - generate OTP
 router.post('/forgot-password', async (req, res) => {
   try {
+    // FIX #7: Validate input with Joi
+    const { error } = forgotPasswordSchema.validate(req.body);
+    if (error) return res.status(400).json({ success: false, msg: error.details[0].message });
+
     const { email } = req.body;
-    if (!email) return res.status(400).json({ success: false, msg: 'Email required' });
 
     const db = getDb();
     const user = await db('users').where({ email }).first();
@@ -173,9 +224,13 @@ router.post('/forgot-password', async (req, res) => {
   }
 });
 
-// Verify OTP
+// Verify OTP — FIX #1: Now generates a hashed reset_token stored in DB
 router.post('/verify-otp', async (req, res) => {
   try {
+    // FIX #7: Validate input with Joi
+    const { error } = verifyOtpSchema.validate(req.body);
+    if (error) return res.status(400).json({ success: false, msg: error.details[0].message });
+
     const { email, otp } = req.body;
     const db = getDb();
     const user = await db('users').where({ email, reset_otp: otp }).first();
@@ -183,28 +238,60 @@ router.post('/verify-otp', async (req, res) => {
       return res.status(400).json({ success: false, msg: 'Invalid or expired OTP' });
     }
 
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    await db('users').where({ id: user.id }).update({ reset_otp: null });
+    // FIX #1: Generate a cryptographically random reset token, hash it, store in DB
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const tokenExpires = Date.now() + 10 * 60 * 1000; // 10 min expiry
 
-    res.json({ success: true, resetToken, userId: user.id });
+    // Clear OTP fields, store hashed reset token + expiry
+    await db('users').where({ id: user.id }).update({
+      reset_otp: null,
+      reset_expires: null,
+      reset_token: hashedToken,
+      reset_token_expires: tokenExpires
+    });
+
+    // Return the RAW (unhashed) token to client — only the hashed version is stored
+    res.json({ success: true, resetToken: rawToken });
   } catch (err) {
     console.error('OTP verify error:', err);
     res.status(500).json({ success: false, msg: 'Verification failed' });
   }
 });
 
-// Reset password
+// Reset password — FIX #1: Requires resetToken (not userId), validates hashed token, single-use
 router.post('/reset-password', async (req, res) => {
   try {
-    const { userId, newPassword } = req.body;
-    if (!userId || !newPassword || newPassword.length < 6) {
-      return res.status(400).json({ success: false, msg: 'Invalid input' });
-    }
+    // FIX #7: Validate input with Joi
+    const { error, value } = resetPasswordSchema.validate(req.body);
+    if (error) return res.status(400).json({ success: false, msg: error.details[0].message });
+
+    const { resetToken, newPassword } = value;
 
     const db = getDb();
+
+    // FIX #1: Hash the received token and look up user by hashed token
+    const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+    const user = await db('users').where({ reset_token: hashedToken }).first();
+
+    if (!user) {
+      // FIX #1: Generic error — don't leak whether a token exists
+      return res.status(400).json({ success: false, msg: 'Invalid or expired reset token' });
+    }
+
+    // Check token hasn't expired
+    if (!user.reset_token_expires || user.reset_token_expires < Date.now()) {
+      // Immediately invalidate expired token
+      await db('users').where({ id: user.id }).update({ reset_token: null, reset_token_expires: null });
+      return res.status(400).json({ success: false, msg: 'Invalid or expired reset token' });
+    }
+
     const hash = await bcrypt.hash(newPassword, 12);
-    await db('users').where({ id: userId }).update({
+    // FIX #1: Immediately invalidate token so it can't be reused
+    await db('users').where({ id: user.id }).update({
       password_hash: hash,
+      reset_token: null,
+      reset_token_expires: null,
       reset_otp: null,
       reset_expires: null
     });
@@ -242,13 +329,14 @@ router.get('/me', auth, async (req, res) => {
   }
 });
 
-// Change password
+// Change password (while logged in)
 router.post('/change-password', auth, async (req, res) => {
   try {
+    // FIX #7: Validate input with Joi
+    const { error } = changePasswordSchema.validate(req.body);
+    if (error) return res.status(400).json({ success: false, msg: error.details[0].message });
+
     const { currentPassword, newPassword } = req.body;
-    if (!currentPassword || !newPassword || newPassword.length < 6) {
-      return res.status(400).json({ success: false, msg: 'Invalid input' });
-    }
 
     const db = getDb();
     const user = await db('users').where({ id: req.user.id }).first();
@@ -281,13 +369,14 @@ router.get('/users', auth, adminOnly, async (req, res) => {
   }
 });
 
-// Add user to org (admin only)
+// Add user to org (admin only) — FIX #4: explicit whitelist
 router.post('/users', auth, adminOnly, async (req, res) => {
   try {
-    const { name, email, password, role, phone } = req.body;
-    if (!name || !email || !password) {
-      return res.status(400).json({ success: false, msg: 'Name, email, password required' });
-    }
+    // FIX #7: Validate input with Joi
+    const { error, value } = addUserSchema.validate(req.body);
+    if (error) return res.status(400).json({ success: false, msg: error.details[0].message });
+
+    const { name, email, password, role, phone } = value;
 
     const db = getDb();
     const existing = await db('users').where({ email }).first();
