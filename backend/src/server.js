@@ -15,17 +15,41 @@ try {
     client: 'pg',
     connection: process.env.DATABASE_URL,
     pool: { min: 1, max: 5 },
-    acquireConnectionTimeout: 30000,
-    ssl: { rejectUnauthorized: false }
+    acquireConnectionTimeout: 30000
+    // FIX #5: SSL cert verification now enforced (removed rejectUnauthorized: false)
+    // Neon and other managed Postgres providers issue valid certs — MITM protection is essential
   });
   require('./config/db').setDb(db);
 } catch(e) {
   console.error('DB init error:', e.message);
 }
 
-// Middleware
-app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors({ origin: process.env.CORS_ORIGIN || '*', credentials: true }));
+// FIX #3: Proper Content Security Policy (was disabled with contentSecurityPolicy: false)
+// FIX #4: CORS now requires explicit CORS_ORIGIN env var — no wildcard fallback
+const ALLOWED_ORIGINS = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
+  : ['https://glob-erp.pages.dev', 'https://glob-erp.vercel.app']; // Default: only our known domains, NOT '*'
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://fonts.googleapis.com"],
+      imgSrc: ["'self'", "data:", "blob:", "https://api.qrserver.com", "https://res.cloudinary.com", "https://glob-erp-api.onrender.com"],
+      connectSrc: ["'self'", "https://glob-erp-api.onrender.com", "https://fonts.googleapis.com", "https://fonts.gstatic.com", "https://api.qrserver.com"],
+      frameSrc: ["'none'"],
+      objectSrc: ["'none'"],
+      upgradeInsecureRequests: [],
+    }
+  },
+  crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: false,
+  crossOriginResourcePolicy: false,
+}));
+
+app.use(cors({ origin: ALLOWED_ORIGINS, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
