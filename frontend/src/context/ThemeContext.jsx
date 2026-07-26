@@ -81,7 +81,7 @@ export function ThemeProvider({ children }) {
       root.style.setProperty('--text-muted', 'rgba(226,232,240,0.40)')
       root.style.setProperty('--text-secondary', 'rgba(226,232,240,0.60)')
       root.style.setProperty('--text-bright', '#f8fafc')
-      root.style.setProperty('--text-light', '#cbd5e1')
+      root.style.setProperty('--text-light', '#cbd5d1')
       root.style.setProperty('--navy', '#1e293b')
       root.classList.add('dark-mode')
       root.classList.remove('light-mode')
