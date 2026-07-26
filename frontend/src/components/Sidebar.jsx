@@ -1,22 +1,23 @@
 import { useState, useRef, useEffect } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { useTheme, THEMES } from '../main'
+import { useTheme, THEMES } from '../context/ThemeContext'
 import { LayoutDashboard, FileText, FileSpreadsheet, Users, ShoppingCart, Calculator, BarChart3, Settings, Download, RefreshCw, LogOut, Factory, Activity, Bot, Upload, Palette } from 'lucide-react'
 
+// FIX: Role-based sidebar visibility — Deploy Control & Diagnostics are admin-only
 const navItems = [
-  { label: 'Dashboard', path: '/app/dashboard', icon: LayoutDashboard, section: 'MAIN' },
-  { label: 'AI Assistant', path: '/app/ai-assistant', icon: Bot, section: 'MAIN' },
-  { label: 'GST Invoices', path: '/app/invoices', icon: FileText, section: 'SALES' },
-  { label: 'Quotations', path: '/app/quotations', icon: FileSpreadsheet, section: 'SALES' },
-  { label: 'Customers', path: '/app/customers', icon: Users, section: 'SALES' },
-  { label: 'Purchase Bills', path: '/app/purchases', icon: ShoppingCart, section: 'PURCHASE' },
-  { label: 'GST Reports', path: '/app/gst', icon: Calculator, section: 'FINANCE' },
-  { label: 'Reports', path: '/app/reports', icon: BarChart3, section: 'FINANCE' },
-  { label: 'Export Excel', path: '/app/export', icon: Download, section: 'SYSTEM' },
-  { label: 'Settings', path: '/app/settings', icon: Settings, section: 'SYSTEM' },
-  { label: 'Deploy Control', path: '/app/deploy', icon: Upload, section: 'SYSTEM' },
-  { label: 'Diagnostics', path: '/app/diagnostics', icon: Activity, section: 'SYSTEM' },
+  { label: 'Dashboard', path: '/app/dashboard', icon: LayoutDashboard, section: 'MAIN', role: 'any' },
+  { label: 'AI Assistant', path: '/app/ai-assistant', icon: Bot, section: 'MAIN', role: 'admin' },
+  { label: 'GST Invoices', path: '/app/invoices', icon: FileText, section: 'SALES', role: 'any' },
+  { label: 'Quotations', path: '/app/quotations', icon: FileSpreadsheet, section: 'SALES', role: 'any' },
+  { label: 'Customers', path: '/app/customers', icon: Users, section: 'SALES', role: 'any' },
+  { label: 'Purchase Bills', path: '/app/purchases', icon: ShoppingCart, section: 'PURCHASE', role: 'any' },
+  { label: 'GST Reports', path: '/app/gst', icon: Calculator, section: 'FINANCE', role: 'any' },
+  { label: 'Reports', path: '/app/reports', icon: BarChart3, section: 'FINANCE', role: 'any' },
+  { label: 'Export Excel', path: '/app/export', icon: Download, section: 'SYSTEM', role: 'admin' },
+  { label: 'Settings', path: '/app/settings', icon: Settings, section: 'SYSTEM', role: 'admin' },
+  { label: 'Deploy Control', path: '/app/deploy', icon: Upload, section: 'SYSTEM', role: 'admin' },
+  { label: 'Diagnostics', path: '/app/diagnostics', icon: Activity, section: 'SYSTEM', role: 'admin' },
 ]
 
 export default function Sidebar({ isOpen, onClose }) {
@@ -36,7 +37,9 @@ export default function Sidebar({ isOpen, onClose }) {
   const handleLogout = () => { logout(); navigate('/login') }
 
   const sections = {}
-  navItems.forEach(item => {
+  // FIX: Filter nav items by user role — non-admins don't see developer tools
+  const visibleItems = navItems.filter(item => item.role === 'any' || user?.role === 'admin')
+  visibleItems.forEach(item => {
     if (!sections[item.section]) sections[item.section] = []
     sections[item.section].push(item)
   })
