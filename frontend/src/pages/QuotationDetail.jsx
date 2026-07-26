@@ -340,12 +340,13 @@ th,td { padding:6px 10px; }
     setSharing(true)
     try {
       const token = localStorage.getItem('token')
-      const pdfUrl = `${api.defaults.baseURL}/quotations/${id}/pdf?token=${token}`
+      // FIX: fetch + blob, no token in URL for browser history/log safety
+      const pdfResponse = await fetch(`${api.defaults.baseURL}/quotations/${id}/pdf?token=${token}`, { headers: { Authorization: `Bearer ${token}` } })
+      const htmlBlob = await pdfResponse.blob()
       const qNum = quotation.quotation_number || ''
       const custName = quotation.customer_name || ''
       const total = fmt(quotation.total_amount)
       try {
-        const response = await fetch(pdfUrl); const htmlBlob = await response.blob()
         const file = new File([htmlBlob], `Quotation_${qNum.replace(/\//g, '-')}.html`, { type: 'text/html' })
         if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
           await navigator.share({ text: `*QUOTATION ${qNum}*\nCustomer: ${custName}\nTotal: ₹${total}`, files: [file] })
@@ -353,7 +354,7 @@ th,td { padding:6px 10px; }
         }
       } catch (e) {}
       const viewUrl = `${window.location.origin}/app/quotations/${id}`
-      const msg = `*QUOTATION ${qNum}*\nCustomer: ${custName}\nTotal: ₹${total}\n\n📄 View & Print: ${viewUrl}\n📥 Direct PDF: ${pdfUrl}`
+      const msg = `*QUOTATION ${qNum}*\nCustomer: ${custName}\nTotal: ₹${total}\n\n📄 View & Print: ${viewUrl}`
       window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
     } catch (err) { alert('Share failed: ' + err.message) }
     setShareOpen(false); setSharing(false)
@@ -362,8 +363,6 @@ th,td { padding:6px 10px; }
   const handleEmail = async () => {
     setSharing(true)
     try {
-      const token = localStorage.getItem('token')
-      const pdfUrl = `${api.defaults.baseURL}/quotations/${id}/pdf?token=${token}`
       const qNum = quotation.quotation_number || ''
       const custName = quotation.customer_name || ''
       const total = fmt(quotation.total_amount)
@@ -374,7 +373,7 @@ th,td { padding:6px 10px; }
         alert('Quotation sent via email!')
       } catch (e) {
         const subject = `Quotation ${qNum} - ${org?.name || 'Our Company'}`
-        const body = `Dear ${custName},\n\nPlease find our quotation below:\n\nQuotation No: ${qNum}\nTotal Amount: ₹${total}\n\n📄 View: ${window.location.origin}/app/quotations/${id}\n📥 PDF: ${pdfUrl}\n\nBest regards,\n${org?.name || 'Our Company'}`
+        const body = `Dear ${custName},\n\nPlease find our quotation below:\n\nQuotation No: ${qNum}\nTotal Amount: ₹${total}\n\n📄 View: ${window.location.origin}/app/quotations/${id}\n\nBest regards,\n${org?.name || 'Our Company'}`
         window.open(`mailto:${emailTo}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank')
       }
     } catch (err) { alert('Email share failed: ' + err.message) }
@@ -433,7 +432,8 @@ th,td { padding:6px 10px; }
 
         <button onClick={toggleBold} className={`px-3 py-2 rounded-xl font-medium text-sm transition-all ${boldOn ? 'btn-primary' : 'btn-secondary'}`}>Bold {boldOn ? 'ON' : 'OFF'}</button>
         <button onClick={handlePrint} className="btn-secondary flex items-center gap-2 btn-shine"><Printer size={16} /> Print</button>
-        <button onClick={() => { const token = localStorage.getItem('token'); window.open(`${api.defaults.baseURL}/quotations/${id}/pdf?token=${token}`, '_blank') }} className="btn-secondary flex items-center gap-2 btn-shine"><Download size={16} /> PDF</button>
+        {/* FIX #1: PDF download uses fetch + blob — no token in URL */}
+        <button onClick={async () => { try { const token = localStorage.getItem('token'); const response = await fetch(`${api.defaults.baseURL}/quotations/${id}/pdf?token=${token}`, { headers: { Authorization: `Bearer ${token}` } }); const blob = await response.blob(); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `Quotation_${(quotation.quotation_number || '').replace(/\//g, '-')}.html`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); } catch (e) { alert('PDF download failed: ' + e.message) } }} className="btn-secondary flex items-center gap-2 btn-shine"><Download size={16} /> PDF</button>
 
         <div className="relative">
           <button onClick={() => setShareOpen(!shareOpen)} className="btn-secondary flex items-center gap-2 btn-shine"><Share2 size={16} /> Share</button>
