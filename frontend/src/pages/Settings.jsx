@@ -3,7 +3,7 @@ import api from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import { Save, Upload, Plus, Eye, EyeOff, Trash2, Mail, Send } from 'lucide-react'
 
-// Complete font name list — 132 fonts (all categories)
+// Complete font name list — 124+ fonts (all categories)
 // Defined inline so Settings.jsx has NO dependency on FontSettings.jsx (fixes build error)
 const ALL_FONT_NAMES = [
   // Modern (26)
@@ -396,9 +396,9 @@ export default function Settings() {
         </div>
       </div>
 
-      {/* Print Layout */}
+      {/* Quotation Print Layout — ONLY affects Quotation, NOT Invoice */}
       <div className="card space-y-4">
-        <h3 className="font-bold text-lg">Print Layout</h3>
+        <h3 className="font-bold text-lg">Quotation Print Layout</h3>
         <div>
           <label className="block text-sm font-medium text-white/70 mb-1">Letterhead Top Space: {org.print_letterhead_mm || 59}mm</label>
           <input type="range" min="30" max="80" value={org.print_letterhead_mm || 59} onChange={e => update('print_letterhead_mm', e.target.value)} className="w-full" />
