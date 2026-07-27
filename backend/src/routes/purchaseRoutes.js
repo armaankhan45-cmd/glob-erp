@@ -4,8 +4,14 @@ const getDb = require('../config/db');
 const { auth, canWrite } = require('../middleware/auth');
 const auditLog = require('../middleware/auditLog');
 
+// FIX: added supplier_state, supplier_state_code, supplier_address, supplier_phone.
+// These columns exist in the purchase_bills table (see migrations/001_initial_schema.js)
+// and are collected by the New/Edit Purchase forms, but were missing from this
+// whitelist, so they were silently dropped on every save.
 const PURCHASE_COLUMNS = [
-  'bill_number', 'supplier_name', 'supplier_gstin', 'bill_date',
+  'bill_number', 'supplier_name', 'supplier_gstin',
+  'supplier_state', 'supplier_state_code', 'supplier_address', 'supplier_phone',
+  'bill_date',
   'subtotal', 'cgst_amount', 'sgst_amount', 'igst_amount',
   'discount', 'round_off', 'total_amount', 'payment_status', 'notes'
 ];
