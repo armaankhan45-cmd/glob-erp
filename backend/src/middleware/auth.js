@@ -26,4 +26,19 @@ function adminOnly(req, res, next) {
   next();
 }
 
-module.exports = { auth, adminOnly };
+// FIX: This middleware was imported by purchaseRoutes.js but never defined/exported.
+// That made it `undefined`, which crashed Express's route registration for the
+// ENTIRE purchases router at startup (Route.post() requires a callback but got undefined).
+// server.js's safe() wrapper caught that crash and silently replaced all
+// /api/purchases/* routes (GET included) with a 500-error fallback — which is why
+// the Purchases page always looked empty, even with real data in the DB.
+//
+// Blocks 'viewer' role (read-only) from creating/editing/deleting records.
+function canWrite(req, res, next) {
+  if (req.user.role === 'viewer') {
+    return res.status(403).json({ success: false, msg: 'Viewers have read-only access' });
+  }
+  next();
+}
+
+module.exports = { auth, adminOnly, canWrite };
