@@ -5,6 +5,9 @@ import api from '../api/client'
 import { Plus, Users, CreditCard, FileText, Calculator, TrendingUp, IndianRupee, AlertCircle, UserPlus, ArrowUpRight, ArrowDownRight } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell } from 'recharts'
 import GSTCalcModal from '../components/GSTCalcModal'
+import BorderGlow from '../components/BorderGlow'
+import SplitText from '../components/SplitText'
+import AnimatedList from '../components/AnimatedList'
 import { formatCurrency, formatDate } from '../utils'
 
 const CHART_COLORS = ['#06b6d4', '#4f8fff', '#a855f7', '#22c55e', '#ef4444', '#f59e0b', '#ec4899']
@@ -33,30 +36,11 @@ function useAnimatedCounter(target, duration = 1500) {
 }
 
 // ═══════════════════════════════════════════
-// 3D TILT CARD — premium hover effect
+// TILT CARD — simple, no 3D transform (removed 3D tilt for stability)
 // ═══════════════════════════════════════════
 function TiltCard({ children, className, style }) {
-  const cardRef = useRef(null)
-  const handleMouseMove = useCallback((e) => {
-    const card = cardRef.current
-    if (!card) return
-    const rect = card.getBoundingClientRect()
-    const x = (e.clientX - rect.left) / rect.width
-    const y = (e.clientY - rect.top) / rect.height
-    const tiltX = (y - 0.5) * 10
-    const tiltY = (x - 0.5) * -10
-    card.style.transform = `perspective(800px) rotateX(${tiltX}deg) rotateY(${tiltY}deg) translate3d(0,-6px,0) scale(1.02)`
-    card.style.setProperty('--mx', `${x * 100}%`)
-    card.style.setProperty('--my', `${y * 100}%`)
-  }, [])
-  const handleMouseLeave = useCallback(() => {
-    const card = cardRef.current
-    if (!card) return
-    card.style.transform = ''
-  }, [])
   return (
-    <div ref={cardRef} className={className} style={{ ...style, transition: 'transform 0.2s cubic-bezier(0.16,1,0.3,1), box-shadow 0.3s ease, border-color 0.3s ease', willChange: 'transform' }}
-      onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
+    <div className={className} style={style}>
       {children}
     </div>
   )
@@ -256,11 +240,59 @@ export default function Dashboard() {
 
   const fmtTooltip = (val) => formatCurrency(val)
 
+  // ═══ AnimatedList item renderers ═══
+  const invoiceListItem = (inv, index, isSelected) => (
+    <Link to={`/app/invoices/${inv.id}`} style={{ textDecoration: 'none' }}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(var(--accent-rgb),0.08)' }}>
+            <FileText size={16} style={{ color: 'var(--accent)' }} />
+          </div>
+          <div>
+            <p className="font-semibold text-sm" style={{ color: isSelected ? 'var(--accent)' : 'var(--text-primary)' }}>{inv.invoice_number}</p>
+            <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{inv.customer_name || 'N/A'} • {formatDate(inv.invoice_date)}</p>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>{formatCurrency(inv.total_amount)}</p>
+          <span className={`status-badge text-[10px] ${inv.payment_status === 'Paid' ? 'status-paid' : inv.payment_status === 'Partial' ? 'status-pending' : 'status-overdue'}`}
+            style={{ padding: '2px 8px' }}>
+            {inv.payment_status}
+          </span>
+        </div>
+      </div>
+    </Link>
+  )
+
+  const customerListItem = (c, index, isSelected) => (
+    <Link to={`/app/customers/${c.id}`} style={{ textDecoration: 'none' }}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center font-extrabold text-sm"
+            style={{ background: `${CHART_COLORS[index % CHART_COLORS.length]}18`, color: CHART_COLORS[index % CHART_COLORS.length] }}>
+            #{index + 1}
+          </div>
+          <div>
+            <p className="font-semibold text-sm" style={{ color: isSelected ? 'var(--accent)' : 'var(--text-primary)' }}>{c.name}</p>
+            <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{c.gstin ? `${c.gstin.substring(0,2)}...` : 'No GSTIN'} • {c.city || c.state || '—'}</p>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>{formatCurrency(c.totalBusiness)}</p>
+          <span className={`status-badge text-[10px] ${!c.state_code || c.state_code === '27' ? 'status-sent' : 'status-pending'}`}
+            style={{ padding: '2px 8px' }}>
+            {!c.state_code || c.state_code === '27' ? 'Intra' : 'Inter'}
+          </span>
+        </div>
+      </div>
+    </Link>
+  )
+
   return (
     <div className="space-y-6">
 
       {/* ═══════════════════════════════════════════
-          WELCOME BANNER — Cinematic gradient with dot pattern
+          WELCOME BANNER — SplitText animated heading
           ═══════════════════════════════════════════ */}
       <div className="rounded-2xl p-7 text-white relative overflow-hidden"
         style={{ background: 'linear-gradient(135deg, var(--accent-dark), var(--accent), var(--accent-light))', animation: 'entranceScale 0.7s cubic-bezier(0.16,1,0.3,1) both' }}>
@@ -268,7 +300,19 @@ export default function Dashboard() {
         <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.2) 1px, transparent 1px)', backgroundSize: '28px 28px' }}></div>
         <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-5">
           <div>
-            <h1 className="text-2xl font-extrabold mb-1" style={{ letterSpacing: '-0.5px' }}>Welcome, {user?.name || 'User'}! 👋</h1>
+            {/* SplitText — animated letter-by-letter welcome */}
+            <h1 className="text-2xl font-extrabold mb-1" style={{ letterSpacing: '-0.5px' }}>
+              <SplitText
+                text={`Welcome, ${user?.name || 'User'}!`}
+                tag="span"
+                splitType="words"
+                delay={60}
+                duration={0.6}
+                from={{ opacity: 0, y: 15 }}
+                to={{ opacity: 1, y: 0 }}
+              />
+              <span> 👋</span>
+            </h1>
             <p className="text-sm" style={{ color: 'rgba(255,255,255,0.85)' }}>{user?.organization?.name} • GSTIN: {user?.organization?.gstin || 'N/A'}</p>
             <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.65)' }}>{today}</p>
           </div>
@@ -285,7 +329,7 @@ export default function Dashboard() {
       </div>
 
       {/* ═══════════════════════════════════════════
-          QUICK ACTIONS — Staggered entrance + magnetic hover
+          QUICK ACTIONS — Staggered entrance
           ═══════════════════════════════════════════ */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
         {quickActions.map((a, i) => (
@@ -301,26 +345,35 @@ export default function Dashboard() {
       </div>
 
       {/* ═══════════════════════════════════════════
-          STAT CARDS — 3D Tilt + Holographic + Counter
+          STAT CARDS — BorderGlow premium hover effect
           ═══════════════════════════════════════════ */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {metricCards.map((m, i) => (
-          <TiltCard key={i} className="stat-card card-premium"
-            style={{ animation: `entranceScale 0.6s cubic-bezier(0.16,1,0.3,1) ${0.15 + i * 0.1}s both` }}>
-            <div className="shimmer"></div>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold uppercase tracking-wider text-white/35">{m.label}</span>
-              <div className="stat-icon w-11 h-11 rounded-xl flex items-center justify-center relative"
-                style={{ background: m.bg, color: m.color }}>
-                <m.icon size={20} />
-                <div className="stat-pulse-ring" style={{ color: m.color }}></div>
+          <BorderGlow
+            key={i}
+            borderRadius={16}
+            glowRadius={35}
+            glowIntensity={0.7}
+            edgeSensitivity={40}
+            animated={true}
+          >
+            <TiltCard className="stat-card card-premium"
+              style={{ animation: `entranceScale 0.6s cubic-bezier(0.16,1,0.3,1) ${0.15 + i * 0.1}s both` }}>
+              <div className="shimmer"></div>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-semibold uppercase tracking-wider text-white/35">{m.label}</span>
+                <div className="stat-icon w-11 h-11 rounded-xl flex items-center justify-center relative"
+                  style={{ background: m.bg, color: m.color }}>
+                  <m.icon size={20} />
+                  <div className="stat-pulse-ring" style={{ color: m.color }}></div>
+                </div>
               </div>
-            </div>
-            <p className="text-[26px] font-extrabold text-white" style={{ fontFamily: '"Space Grotesk", sans-serif', letterSpacing: '-0.5px' }}>
-              {m.isCurrency ? formatCurrency(m.value) : m.value}
-            </p>
-            <p className="text-[11px] text-white/25 mt-1.5">{m.sub}</p>
-          </TiltCard>
+              <p className="text-[26px] font-extrabold text-white" style={{ fontFamily: '"Space Grotesk", sans-serif', letterSpacing: '-0.5px' }}>
+                {m.isCurrency ? formatCurrency(m.value) : m.value}
+              </p>
+              <p className="text-[11px] text-white/25 mt-1.5">{m.sub}</p>
+            </TiltCard>
+          </BorderGlow>
         ))}
       </div>
 
@@ -448,81 +501,56 @@ export default function Dashboard() {
       </div>
 
       {/* ═══════════════════════════════════════════
-          RECENT INVOICES + TOP CUSTOMERS
+          RECENT INVOICES + TOP CUSTOMERS — AnimatedList
           ═══════════════════════════════════════════ */}
       <div className="grid lg:grid-cols-2 gap-6">
-        <div className="card card-premium" style={{ animation: 'entranceUp 0.6s cubic-bezier(0.16,1,0.3,1) 0.5s both' }}>
-          <div className="shimmer"></div>
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="font-bold text-white text-[15px]">Recent Invoices</h3>
-            <Link to="/app/invoices" className="text-sm font-semibold accent-text btn-shine" style={{ padding: '4px 10px', borderRadius: 8 }}>View All →</Link>
-          </div>
-          {recentInvoices.length === 0 ? (
-            <p className="text-center py-8 text-white/25">No invoices yet. Create your first invoice!</p>
-          ) : (
-            <div className="space-y-1.5 stagger">
-              {recentInvoices.slice(0, 6).map((inv, i) => (
-                <Link key={inv.id} to={`/app/invoices/${inv.id}`}
-                  className="flex items-center justify-between p-3 rounded-xl hover:bg-white/[0.03] transition-all duration-200 group"
-                  style={{ animation: `entranceLeft 0.35s cubic-bezier(0.16,1,0.3,1) ${i * 0.06}s both` }}>
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl flex items-center justify-center transition-transform duration-200 group-hover:scale-110" style={{ background: 'rgba(var(--accent-rgb),0.08)' }}>
-                      <FileText size={16} className="accent-text" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-white text-sm">{inv.invoice_number}</p>
-                      <p className="text-[11px] text-white/35">{inv.customer_name || 'N/A'} • {formatDate(inv.invoice_date)}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-white text-sm">{formatCurrency(inv.total_amount)}</p>
-                    <span className={`status-badge text-[10px] ${inv.payment_status === 'Paid' ? 'status-paid' : inv.payment_status === 'Partial' ? 'status-pending' : 'status-overdue'}`}
-                      style={{ padding: '2px 8px' }}>
-                      {inv.payment_status}
-                    </span>
-                  </div>
-                </Link>
-              ))}
+        <BorderGlow borderRadius={18} glowRadius={25} glowIntensity={0.5} animated={true}>
+          <div className="card card-premium" style={{ animation: 'entranceUp 0.6s cubic-bezier(0.16,1,0.3,1) 0.5s both' }}>
+            <div className="shimmer"></div>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-bold text-white text-[15px]">Recent Invoices</h3>
+              <Link to="/app/invoices" className="text-sm font-semibold accent-text btn-shine" style={{ padding: '4px 10px', borderRadius: 8 }}>View All →</Link>
             </div>
-          )}
-        </div>
+            {recentInvoices.length === 0 ? (
+              <p className="text-center py-8 text-white/25">No invoices yet. Create your first invoice!</p>
+            ) : (
+              <div style={{ height: 320 }}>
+                <AnimatedList
+                  items={recentInvoices.slice(0, 6)}
+                  renderItem={invoiceListItem}
+                  keyExtractor={(inv) => inv.id}
+                  showGradients={true}
+                  enableArrowNavigation={false}
+                  displayScrollbar={false}
+                />
+              </div>
+            )}
+          </div>
+        </BorderGlow>
 
-        <div className="card card-premium" style={{ animation: 'entranceUp 0.6s cubic-bezier(0.16,1,0.3,1) 0.6s both' }}>
-          <div className="shimmer"></div>
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="font-bold text-white text-[15px]">Top Customers</h3>
-            <Link to="/app/customers" className="text-sm font-semibold accent-text btn-shine" style={{ padding: '4px 10px', borderRadius: 8 }}>View All →</Link>
-          </div>
-          {topCustomers.length === 0 ? (
-            <p className="text-center py-8 text-white/25">No customer data yet</p>
-          ) : (
-            <div className="space-y-1.5 stagger">
-              {topCustomers.map((c, i) => (
-                <Link key={c.id} to={`/app/customers/${c.id}`}
-                  className="flex items-center justify-between p-3 rounded-xl hover:bg-white/[0.03] transition-all duration-200 group"
-                  style={{ animation: `entranceLeft 0.35s cubic-bezier(0.16,1,0.3,1) ${i * 0.06}s both` }}>
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl flex items-center justify-center font-extrabold text-sm transition-transform duration-200 group-hover:scale-110 group-hover:rotate-[-3deg]"
-                      style={{ background: `${CHART_COLORS[i % CHART_COLORS.length]}18`, color: CHART_COLORS[i % CHART_COLORS.length] }}>
-                      #{i + 1}
-                    </div>
-                    <div>
-                      <p className="font-semibold text-white text-sm">{c.name}</p>
-                      <p className="text-[11px] text-white/35">{c.gstin ? `${c.gstin.substring(0,2)}...` : 'No GSTIN'} • {c.city || c.state || '—'}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-white text-sm">{formatCurrency(c.totalBusiness)}</p>
-                    <span className={`status-badge text-[10px] ${!c.state_code || c.state_code === '27' ? 'status-sent' : 'status-pending'}`}
-                      style={{ padding: '2px 8px' }}>
-                      {!c.state_code || c.state_code === '27' ? 'Intra' : 'Inter'}
-                    </span>
-                  </div>
-                </Link>
-              ))}
+        <BorderGlow borderRadius={18} glowRadius={25} glowIntensity={0.5} animated={true}>
+          <div className="card card-premium" style={{ animation: 'entranceUp 0.6s cubic-bezier(0.16,1,0.3,1) 0.6s both' }}>
+            <div className="shimmer"></div>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-bold text-white text-[15px]">Top Customers</h3>
+              <Link to="/app/customers" className="text-sm font-semibold accent-text btn-shine" style={{ padding: '4px 10px', borderRadius: 8 }}>View All →</Link>
             </div>
-          )}
-        </div>
+            {topCustomers.length === 0 ? (
+              <p className="text-center py-8 text-white/25">No customer data yet</p>
+            ) : (
+              <div style={{ height: 320 }}>
+                <AnimatedList
+                  items={topCustomers}
+                  renderItem={customerListItem}
+                  keyExtractor={(c) => c.id}
+                  showGradients={true}
+                  enableArrowNavigation={false}
+                  displayScrollbar={false}
+                />
+              </div>
+            )}
+          </div>
+        </BorderGlow>
       </div>
 
       <GSTCalcModal />
