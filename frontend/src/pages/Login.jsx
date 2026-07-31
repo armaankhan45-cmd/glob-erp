@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Eye, EyeOff, LogIn } from 'lucide-react'
+import DotField from '../components/DotField'
+import MagnetLines from '../components/MagnetLines'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -22,7 +24,6 @@ export default function Login() {
       await login(email, password)
       navigate('/app/dashboard')
     } catch (err) {
-      // Show friendly message for cold start / timeout
       if (err.code === 'COLD_START' || err.message?.includes('waking up')) {
         setError('Server is waking up from sleep. Please try again in 30 seconds.')
         setRetrying(true)
@@ -46,11 +47,39 @@ export default function Login() {
 
   return (
     <main className="flex min-h-screen w-full p-2 lg:h-screen lg:overflow-hidden lg:p-4" style={{ background: '#06080f' }}>
-      {/* Aurora Left Panel - Professional static gradient */}
+      {/* ═══════════════════════════════════════════════════════════
+          AURORA LEFT PANEL — Interactive DotField + MagnetLines
+          Premium fabrication business feel with subtle interactive dots
+          ═══════════════════════════════════════════════════════════ */}
       <div className="hidden lg:flex w-[52%] relative flex-col items-center justify-end pb-32 px-12 rounded-3xl overflow-hidden" style={{ background: 'linear-gradient(135deg, #06080f 0%, #0d1a2d 40%, #1a0a2e 70%, #06080f 100%)' }}>
-        {/* Static subtle gradient layers */}
+        {/* Interactive DotField Background */}
+        <DotField
+          dotRadius={1.2}
+          dotSpacing={18}
+          cursorRadius={350}
+          bulgeStrength={35}
+          glowRadius={100}
+          sparkle={true}
+          style={{ opacity: 0.7 }}
+        />
+
+        {/* MagnetLines — subtle directional lines */}
+        <div style={{ position: 'absolute', inset: 0, opacity: 0.3, pointerEvents: 'none' }}>
+          <MagnetLines
+            rows={6}
+            columns={8}
+            lineColor="rgba(var(--accent-rgb), 0.08)"
+            lineHeight="20px"
+            lineWidth="1px"
+            baseAngle={-10}
+          />
+        </div>
+
+        {/* Static gradient overlays */}
         <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 30% 40%, rgba(6,182,212,0.08), transparent 60%)' }}></div>
         <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 70% 30%, rgba(79,143,255,0.06), transparent 60%)' }}></div>
+
+        {/* Content */}
         <div className="z-10 w-full max-w-xs space-y-8">
           <div className="flex items-center gap-2.5 mb-8">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent-light))', boxShadow: '0 0 15px rgba(var(--accent-rgb), 0.3)', padding: 0, minWidth: 32, height: 32 }}><span className="text-white font-extrabold text-sm">G</span></div>
@@ -66,9 +95,23 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Right Form Panel */}
-      <div className="flex-1 flex flex-col items-center justify-center py-12 lg:py-6 px-4 sm:px-12 lg:px-16 xl:px-24 overflow-y-auto lg:overflow-hidden">
-        <div className="w-full max-w-xl space-y-8 lg:space-y-6 sm:space-y-10" style={{ animation: 'slideUp 0.6s cubic-bezier(0.16,1,0.3,1)' }}>
+      {/* ═══════════════════════════════════════════════════════════
+          RIGHT FORM PANEL — Clean login with subtle dot field
+          ═══════════════════════════════════════════════════════════ */}
+      <div className="flex-1 flex flex-col items-center justify-center py-12 lg:py-6 px-4 sm:px-12 lg:px-16 xl:px-24 overflow-y-auto lg:overflow-hidden relative" style={{ background: '#06080f' }}>
+        {/* Subtle dot field on right side too */}
+        <div style={{ position: 'absolute', inset: 0, opacity: 0.15, pointerEvents: 'none' }}>
+          <DotField
+            dotRadius={0.8}
+            dotSpacing={24}
+            cursorRadius={250}
+            bulgeStrength={20}
+            glowRadius={60}
+            sparkle={false}
+          />
+        </div>
+
+        <div className="w-full max-w-xl space-y-8 lg:space-y-6 sm:space-y-10 relative z-10" style={{ animation: 'slideUp 0.6s cubic-bezier(0.16,1,0.3,1)' }}>
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-white">Sign In</h1>
             <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.35)' }}>Welcome back! Enter your credentials.</p>
