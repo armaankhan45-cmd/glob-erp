@@ -8,6 +8,8 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-route
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
 import AutoHealErrorBoundary from './components/AutoHealErrorBoundary'
+import DotField from './components/DotField'
+import MagnetLines from './components/MagnetLines'
 import MainLayout from './layouts/MainLayout'
 
 function PageFallback({ name }) {
@@ -62,9 +64,8 @@ function PrivateRoute({ children }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// PREMIUM LOGIN PAGE — Like Stripe, Notion, Linear
-// Two-panel: left = brand showcase, right = clean form
-// Background follows theme color
+// PREMIUM LOGIN PAGE — Interactive DotField + MagnetLines background
+// Two-panel: left = brand showcase with interactive dots, right = form
 // ═══════════════════════════════════════════════════════════════════
 function LoginPage() {
   const { login } = useAuth()
@@ -109,17 +110,40 @@ function LoginPage() {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', background: 'var(--bg-primary)', transition: 'background 0.4s ease' }}>
       
-      {/* ══════ LEFT — Brand Showcase ══════ */}
+      {/* ══════ LEFT — Brand Showcase with DotField + MagnetLines ══════ */}
       <div className="login-brand" style={{
         flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center',
         padding: '60px', position: 'relative', overflow: 'hidden',
         background: 'linear-gradient(160deg, var(--bg-primary) 0%, var(--bg-card) 100%)'
       }}>
-        {/* Subtle accent glow in background */}
+        {/* Interactive DotField Background */}
+        <DotField
+          dotRadius={1.2}
+          dotSpacing={18}
+          cursorRadius={350}
+          bulgeStrength={35}
+          glowRadius={100}
+          sparkle={true}
+          style={{ opacity: 0.7 }}
+        />
+
+        {/* MagnetLines — subtle directional lines */}
+        <div style={{ position: 'absolute', inset: 0, opacity: 0.3, pointerEvents: 'none' }}>
+          <MagnetLines
+            rows={6}
+            columns={8}
+            lineColor="rgba(var(--accent-rgb), 0.08)"
+            lineHeight="20px"
+            lineWidth="1px"
+            baseAngle={-10}
+          />
+        </div>
+
+        {/* Subtle accent glow */}
         <div style={{ position: 'absolute', bottom: '-20%', left: '-10%', width: '600px', height: '600px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(var(--accent-rgb),0.06), transparent 70%)' }} />
         <div style={{ position: 'absolute', top: '-10%', right: '-5%', width: '400px', height: '400px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(var(--accent-rgb),0.04), transparent 70%)' }} />
 
-        <div style={{ position: 'relative', maxWidth: '440px', transform: mounted ? 'none' : 'translateY(20px)', opacity: mounted ? 1 : 0, transition: 'all 0.6s cubic-bezier(0.16,1,0.3,1)' }}>
+        <div style={{ position: 'relative', maxWidth: '440px', transform: mounted ? 'none' : 'translateY(20px)', opacity: mounted ? 1 : 0, transition: 'all 0.6s cubic-bezier(0.16,1,0.3,1)', zIndex: 10 }}>
           
           {/* Logo */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '40px' }}>
@@ -164,8 +188,21 @@ function LoginPage() {
         width: '440px', minWidth: '380px', display: 'flex', flexDirection: 'column', justifyContent: 'center',
         padding: '48px 40px', background: 'var(--bg-card)',
         borderLeft: '1px solid var(--border)',
+        position: 'relative',
       }}>
-        <div style={{ maxWidth: '360px', margin: '0 auto', width: '100%', transform: mounted ? 'none' : 'translateY(10px)', opacity: mounted ? 1 : 0, transition: 'all 0.5s cubic-bezier(0.16,1,0.3,1) 0.1s' }}>
+        {/* Subtle dot field on right side */}
+        <div style={{ position: 'absolute', inset: 0, opacity: 0.15, pointerEvents: 'none' }}>
+          <DotField
+            dotRadius={0.8}
+            dotSpacing={24}
+            cursorRadius={250}
+            bulgeStrength={20}
+            glowRadius={60}
+            sparkle={false}
+          />
+        </div>
+
+        <div style={{ maxWidth: '360px', margin: '0 auto', width: '100%', transform: mounted ? 'none' : 'translateY(10px)', opacity: mounted ? 1 : 0, transition: 'all 0.5s cubic-bezier(0.16,1,0.3,1) 0.1s', position: 'relative', zIndex: 1 }}>
           
           {/* Header */}
           <div style={{ marginBottom: '28px' }}>
