@@ -312,7 +312,7 @@ export default function QuotationDetail() {
     w.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
 ${fontLinkTag}
 <style>
-@page { margin: 0; size: A4; }
+@page { margin: 12mm 10mm; size: A4; }
 * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 body { margin:0; padding:0; background:white; color:#000; font-family:'${selectedFont}', 'Segoe UI', Arial, sans-serif; }
 img { max-width:100%; }
