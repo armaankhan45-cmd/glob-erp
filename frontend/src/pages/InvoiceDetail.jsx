@@ -112,12 +112,12 @@ export default function InvoiceDetail() {
     w.document.write(`<!DOCTYPE html><html><head><title>Invoice ${invNum}</title>
 ${fontLinkTag}
 <style>
-@page { margin: 0; size: A4; }
+@page { margin: 12mm 10mm; size: A4; }
 * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 body { margin:0; padding:0; background:white; color:#000; font-family:'${fontFamily}', 'Segoe UI', Arial, sans-serif; }
 img { max-width:100%; }
 table { border-collapse:collapse; width:100%; }
-th,td { padding:6px 10px; }
+th,td { padding:6px 10px; word-break:break-word; overflow-wrap:break-word; }
 </style></head><body>${html}</body></html>`)
     w.document.close()
     setTimeout(() => { w.print(); w.close() }, 500)
@@ -312,7 +312,7 @@ function ProLayout({ inv, items, org, invNum, isPaid, placeOfSupply, invoiceDate
   const DIVIDER = '1.5px solid #ccc'
 
   return (
-    <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily, fontSize, maxWidth: 900, margin: '0 auto', background: '#fff', border: `2px solid ${NAVY}`, color: '#000', fontWeight: 600, WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact', padding: '0 8px' }}>
+    <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily, fontSize, maxWidth: 794, margin: '0 auto', background: '#fff', border: `2px solid ${NAVY}`, color: '#000', fontWeight: 600, WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact', padding: '0 12px' }}>
 
       {/* ═══ HEADER BAR — B&W print-safe: dark text, light bg, navy borders ═══ */}
       <div style={{ padding: '16px 24px', display: 'flex', alignItems: 'center', gap: 16, background: '#f5f7fa', borderTop: `4px solid ${NAVY}`, borderBottom: `2px solid ${NAVY}` }}>
