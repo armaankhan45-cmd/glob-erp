@@ -4,7 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const knex = require('knex');
-const rateLimit = require('express-rate-limit'); // FIX #6: Rate limiting (was installed but never used)
+const rateLimit = require('express-rate-limit');
 const config = require('./config/env');
 
 const app = express();
@@ -18,17 +18,20 @@ try {
     connection: config.DATABASE_URL,
     pool: { min: 1, max: 5 },
     acquireConnectionTimeout: 30000
-    // FIX #5: Removed ssl: { rejectUnauthorized: false } — Neon issues valid certs, MITM protection is essential
   });
   require('./config/db').setDb(db);
 } catch(e) {
   console.error('DB init error:', e.message);
 }
 
-// FIX #6: Rate limiting — strict on auth endpoints, looser globally
+// ═══════════════════════════════════════════════════════════════
+// RATE LIMITING — increased for cold-start scenarios
+// Auth: 20 per 15 min (was 5 — too strict, users got locked out
+// when retrying during server wake-up)
+// ═══════════════════════════════════════════════════════════════
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: config.AUTH_RATE_LIMIT || 5, // 5 requests per 15 min per IP on auth routes
+  windowMs: 15 * 60 * 1000,
+  max: config.AUTH_RATE_LIMIT || 20,
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res) => {
@@ -38,7 +41,7 @@ const authLimiter = rateLimit({
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: config.API_RATE_LIMIT || 100, // 100 requests per 15 min per IP globally
+  max: config.API_RATE_LIMIT || 200,
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res) => {
@@ -46,14 +49,21 @@ const apiLimiter = rateLimit({
   }
 });
 
-// Apply auth rate limiter BEFORE routes
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
 app.use('/api/auth/forgot-password', authLimiter);
 app.use('/api/auth/verify-otp', authLimiter);
 app.use('/api/auth/reset-password', authLimiter);
 
-// FIX #3/previous: Proper CSP, explicit CORS origins (no wildcard)
+// ═══════════════════════════════════════════════════════════════
+// INSTANT PING — no DB, no auth, no rate limit
+// Used by frontend keep-alive + cold-start wake-up
+// ═══════════════════════════════════════════════════════════════
+app.get('/api/ping', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ ok: true, ts: Date.now() });
+});
+
 const ALLOWED_ORIGINS = config.CORS_ORIGIN
   ? config.CORS_ORIGIN.split(',').map(o => o.trim())
   : ['https://glob-erp.pages.dev', 'https://glob-erp.vercel.app', 'http://localhost:5173'];
@@ -81,15 +91,9 @@ app.use(cors({ origin: ALLOWED_ORIGINS, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Apply global API rate limiter AFTER auth limiter so auth gets the strict one
 app.use('/api/', apiLimiter);
 
 // ====== GLOBAL DATA SANITIZATION MIDDLEWARE ======
-// Fixes multiple problems permanently for ALL routes:
-// 1. Empty string "" for date columns → null (PostgreSQL rejects "" for DATE type)
-// 2. Wrong column name "total" → "total_amount" (our DB uses total_amount, not total)
-// 3. Strips frontend-only columns that don't exist in DB tables
-
 const DATE_FIELDS = [
   'invoice_date', 'due_date', 'quotation_date', 'validity_date',
   'bill_date', 'payment_date', 'expense_date', 'credit_date',
@@ -141,11 +145,11 @@ app.use('/uploads', express.static(uploadDir));
 // ============ ROUTES ============
 
 app.get('/', (req, res) => {
-  res.json({ 
-    success: true, 
-    msg: 'Glob ERP API is running!', 
+  res.json({
+    success: true,
+    msg: 'Glob ERP API is running!',
     time: new Date().toISOString(),
-    endpoints: ['/api/health', '/api/auth/login']
+    endpoints: ['/api/ping', '/api/health', '/api/auth/login']
   });
 });
 
@@ -158,16 +162,14 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
-// FIX #2: Lock down /api/setup — requires SETUP_SECRET env var, no credentials in response
+// FIX #2: Lock down /api/setup
 app.get('/api/setup', async (req, res) => {
   try {
-    // Require SETUP_SECRET — if empty/not set, refuse access
     const secret = req.headers['x-setup-secret'] || req.query.secret || '';
     if (!config.SETUP_SECRET || secret !== config.SETUP_SECRET) {
       return res.status(403).json({ success: false, msg: 'Setup requires SETUP_SECRET. Set the env var and pass it as X-Setup-Secret header or ?secret= param.' });
     }
 
-    // Already initialized? Refuse to re-run
     const orgCount = await db('organizations').count('id as count').first();
     if (parseInt(orgCount.count) > 0) {
       return res.status(403).json({ success: false, msg: 'Already initialized. Setup can only run once.' });
@@ -182,7 +184,6 @@ app.get('/api/setup', async (req, res) => {
     const seed = require('./seeds/001_initial_data');
     await seed.seed(db);
 
-    // FIX #2: NO credentials in response
     res.json({ success: true, msg: 'Setup complete. Use your configured admin credentials to log in.' });
   } catch(e) {
     res.status(500).json({ success: false, msg: 'Setup failed: ' + e.message });
@@ -193,7 +194,6 @@ app.get('/api/setup', async (req, res) => {
 const { selfHeal, trackError, getRecentErrors, errorTrackerMiddleware, TABLE_SCHEMAS } = require('./selfHeal');
 const { auth, adminOnly } = require('./middleware/auth');
 
-// FIX #5: Diagnose endpoints now require adminOnly (exposes internal schema/error details)
 app.get('/api/diagnose', auth, adminOnly, async (req, res) => {
   try {
     const report = await selfHeal(db);
@@ -207,26 +207,24 @@ app.get('/api/diagnose/errors', auth, adminOnly, (req, res) => {
   res.json({ success: true, errors: getRecentErrors(50), count: getRecentErrors(50).length });
 });
 
-// FIX #5: Parameterized query (was SQL injection via string interpolation) + adminOnly
 app.get('/api/diagnose/table/:name', auth, adminOnly, async (req, res) => {
   try {
     const tableName = req.params.name;
     const exists = await db.schema.hasTable(tableName);
     if (!exists) return res.json({ success: false, msg: `Table "${tableName}" does NOT exist` });
-    
+
     const expectedSchema = TABLE_SCHEMAS[tableName];
     const expectedColumns = expectedSchema ? Object.keys(expectedSchema.columns) : [];
-    
-    // FIX #5: Use parameterized query instead of string interpolation
+
     const actualCols = await db.raw(
       'SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_name = ? ORDER BY ordinal_position',
       [tableName]
     );
     const actualColumnNames = actualCols.rows.map(r => r.column_name);
-    
+
     const missingColumns = expectedColumns.filter(c => !actualColumnNames.includes(c));
     const extraColumns = actualColumnNames.filter(c => !expectedColumns.includes(c));
-    
+
     res.json({
       success: true,
       table: tableName,
@@ -245,18 +243,18 @@ app.get('/api/diagnose/table/:name', auth, adminOnly, async (req, res) => {
 
 // Route loading
 function safe(path) {
-  try { 
-    const router = require(path); 
+  try {
+    const router = require(path);
     if (router?.stack?.length === 0) {
       console.warn(`⚠️  Route ${path} loaded but has 0 routes — might be empty`);
     }
     return router;
-  } catch(e) { 
+  } catch(e) {
     console.error('❌ Route load FAILED:', path, '→', e.message);
     trackError('route_load', e, { originalUrl: path, method: 'LOAD' });
     const fallback = express.Router();
-    fallback.all('*', (req, res) => res.status(500).json({ 
-      success: false, 
+    fallback.all('*', (req, res) => res.status(500).json({
+      success: false,
       msg: `Route ${path} failed to load: ${e.message}`,
       autoFix: 'Visit /api/diagnose to auto-detect and fix issues'
     }));
@@ -296,6 +294,11 @@ app.use((req, res) => {
 
 app.listen(PORT, () => {
   console.log('🚀 Glob ERP API running on port ' + PORT);
+  // ═══════════════════════════════════════════════════════════════
+  // PRE-WARM DB — run a simple query immediately so the first
+  // real request doesn't wait for a cold DB connection
+  // ═══════════════════════════════════════════════════════════════
+  try { db?.raw('SELECT 1').then(() => console.log('⚡ DB pre-warmed')).catch(() => {}); } catch(e) {}
   setupDB();
 });
 
@@ -303,17 +306,17 @@ async function setupDB() {
   try {
     console.log('⏳ Auto-setting up database...');
     const report = await selfHeal(db);
-    
+
     if (report.fixes.length > 0) {
       console.log(`\n🔧 AUTO-FIXED ${report.fixes.length} issue(s) on startup:`);
       report.fixes.forEach(f => console.log(`   ✅ ${f.type}: ${f.table || ''} ${f.column || ''}`));
     }
-    
+
     if (report.errors.length > 0) {
       console.log(`\n⚠️  ${report.errors.length} issue(s) need attention:`);
       report.errors.forEach(e => console.log(`   ❌ ${e.area}: ${e.error || e.message}`));
     }
-    
+
     console.log('\n✅ Server ready!');
   } catch(e) {
     console.error('⚠️ DB setup error:', e.message);
