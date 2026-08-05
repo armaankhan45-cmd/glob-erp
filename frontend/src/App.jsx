@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════
-// App.jsx — PREMIUM Login (Stripe/Notion quality) + Main App
-// Background follows theme color throughout the entire website
+// App.jsx — PREMIUM Login + Main App
+// Cold-start: pre-wakes server on login page load
 // ═══════════════════════════════════════════════════════════════════
 
 import { useState, useEffect, Suspense, lazy } from 'react'
@@ -11,6 +11,7 @@ import AutoHealErrorBoundary from './components/AutoHealErrorBoundary'
 import DotField from './components/DotField'
 import MagnetLines from './components/MagnetLines'
 import MainLayout from './layouts/MainLayout'
+import api from './api/client'
 
 function PageFallback({ name }) {
   return (
@@ -65,7 +66,7 @@ function PrivateRoute({ children }) {
 
 // ═══════════════════════════════════════════════════════════════════
 // PREMIUM LOGIN PAGE — Interactive DotField + MagnetLines background
-// Two-panel: left = brand showcase with interactive dots, right = form
+// Cold-start: wakes server on page load, shows status
 // ═══════════════════════════════════════════════════════════════════
 function LoginPage() {
   const { login } = useAuth()
@@ -77,8 +78,22 @@ function LoginPage() {
   const [error, setError] = useState('')
   const [retrying, setRetrying] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [serverStatus, setServerStatus] = useState('') // e.g. "Waking server…"
 
   useEffect(() => { setTimeout(() => setMounted(true), 80) }, [])
+
+  // ═══ Pre-wake the server when login page loads ═══
+  useEffect(() => {
+    // Quick ping — if server is already awake, this is instant
+    // If sleeping, this starts the wake-up process early
+    const wakeTimer = setTimeout(() => {
+      api.wakeServer((msg) => setServerStatus(msg)).then(() => {
+        // Server is awake or we gave up — clear status after a moment
+        setTimeout(() => setServerStatus(''), 2000)
+      })
+    }, 500) // Small delay so the page renders first
+    return () => clearTimeout(wakeTimer)
+  }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -87,24 +102,58 @@ function LoginPage() {
     if (!password.trim()) { setError('Please enter your password'); return }
     setLoading(true)
 
+    // ═══ SMART LOGIN WITH AUTO-WAKE ═══
+    // Try login directly first — if server is already awake, this is instant
     const start = Date.now()
     const result = await login(email, password)
     const took = Date.now() - start
 
-    if (took > 8000 && !result.success) {
+    if (result.success) {
       setLoading(false)
-      setRetrying(true)
-      setError('Server is waking up — retrying automatically…')
-      setTimeout(async () => {
-        const retry = await login(email, password)
-        setRetrying(false)
-        retry.success ? navigate('/app/dashboard') : setError(retry.msg || 'Login failed. Check credentials.')
-      }, 5000)
+      navigate('/app/dashboard')
       return
     }
 
+    // Login failed — if it took >5s, server was probably sleeping
+    // Wake it up first, then retry login
+    if (took > 5000 || !result.success) {
+      setLoading(false)
+      setRetrying(true)
+      setError('')
+      setServerStatus('Server is waking up — this takes ~30s on free tier…')
+
+      // Wake the server first
+      const wakeResult = await api.wakeServer((msg) => setServerStatus(msg))
+
+      if (wakeResult.awake) {
+        // Server is awake — retry login
+        setServerStatus('Server is awake! Logging in…')
+        const retry = await login(email, password)
+        setRetrying(false)
+        setServerStatus('')
+        if (retry.success) {
+          navigate('/app/dashboard')
+        } else {
+          setError(retry.msg || 'Invalid email or password')
+        }
+      } else {
+        // Couldn't wake server — try login anyway as last resort
+        setServerStatus('Trying to login…')
+        const retry = await login(email, password)
+        setRetrying(false)
+        setServerStatus('')
+        if (retry.success) {
+          navigate('/app/dashboard')
+        } else {
+          setError('Server is taking too long to start. Please wait 1–2 minutes and try again.')
+        }
+      }
+      return
+    }
+
+    // Login failed quickly — wrong credentials
     setLoading(false)
-    result.success ? navigate('/app/dashboard') : setError(result.msg || 'Invalid email or password')
+    setError(result.msg || 'Invalid email or password')
   }
 
   return (
@@ -210,6 +259,21 @@ function LoginPage() {
             <h2 style={{ fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)' }}>Sign in</h2>
           </div>
 
+          {/* Server Status */}
+          {serverStatus && (
+            <div style={{
+              padding: '10px 14px', borderRadius: '8px', marginBottom: '14px',
+              background: 'rgba(var(--accent-rgb),0.08)',
+              border: '1px solid rgba(var(--accent-rgb),0.15)',
+              color: 'var(--accent)',
+              fontSize: '13px', fontWeight: '500',
+              display: 'flex', alignItems: 'center', gap: '8px',
+            }}>
+              <div style={{ width: '14px', height: '14px', border: '2px solid rgba(var(--accent-rgb),0.2)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 1s linear infinite', flexShrink: 0 }} />
+              {serverStatus}
+            </div>
+          )}
+
           {/* Error */}
           {error && (
             <div style={{
@@ -271,7 +335,7 @@ function LoginPage() {
 
           {/* Note */}
           <p style={{ textAlign: 'center', marginTop: '20px', fontSize: '11px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
-            First visit may take ~30s — free-tier server sleeps when idle.<br/>Subsequent logins are instant.
+            First visit after idle may take ~30s — free-tier server sleeps when idle.<br/>Subsequent logins are instant.
           </p>
 
           {/* Footer */}
