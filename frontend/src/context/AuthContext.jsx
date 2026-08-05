@@ -48,7 +48,7 @@ export function AuthProvider({ children }) {
 
     // Safety timeout — if /auth/me never responds, still show app
     const safetyTimeout = setTimeout(() => {
-      if (!cancelled && !initialized) {
+      if (!cancelled) {
         setLoading(false)
         setInitialized(true)
       }
