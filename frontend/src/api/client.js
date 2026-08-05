@@ -5,13 +5,13 @@ const API_URL = import.meta.env.VITE_API_URL || '/api'
 const api = axios.create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
-  // 60s timeout — handles Render cold starts
-  timeout: 60000,
+  // 45s timeout — enough for Render cold starts but not so long user waits forever
+  timeout: 45000,
 })
 
-// ═══════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
 // SMART CACHE — instant UI, background refresh
-// ═══════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
 const cache = new Map()
 const CACHE_TTL = 30000
 
@@ -52,7 +52,7 @@ api.interceptors.request.use(config => {
   return config
 })
 
-// Response interceptor - handle 401, auto-retry 405 on cold start
+// Response interceptor - handle 401, auto-retry on cold start
 api.interceptors.response.use(
   response => response,
   async error => {
@@ -64,7 +64,7 @@ api.interceptors.response.use(
       }
     }
 
-    // Auto-retry 405 errors (cold start proxy issue)
+    // Auto-retry 405 errors (cold start proxy issue) — once
     if (error.response?.status === 405 && !error.config._retried) {
       error.config._retried = true
       try {
@@ -74,9 +74,10 @@ api.interceptors.response.use(
       }
     }
 
-    // Auto-retry network errors (server waking up) once
+    // Auto-retry network errors (server waking up) — once with 3s delay
     if (!error.response && !error.config._retried) {
       error.config._retried = true
+      await new Promise(r => setTimeout(r, 3000))
       try {
         return await api.request(error.config)
       } catch (retryErr) {
@@ -88,17 +89,61 @@ api.interceptors.response.use(
   }
 )
 
-// ═══════════════════════════════════════════
-// KEEP-ALIVE PING — prevents Render cold starts
-// Pings server every 14 minutes (free tier sleeps after 15min)
-// ═══════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+// COLD START WAKE-UP — progressively ping the server
+// Returns: { awake: true } or { awake: false }
+// Call this BEFORE login to pre-wake the server
+// ═══════════════════════════════════════════════════════════════════
+api.wakeServer = async function (onStatus) {
+  // onStatus is a callback: (msg) => void  — e.g. "Pinging server...", "Server awake!"
+  const ping = (timeout) => api.get('/ping', { timeout }).then(() => true).catch(() => false)
+
+  // Quick check — maybe server is already awake
+  if (onStatus) onStatus('Checking server...')
+  if (await ping(3000)) {
+    if (onStatus) onStatus('Server is awake')
+    return { awake: true }
+  }
+
+  // Server is sleeping — progressively retry with longer timeouts
+  const attempts = [
+    { delay: 2000,  timeout: 8000,  label: 'Waking server…' },
+    { delay: 3000,  timeout: 15000, label: 'Still waking…' },
+    { delay: 5000,  timeout: 30000, label: 'Almost ready…' },
+    { delay: 8000,  timeout: 45000, label: 'One more try…' },
+  ]
+
+  for (const attempt of attempts) {
+    if (onStatus) onStatus(attempt.label)
+    await new Promise(r => setTimeout(r, attempt.delay))
+    if (await ping(attempt.timeout)) {
+      if (onStatus) onStatus('Server is awake!')
+      return { awake: true }
+    }
+  }
+
+  if (onStatus) onStatus('Server may still be starting — try logging in')
+  return { awake: false }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// KEEP-ALIVE — pings /api/ping every 14 min to prevent sleep
+// Starts IMMEDIATELY (not just after login) so the server
+// stays warm even when the user is on the login page
+// ═══════════════════════════════════════════════════════════════════
 let keepAliveTimer = null
+let keepAliveStarted = false
 
 api.startKeepAlive = () => {
-  if (keepAliveTimer) return
+  if (keepAliveStarted) return
+  keepAliveStarted = true
+
+  // Ping immediately on start (in case server is sleeping)
+  api.get('/ping', { timeout: 5000 }).catch(() => {})
+
   keepAliveTimer = setInterval(() => {
-    api.get('/ai/status').catch(() => {})
-  }, 14 * 60 * 1000) // 14 minutes
+    api.get('/ping', { timeout: 5000 }).catch(() => {})
+  }, 14 * 60 * 1000) // every 14 minutes
 }
 
 api.stopKeepAlive = () => {
@@ -106,6 +151,13 @@ api.stopKeepAlive = () => {
     clearInterval(keepAliveTimer)
     keepAliveTimer = null
   }
+  keepAliveStarted = false
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// AUTO-START KEEP-ALIVE — runs the moment this module is imported
+// (i.e. when the app loads), NOT just after login
+// ═══════════════════════════════════════════════════════════════════
+api.startKeepAlive()
 
 export default api
