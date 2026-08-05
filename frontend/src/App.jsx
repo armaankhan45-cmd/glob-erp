@@ -78,20 +78,17 @@ function LoginPage() {
   const [error, setError] = useState('')
   const [retrying, setRetrying] = useState(false)
   const [mounted, setMounted] = useState(false)
-  const [serverStatus, setServerStatus] = useState('') // e.g. "Waking server…"
+  const [serverStatus, setServerStatus] = useState('')
 
   useEffect(() => { setTimeout(() => setMounted(true), 80) }, [])
 
   // ═══ Pre-wake the server when login page loads ═══
   useEffect(() => {
-    // Quick ping — if server is already awake, this is instant
-    // If sleeping, this starts the wake-up process early
     const wakeTimer = setTimeout(() => {
       api.wakeServer((msg) => setServerStatus(msg)).then(() => {
-        // Server is awake or we gave up — clear status after a moment
         setTimeout(() => setServerStatus(''), 2000)
       })
-    }, 500) // Small delay so the page renders first
+    }, 500)
     return () => clearTimeout(wakeTimer)
   }, [])
 
@@ -103,7 +100,6 @@ function LoginPage() {
     setLoading(true)
 
     // ═══ SMART LOGIN WITH AUTO-WAKE ═══
-    // Try login directly first — if server is already awake, this is instant
     const start = Date.now()
     const result = await login(email, password)
     const took = Date.now() - start
@@ -115,18 +111,15 @@ function LoginPage() {
     }
 
     // Login failed — if it took >5s, server was probably sleeping
-    // Wake it up first, then retry login
-    if (took > 5000 || !result.success) {
+    if (took > 5000) {
       setLoading(false)
       setRetrying(true)
       setError('')
       setServerStatus('Server is waking up — this takes ~30s on free tier…')
 
-      // Wake the server first
       const wakeResult = await api.wakeServer((msg) => setServerStatus(msg))
 
       if (wakeResult.awake) {
-        // Server is awake — retry login
         setServerStatus('Server is awake! Logging in…')
         const retry = await login(email, password)
         setRetrying(false)
@@ -137,7 +130,6 @@ function LoginPage() {
           setError(retry.msg || 'Invalid email or password')
         }
       } else {
-        // Couldn't wake server — try login anyway as last resort
         setServerStatus('Trying to login…')
         const retry = await login(email, password)
         setRetrying(false)
@@ -159,13 +151,12 @@ function LoginPage() {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', background: 'var(--bg-primary)', transition: 'background 0.4s ease' }}>
       
-      {/* ══════ LEFT — Brand Showcase with DotField + MagnetLines ══════ */}
+      {/* ══════ LEFT — Brand Showcase ══════ */}
       <div className="login-brand" style={{
         flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center',
         padding: '60px', position: 'relative', overflow: 'hidden',
         background: 'linear-gradient(160deg, var(--bg-primary) 0%, var(--bg-card) 100%)'
       }}>
-        {/* Interactive DotField Background */}
         <DotField
           dotRadius={1.2}
           dotSpacing={18}
@@ -176,7 +167,6 @@ function LoginPage() {
           style={{ opacity: 0.7 }}
         />
 
-        {/* MagnetLines — subtle directional lines */}
         <div style={{ position: 'absolute', inset: 0, opacity: 0.3, pointerEvents: 'none' }}>
           <MagnetLines
             rows={6}
@@ -188,13 +178,11 @@ function LoginPage() {
           />
         </div>
 
-        {/* Subtle accent glow */}
         <div style={{ position: 'absolute', bottom: '-20%', left: '-10%', width: '600px', height: '600px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(var(--accent-rgb),0.06), transparent 70%)' }} />
         <div style={{ position: 'absolute', top: '-10%', right: '-5%', width: '400px', height: '400px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(var(--accent-rgb),0.04), transparent 70%)' }} />
 
         <div style={{ position: 'relative', maxWidth: '440px', transform: mounted ? 'none' : 'translateY(20px)', opacity: mounted ? 1 : 0, transition: 'all 0.6s cubic-bezier(0.16,1,0.3,1)', zIndex: 10 }}>
           
-          {/* Logo */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '40px' }}>
             <div style={{
               width: '44px', height: '44px', borderRadius: '12px',
@@ -209,7 +197,6 @@ function LoginPage() {
             </div>
           </div>
 
-          {/* Headline */}
           <h2 style={{ fontSize: '32px', fontWeight: '700', lineHeight: '1.3', color: 'var(--text-primary)', marginBottom: '12px' }}>
             GST-Compliant<br/><span style={{ color: 'var(--accent)' }}>Fabrication ERP</span>
           </h2>
@@ -217,13 +204,11 @@ function LoginPage() {
             Invoices, Quotations, Purchase Bills, GST Reports — everything in one system. Built for Indian manufacturing.
           </p>
 
-          {/* GSTIN */}
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '8px', background: 'rgba(var(--accent-rgb),0.08)', border: '1px solid rgba(var(--accent-rgb),0.12)' }}>
             <span style={{ fontSize: '9px', fontWeight: '700', letterSpacing: '1px', color: 'var(--text-muted)' }}>GSTIN</span>
             <span style={{ fontSize: '13px', fontWeight: '700', fontFamily: 'monospace', color: 'var(--accent)' }}>27AWAPK1209R1ZC</span>
           </div>
 
-          {/* Features */}
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '28px' }}>
             {['✓ GST Invoicing', '✓ Quotations', '✓ Purchase Bills', '✓ GSTR Reports', '✓ Customer DB'].map((f, i) => (
               <span key={i} style={{ padding: '5px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', background: 'rgba(var(--accent-rgb),0.05)', color: 'var(--text-secondary)' }}>{f}</span>
@@ -239,7 +224,6 @@ function LoginPage() {
         borderLeft: '1px solid var(--border)',
         position: 'relative',
       }}>
-        {/* Subtle dot field on right side */}
         <div style={{ position: 'absolute', inset: 0, opacity: 0.15, pointerEvents: 'none' }}>
           <DotField
             dotRadius={0.8}
@@ -253,13 +237,12 @@ function LoginPage() {
 
         <div style={{ maxWidth: '360px', margin: '0 auto', width: '100%', transform: mounted ? 'none' : 'translateY(10px)', opacity: mounted ? 1 : 0, transition: 'all 0.5s cubic-bezier(0.16,1,0.3,1) 0.1s', position: 'relative', zIndex: 1 }}>
           
-          {/* Header */}
           <div style={{ marginBottom: '28px' }}>
             <p style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '4px' }}>GLOB ERP</p>
             <h2 style={{ fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)' }}>Sign in</h2>
           </div>
 
-          {/* Server Status */}
+          {/* Server Status — shows during cold start wake-up */}
           {serverStatus && (
             <div style={{
               padding: '10px 14px', borderRadius: '8px', marginBottom: '14px',
@@ -274,7 +257,6 @@ function LoginPage() {
             </div>
           )}
 
-          {/* Error */}
           {error && (
             <div style={{
               padding: '12px 14px', borderRadius: '8px', marginBottom: '20px',
@@ -289,7 +271,6 @@ function LoginPage() {
             </div>
           )}
 
-          {/* Form */}
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>Email</label>
@@ -333,12 +314,10 @@ function LoginPage() {
             </button>
           </form>
 
-          {/* Note */}
           <p style={{ textAlign: 'center', marginTop: '20px', fontSize: '11px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
             First visit after idle may take ~30s — free-tier server sleeps when idle.<br/>Subsequent logins are instant.
           </p>
 
-          {/* Footer */}
           <p style={{ textAlign: 'center', marginTop: '32px', fontSize: '10px', color: 'var(--text-muted)' }}>
             © 2024 Glob Fabrication and Enterprises · Maharashtra, India
           </p>
