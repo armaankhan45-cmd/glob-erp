@@ -15,7 +15,11 @@ export function AuthProvider({ children }) {
   const [error, setError] = useState(null)
   const [initialized, setInitialized] = useState(false)
 
-  // ── FAST AUTH: Use cached user IMMEDIATELY, verify in background ──
+  // ═══════════════════════════════════════════════════════════════════
+  // FAST AUTH — Use cached user IMMEDIATELY, verify in background
+  // On cold start (network error), keep cached data — DON'T log out
+  // Only redirect to login on explicit 401 (invalid/expired token)
+  // ═══════════════════════════════════════════════════════════════════
   useEffect(() => {
     let cancelled = false
     const token = localStorage.getItem('token')
@@ -42,26 +46,27 @@ export function AuthProvider({ children }) {
       setInitialized(true)
     }
 
-    // Verify token in background (2s timeout — fast)
-    const timeoutId = setTimeout(() => {
+    // Safety timeout — if /auth/me never responds, still show app
+    const safetyTimeout = setTimeout(() => {
       if (!cancelled && !initialized) {
         setLoading(false)
         setInitialized(true)
       }
-    }, 2000)
+    }, 5000)
 
-    api.get('/auth/me', { timeout: 2000 }).then(res => {
+    // Verify token in background — 8s timeout (server may be waking)
+    api.get('/auth/me', { timeout: 8000 }).then(res => {
       if (!cancelled) {
         setUser(res.data.user)
         localStorage.setItem('user', JSON.stringify(res.data.user))
         setLoading(false)
         setInitialized(true)
-        clearTimeout(timeoutId)
+        clearTimeout(safetyTimeout)
       }
     }).catch(err => {
       if (!cancelled) {
         if (err.response?.status === 401) {
-          // Token is invalid — clear everything, redirect to login
+          // Token is genuinely invalid — clear everything, redirect to login
           localStorage.removeItem('token')
           localStorage.removeItem('user')
           setUser(null)
@@ -69,18 +74,20 @@ export function AuthProvider({ children }) {
             window.location.href = '/login'
           }
         } else {
-          // Network error (server sleeping) — use cached data, that's fine
+          // Network error (server sleeping / cold start) — KEEP cached data
+          // Do NOT clear the token! The user is still authenticated,
+          // the server just needs to wake up.
           if (savedUser) {
             try { setUser(JSON.parse(savedUser)) } catch {}
           }
         }
         setLoading(false)
         setInitialized(true)
-        clearTimeout(timeoutId)
+        clearTimeout(safetyTimeout)
       }
     })
 
-    return () => { cancelled = true; clearTimeout(timeoutId) }
+    return () => { cancelled = true; clearTimeout(safetyTimeout) }
   }, [])
 
   const login = useCallback(async (email, password) => {
