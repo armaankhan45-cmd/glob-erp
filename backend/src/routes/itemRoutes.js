@@ -1,0 +1,141 @@
+const express = require('express');
+const router = express.Router();
+const getDb = require('../config/db');
+const { auth } = require('../middleware/auth');
+
+// ═══════════════════════════════════════════════════════════════════
+// GET /api/items/suggest?q=keyword
+// Searches ALL item tables (purchases, invoices, quotations)
+// for unique (description, hsn_code, unit, rate) combos
+// Returns most-frequently-used items first
+// ═══════════════════════════════════════════════════════════════════
+router.get('/suggest', auth, async (req, res) => {
+  try {
+    const db = getDb();
+    const orgId = req.user.organization_id;
+    const q = (req.query.q || '').trim();
+
+    if (!q || q.length < 1) {
+      return res.json({ success: true, items: [] });
+    }
+
+    const search = q.toUpperCase();
+    const likeQ = `%${q}%`;
+
+    // Query purchase bill items
+    let purchaseItems = [];
+    try {
+      purchaseItems = await db('purchase_bill_items')
+        .join('purchase_bills', 'purchase_bill_items.purchase_id', 'purchase_bills.id')
+        .where('purchase_bills.organization_id', orgId)
+        .where('purchase_bill_items.description', 'ilike', likeQ)
+        .select('purchase_bill_items.description', 'purchase_bill_items.hsn_code', 'purchase_bill_items.unit', 'purchase_bill_items.rate', 'purchase_bill_items.cgst_rate', 'purchase_bill_items.sgst_rate', 'purchase_bill_items.igst_rate');
+    } catch (e) { /* table may not exist yet */ }
+
+    // Query invoice items
+    let invoiceItems = [];
+    try {
+      invoiceItems = await db('invoice_items')
+        .join('invoices', 'invoice_items.invoice_id', 'invoices.id')
+        .where('invoices.organization_id', orgId)
+        .where('invoice_items.description', 'ilike', likeQ)
+        .select('invoice_items.description', 'invoice_items.hsn_code', 'invoice_items.unit', 'invoice_items.rate', 'invoice_items.cgst_rate', 'invoice_items.sgst_rate', 'invoice_items.igst_rate');
+    } catch (e) {}
+
+    // Query quotation items
+    let quotationItems = [];
+    try {
+      quotationItems = await db('quotation_items')
+        .join('quotations', 'quotation_items.quotation_id', 'quotations.id')
+        .where('quotations.organization_id', orgId)
+        .where('quotation_items.description', 'ilike', likeQ)
+        .select('quotation_items.description', 'quotation_items.hsn_code', 'quotation_items.unit', 'quotation_items.rate', 'quotation_items.cgst_rate as cgst_rate', 'quotation_items.sgst_rate as sgst_rate', 'quotation_items.igst_rate as igst_rate');
+    } catch (e) {}
+
+    // Merge all items, count frequency, deduplicate
+    const allItems = [...purchaseItems, ...invoiceItems, ...quotationItems];
+    const freqMap = new Map();
+
+    for (const item of allItems) {
+      if (!item.description || !item.description.trim()) continue;
+      // Create a key based on description (case-insensitive) + hsn_code
+      const descNorm = item.description.trim().toUpperCase();
+      const key = descNorm + '|' + (item.hsn_code || '');
+
+      if (freqMap.has(key)) {
+        freqMap.get(key).count += 1;
+      } else {
+        freqMap.set(key, {
+          description: item.description.trim(),
+          hsn_code: item.hsn_code || '',
+          unit: item.unit || 'NOS',
+          rate: parseFloat(item.rate) || 0,
+          cgst_rate: parseFloat(item.cgst_rate) || 0,
+          sgst_rate: parseFloat(item.sgst_rate) || 0,
+          igst_rate: parseFloat(item.igst_rate) || 0,
+          count: 1
+        });
+      }
+    }
+
+    // Sort by frequency (most used first), then alphabetically
+    const results = Array.from(freqMap.values())
+      .sort((a, b) => b.count - a.count || a.description.localeCompare(b.description))
+      .slice(0, 20); // Max 20 suggestions
+
+    res.json({ success: true, items: results });
+  } catch (err) {
+    console.error('Item suggest error:', err);
+    res.status(500).json({ success: false, msg: 'Failed', items: [] });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// GET /api/items/recent
+// Returns most recently used items (for empty search / initial load)
+// ═══════════════════════════════════════════════════════════════════
+router.get('/recent', auth, async (req, res) => {
+  try {
+    const db = getDb();
+    const orgId = req.user.organization_id;
+
+    // Get latest 50 distinct items from purchases (most recent first)
+    let purchaseItems = [];
+    try {
+      purchaseItems = await db('purchase_bill_items')
+        .join('purchase_bills', 'purchase_bill_items.purchase_id', 'purchase_bills.id')
+        .where('purchase_bills.organization_id', orgId)
+        .whereNotNull('purchase_bill_items.description')
+        .where('purchase_bill_items.description', '!=', '')
+        .orderBy('purchase_bills.created_at', 'desc')
+        .limit(50)
+        .select('purchase_bill_items.description', 'purchase_bill_items.hsn_code', 'purchase_bill_items.unit', 'purchase_bill_items.rate', 'purchase_bill_items.cgst_rate', 'purchase_bill_items.sgst_rate', 'purchase_bill_items.igst_rate');
+    } catch (e) {}
+
+    // Deduplicate by description+hsn
+    const seen = new Set();
+    const results = [];
+    for (const item of purchaseItems) {
+      const key = item.description.trim().toUpperCase() + '|' + (item.hsn_code || '');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      results.push({
+        description: item.description.trim(),
+        hsn_code: item.hsn_code || '',
+        unit: item.unit || 'NOS',
+        rate: parseFloat(item.rate) || 0,
+        cgst_rate: parseFloat(item.cgst_rate) || 0,
+        sgst_rate: parseFloat(item.sgst_rate) || 0,
+        igst_rate: parseFloat(item.igst_rate) || 0,
+      });
+      if (results.length >= 15) break;
+    }
+
+    res.json({ success: true, items: results });
+  } catch (err) {
+    console.error('Item recent error:', err);
+    res.status(500).json({ success: false, msg: 'Failed', items: [] });
+  }
+});
+
+module.exports = router;
