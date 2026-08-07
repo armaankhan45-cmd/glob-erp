@@ -25,7 +25,6 @@ export default function PurchaseNew() {
   }
 
   const handleItemSuggest = (idx, suggested) => {
-    // When user picks from autocomplete, fill ALL fields from past data
     const newItems = [...items]
     newItems[idx] = {
       ...newItems[idx],
@@ -65,14 +64,13 @@ export default function PurchaseNew() {
       })
       navigate('/app/purchases')
     } catch (err) {
-      alert(err.response?.data?.msg || 'Failed')
+      alert(err.response && err.response.data && err.response.data.msg || 'Failed')
     } finally {
       setSaving(false)
     }
   }
 
   return (
-
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
         <button onClick={() => navigate('/app/purchases')} className="p-2 hover:bg-gray-100 rounded-lg"><ArrowLeft size={20} /></button>
@@ -108,7 +106,7 @@ export default function PurchaseNew() {
             <div><input value={item.hsn_code} onChange={e => updateItem(idx, 'hsn_code', e.target.value)} list="hsn-list" className="input-field text-sm" placeholder="HSN" /><datalist id="hsn-list">{HSN_CODES.map(h => <option key={h.code} value={h.code}>{h.label}</option>)}</datalist></div>
             <div><input type="number" value={item.quantity} onChange={e => updateItem(idx, 'quantity', e.target.value)} className="input-field text-sm" placeholder="Qty" /></div>
             <div><input type="number" value={item.rate} onChange={e => updateItem(idx, 'rate', e.target.value)} className="input-field text-sm" placeholder="Rate" /></div>
-            <div className="text-right font-medium pt-2">₹{(item.amount || 0).toFixed(2)}</div>
+            <div className="text-right font-medium pt-2">{'\u20B9'}{(item.amount || 0).toFixed(2)}</div>
             <div>{items.length > 1 && <button onClick={() => setItems(items.filter((_, i) => i !== idx))} className="text-red-400"><X size={16} /></button>}</div>
           </div>
         ))}
@@ -117,13 +115,13 @@ export default function PurchaseNew() {
 
       <div className="card">
         <div className="max-w-sm ml-auto space-y-2 text-sm">
-          <div className="flex justify-between"><span>Subtotal</span><span>₹{calculated.subtotal.toFixed(2)}</span></div>
-          <div className="flex justify-between"><span>CGST</span><span>₹{calculated.cgst_amount.toFixed(2)}</span></div>
-          <div className="flex justify-between"><span>SGST</span><span>₹{calculated.sgst_amount.toFixed(2)}</span></div>
-          <div className="flex justify-between"><span>IGST</span><span>₹{calculated.igst_amount.toFixed(2)}</span></div>
+          <div className="flex justify-between"><span>Subtotal</span><span>{'\u20B9'}{calculated.subtotal.toFixed(2)}</span></div>
+          <div className="flex justify-between"><span>CGST</span><span>{'\u20B9'}{calculated.cgst_amount.toFixed(2)}</span></div>
+          <div className="flex justify-between"><span>SGST</span><span>{'\u20B9'}{calculated.sgst_amount.toFixed(2)}</span></div>
+          <div className="flex justify-between"><span>IGST</span><span>{'\u20B9'}{calculated.igst_amount.toFixed(2)}</span></div>
           <div className="flex justify-between items-center"><span>Discount</span><input type="number" value={form.discount} onChange={e => {setForm({...form, discount: e.target.value}); recalc(items)}} className="input-field w-28 text-right text-sm" /></div>
           <hr />
-          <div className="flex justify-between font-bold text-base"><span>TOTAL</span><span>₹{calculated.total_amount.toFixed(2)}</span></div>
+          <div className="flex justify-between font-bold text-base"><span>TOTAL</span><span>{'\u20B9'}{calculated.total_amount.toFixed(2)}</span></div>
         </div>
       </div>
 
@@ -132,6 +130,5 @@ export default function PurchaseNew() {
         <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2"><Save size={16} /> {saving ? 'Saving...' : 'Save'}</button>
       </div>
     </div>
-  
-)
+  )
 }
