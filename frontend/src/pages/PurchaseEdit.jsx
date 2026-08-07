@@ -8,7 +8,7 @@ import ItemSuggestInput from '../components/ItemSuggestInput'
 const HSN_KEYWORDS = [
   { keywords: ['TANK', 'TANKER', 'RESERVOIR', 'VAT', 'DRUM', 'CASK'], hsn: '7309' },
   { keywords: ['CHASSIS', 'MOUNTING', 'MUDGUARD', 'EXHAUST', 'BUMPER', 'BRAKE', 'CLUTCH', 'GEAR', 'AXLE', 'SUSPENSION', 'STEERING'], hsn: '8708' },
-  { keywords: ['STRUCTURE', 'PLATFORM', 'CATWALK', 'LADDER', 'RAILING', 'FRAME', 'COLUMN', ''EAM', 'TRUSS', 'GIRDER'], hsn: '"308' },
+  { keywords: ['STRUCTURE', 'PLATFORM', 'CATWALK', 'LADDER', 'RAILING', 'FRAME', 'COLUMN', 'BEAM', 'TRUSS', 'GIRDER'], hsn: '7308' },
   { keywords: ['TRAILER', 'SEMI-TRAILER', 'TROLLEY'], hsn: '8716' },
   { keywords: ['BODY', 'CABIN', 'CAB', 'D-BOX', 'DOME', 'COCKPIT'], hsn: '8707' },
   { keywords: ['VALVE', 'COCK', 'TAP', 'FITTING', 'FLANGE', 'MANHOLE'], hsn: '8481' },
@@ -22,7 +22,7 @@ const HSN_KEYWORDS = [
   { keywords: ['PLASTIC', 'PVC', 'HDPE', 'PP', 'NYLON'], hsn: '3925' },
   { keywords: ['RUBBER', 'GASKET', 'SEAL', 'O-RING', 'BELT'], hsn: '4016' },
   { keywords: ['PAINT', 'COATING', 'PRIMER', 'VARNISH', 'LACQUER'], hsn: '3208' },
-  { keywords: ['WELDING', 'ELECTRODE', 'FILLER', 'FLUX', 'SOLDER'], hsn: '8311' },
+  { keywords: ['WELDING', 'ELECTRODE', 'FILL?ER', 'FLUX', 'SOLDER'], hsn: '8311' },
   { keywords: ['PUMP', 'COMPRESSOR', 'FAN', 'BLOWER', 'MOTOR', 'ENGINE', 'GENERATOR'], hsn: '8413' },
 ]
 
@@ -67,7 +67,7 @@ export default function PurchaseEdit() {
         notes: p.notes || '',
         payment_status: p.payment_status || 'Unpaid'
       })
-      const loadedItems = res.data.items?.length > 0
+      const loadedItems = res.data.items && res.data.items.length > 0
         ? res.data.items
         : [{ description: '', hsn_code: '', quantity: 1, unit: 'NOS', rate: 0, cgst_rate: 9, sgst_rate: 9, igst_rate: 0, amount: 0 }]
       setItems(loadedItems)
@@ -77,7 +77,7 @@ export default function PurchaseEdit() {
         sgst_amount: parseFloat(p.sgst_amount) || 0,
         igst_amount: parseFloat(p.igst_amount) || 0,
         total_amount: parseFloat(p.total_amount) || 0
-     %7D)
+      })
     }).catch(err => {
       console.error('Load error:', err)
       alert('Failed to load purchase bill')
@@ -156,7 +156,7 @@ export default function PurchaseEdit() {
       })
       navigate(`/app/purchases/${id}`)
     } catch (err) {
-      alert(err.response?.data?.msg || 'Update failed')
+      alert(err.response && err.response.data && err.response.data.msg || 'Update failed')
     } finally {
       setSaving(false)
     }
@@ -179,7 +179,7 @@ export default function PurchaseEdit() {
         </div>
         <div className="grid md:grid-cols-3 gap-4">
           <div><label className="block text-sm font-medium text-white/70 mb-1">Bill Date</label><input type="date" value={form.bill_date} onChange={e => setForm({...form, bill_date: e.target.value})} className="input-field" /></div>
-          <div><label className="block text-sm font-medium text-white/70 mb-1">Supplier Phone</label><input value={form.supGstin} onChange={e => setForm({...form, supplier_phone: e.target.value})} className="input-field" /></div>
+          <div><label className="block text-sm font-medium text-white/70 mb-1">Supplier Phone</label><input value={form.supplier_phone} onChange={e => setForm({...form, supplier_phone: e.target.value})} className="input-field" /></div>
           <div><label className="block text-sm font-medium text-white/70 mb-1">Supplier Address</label><input value={form.supplier_address} onChange={e => setForm({...form, supplier_address: e.target.value})} className="input-field" /></div>
         </div>
         <div className="grid md:grid-cols-2 gap-4">
@@ -218,7 +218,7 @@ export default function PurchaseEdit() {
                   <td className="py-2 pr-2"><select value={item.unit} onChange={e => updateItem(idx, 'unit', e.target.value)} className="input-field text-sm">{['NOS','KG','MTR','SET','LOT','PCS'].map(u=><option key={u}>{u}</option>)}</select></td>
                   <td className="py-2 pr-2"><input type="number" value={item.rate} onChange={e => updateItem(idx, 'rate', e.target.value)} className="input-field text-sm" /></td>
                   <td className="py-2 pr-2"><input type="number" value={item.igst_rate > 0 ? item.igst_rate : (parseFloat(item.cgst_rate) + parseFloat(item.sgst_rate))} onChange={e => { const r = parseFloat(e.target.value)||0; const sc = form.supplier_state_code; const orgSC = '27'; if(sc===orgSC){updateItem(idx,'cgst_rate',r/2);updateItem(idx,'sgst_rate',r/2);updateItem(idx,'igst_rate',0)}else{updateItem(idx,'igst_rate',r);updateItem(idx,'cgst_rate',0);updateItem(idx,'sgst_rate',0)} }} className="input-field text-sm" /></td>
-                  <td className="py-2 text-right font-medium">{(parseFloat(itemBitem.amount)||0).toFixed(2)}</td>
+                  <td className="py-2 text-right font-medium">{(parseFloat(item.amount)||0).toFixed(2)}</td>
                   <td className="py-2">{items.length > 1 && <button onClick={() => removeItem(idx)} className="text-red-400"><X size={16} /></button>}</td>
                 </tr>
               ))}
@@ -235,7 +235,7 @@ export default function PurchaseEdit() {
           <div className="flex justify-between"><span>SGST</span><span>₹{calculated.sgst_amount.toFixed(2)}</span></div>
           <div className="flex justify-between"><span>IGST</span><span>₹{calculated.igst_amount.toFixed(2)}</span></div>
           <div className="flex justify-between items-center"><span>Discount</span><input type="number" value={form.discount} onChange={e => {setForm({...form, discount: e.target.value}); recalc(items, e.target.value, form.round_off)}} className="input-field w-28 text-right text-sm" /></div>
-          <div className="flex justify-between items-center"><span>Round Off</span><input type="number" step="0.01" value={form.round_off:off} onChange={e => {setForm({...form, round_off: e.target.value}); recalc(items, form.discount, e.target.value)}} className="input-field w-28 text-right text-sm" /></div>
+          <div className="flex justify-between items-center"><span>Round Off</span><input type="number" step="0.01" value={form.round_off} onChange={e => {setForm({...form, round_off: e.target.value}); recalc(items, form.discount, e.target.value)}} className="input-field w-28 text-right text-sm" /></div>
           <hr />
           <div className="flex justify-between text-base font-bold"><span>TOTAL</span><span>₹{calculated.total_amount.toFixed(2)}</span></div>
         </div>
