@@ -28,7 +28,6 @@ try {
 // RATE LIMITING — increased for cold-start scenarios
 // Auth: 20 per 15 min (was 5 — too strict, users got locked out
 // when retrying during server wake-up)
-// API: 200 per 15 min (was 100)
 // ═══════════════════════════════════════════════════════════════
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -59,7 +58,6 @@ app.use('/api/auth/reset-password', authLimiter);
 // ═══════════════════════════════════════════════════════════════
 // INSTANT PING — no DB, no auth, no rate limit
 // Used by frontend keep-alive + cold-start wake-up
-// This MUST be before the apiLimiter so it's not rate-limited
 // ═══════════════════════════════════════════════════════════════
 app.get('/api/ping', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
@@ -93,7 +91,6 @@ app.use(cors({ origin: ALLOWED_ORIGINS, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Apply global API rate limiter AFTER /api/ping so ping is never rate-limited
 app.use('/api/', apiLimiter);
 
 // ====== GLOBAL DATA SANITIZATION MIDDLEWARE ======
@@ -265,6 +262,7 @@ function safe(path) {
   }
 }
 
+app.use('/api/items', safe('./routes/itemRoutes'));
 app.use('/api/auth', safe('./routes/authRoutes'));
 app.use('/api/customers', safe('./routes/customerRoutes'));
 app.use('/api/invoices', safe('./routes/invoiceRoutes'));
