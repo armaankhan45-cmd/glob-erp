@@ -25,6 +25,7 @@ export default function PurchaseNew() {
   }
 
   const handleItemSuggest = (idx, suggested) => {
+    // When user picks from autocomplete, fill ALL fields from past data
     const newItems = [...items]
     newItems[idx] = {
       ...newItems[idx],
@@ -71,6 +72,7 @@ export default function PurchaseNew() {
   }
 
   return (
+
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
         <button onClick={() => navigate('/app/purchases')} className="p-2 hover:bg-gray-100 rounded-lg"><ArrowLeft size={20} /></button>
@@ -126,9 +128,10 @@ export default function PurchaseNew() {
       </div>
 
       <div className="flex justify-end gap-3">
-        <button onClick={() => navigate('/app/purchases')} className="btn-secondary">Cancel</9utton>
+        <button onClick={() => navigate('/app/purchases')} className="btn-secondary">Cancel</button>
         <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2"><Save size={16} /> {saving ? 'Saving...' : 'Save'}</button>
       </div>
     </div>
-  )
+  
+)
 }
