@@ -15,75 +15,34 @@ export function AuthProvider({ children }) {
   const [error, setError] = useState(null)
   const [initialized, setInitialized] = useState(false)
 
-  // ═══════════════════════════════════════════════════════════════════
-  // FAST AUTH — Use cached user IMMEDIATELY, verify in background
-  // On cold start (network error), keep cached data — DON'T log out
-  // Only redirect to login on explicit 401 (invalid/expired token)
-  // ═══════════════════════════════════════════════════════════════════
   useEffect(() => {
     let cancelled = false
     const token = localStorage.getItem('token')
     const savedUser = localStorage.getItem('user')
 
-    // If we have saved user data, use it RIGHT NOW — no waiting
-    if (token && savedUser) {
-      try { setUser(JSON.parse(savedUser)) } catch {}
-    }
+    if (token && savedUser) { try { setUser(JSON.parse(savedUser)) } catch {} }
 
-    if (!token) {
-      // No token — skip auth check entirely
-      setLoading(false)
-      setInitialized(true)
-      return
-    }
+    if (!token) { setLoading(false); setInitialized(true); return }
 
-    // If no saved user but have token, need to check
-    if (!savedUser) {
-      setLoading(true)
-    } else {
-      // We have cached data — show app immediately, verify in background
-      setLoading(false)
-      setInitialized(true)
-    }
+    if (!savedUser) { setLoading(true) } else { setLoading(false); setInitialized(true) }
 
-    // Safety timeout — if /auth/me never responds, still show app
-    const safetyTimeout = setTimeout(() => {
-      if (!cancelled) {
-        setLoading(false)
-        setInitialized(true)
-      }
-    }, 5000)
+    const safetyTimeout = setTimeout(() => { if (!cancelled) { setLoading(false); setInitialized(true) } }, 5000)
 
-    // Verify token in background — 8s timeout (server may be waking)
     api.get('/auth/me', { timeout: 8000 }).then(res => {
       if (!cancelled) {
         setUser(res.data.user)
         localStorage.setItem('user', JSON.stringify(res.data.user))
-        setLoading(false)
-        setInitialized(true)
-        clearTimeout(safetyTimeout)
+        setLoading(false); setInitialized(true); clearTimeout(safetyTimeout)
       }
     }).catch(err => {
       if (!cancelled) {
         if (err.response?.status === 401) {
-          // Token is genuinely invalid — clear everything, redirect to login
-          localStorage.removeItem('token')
-          localStorage.removeItem('user')
-          setUser(null)
-          if (!window.location.pathname.includes('/login')) {
-            window.location.href = '/login'
-          }
+          localStorage.removeItem('token'); localStorage.removeItem('user'); setUser(null)
+          if (!window.location.pathname.includes('/login')) { window.location.href = '/login' }
         } else {
-          // Network error (server sleeping / cold start) — KEEP cached data
-          // Do NOT clear the token! The user is still authenticated,
-          // the server just needs to wake up.
-          if (savedUser) {
-            try { setUser(JSON.parse(savedUser)) } catch {}
-          }
+          if (savedUser) { try { setUser(JSON.parse(savedUser)) } catch {} }
         }
-        setLoading(false)
-        setInitialized(true)
-        clearTimeout(safetyTimeout)
+        setLoading(false); setInitialized(true); clearTimeout(safetyTimeout)
       }
     })
 
@@ -106,22 +65,12 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-    setUser(null)
-  }, [])
+  const logout = useCallback(() => { localStorage.removeItem('token'); localStorage.removeItem('user'); setUser(null) }, [])
 
   const refreshUser = useCallback(async () => {
-    try {
-      const res = await api.get('/auth/me')
-      setUser(res.data.user)
-      localStorage.setItem('user', JSON.stringify(res.data.user))
-    } catch {}
+    try { const res = await api.get('/auth/me'); setUser(res.data.user); localStorage.setItem('user', JSON.stringify(res.data.user)) } catch {}
   }, [])
 
-  // NO loading screen — if we have cached data, show app immediately
-  // Only show a tiny spinner if we have NO cached data at all
   if (loading && !localStorage.getItem('user')) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)' }}>
