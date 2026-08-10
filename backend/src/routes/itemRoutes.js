@@ -3,6 +3,7 @@ const router = express.Router();
 const getDb = require('../config/db');
 const { auth } = require('../middleware/auth');
 
+// GET /api/items/suggest?q=keyword
 router.get('/suggest', auth, async (req, res) => {
   try {
     const db = getDb();
@@ -29,6 +30,7 @@ router.get('/suggest', auth, async (req, res) => {
   } catch (err) { console.error('Item suggest error:', err); res.status(500).json({ success: false, msg: 'Failed', items: [] }); }
 });
 
+// GET /api/items/recent
 router.get('/recent', auth, async (req, res) => {
   try {
     const db = getDb();
@@ -46,6 +48,35 @@ router.get('/recent', auth, async (req, res) => {
     }
     res.json({ success: true, items: results });
   } catch (err) { console.error('Item recent error:', err); res.status(500).json({ success: false, msg: 'Failed', items: [] }); }
+});
+
+// GET /api/items/suppliers?q=keyword — supplier suggestion for Purchase forms
+router.get('/suppliers', auth, async (req, res) => {
+  try {
+    const db = getDb();
+    const orgId = req.user.organization_id;
+    const q = (req.query.q || '').trim();
+    if (!q || q.length < 1) { return res.json({ success: true, suppliers: [] }); }
+    const likeQ = `%${q}%`;
+    let results = [];
+    try {
+      results = await db('purchase_bills')
+        .where('purchase_bills.organization_id', orgId)
+        .where('purchase_bills.supplier_name', 'ilike', likeQ)
+        .select('purchase_bills.supplier_name', 'purchase_bills.supplier_gstin', 'purchase_bills.supplier_phone', 'purchase_bills.supplier_address', 'purchase_bills.supplier_state', 'purchase_bills.supplier_state_code')
+        .orderBy('purchase_bills.created_at', 'desc')
+        .limit(10);
+    } catch (e) {}
+    const seen = new Set();
+    const unique = [];
+    for (const s of results) {
+      const key = (s.supplier_name || '').trim().toUpperCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      unique.push(s);
+    }
+    res.json({ success: true, suppliers: unique });
+  } catch (err) { console.error('Supplier suggest error:', err); res.status(500).json({ success: false, msg: 'Failed', suppliers: [] }); }
 });
 
 module.exports = router;
