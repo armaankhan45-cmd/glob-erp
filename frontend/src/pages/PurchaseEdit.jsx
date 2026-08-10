@@ -4,6 +4,7 @@ import api from '../api/client'
 import { HSN_CODES } from '../data/hsnCodes'
 import { Save, Plus, X, ArrowLeft } from 'lucide-react'
 import ItemSuggestInput from '../components/ItemSuggestInput'
+import SupplierSuggestInput from '../components/SupplierSuggestInput'
 
 const HSN_KEYWORDS = [
   { keywords: ['TANK', 'TANKER', 'RESERVOIR', 'VAT', 'DRUM', 'CASK'], hsn: '7309' },
@@ -88,6 +89,18 @@ export default function PurchaseEdit() {
     setItems(newItems); recalc(newItems, form.discount, form.round_off)
   }
 
+  const handleSupplierSuggest = (supplier) => {
+    setForm(f => ({
+      ...f,
+      supplier_name: supplier.supplier_name || f.supplier_name,
+      supplier_gstin: supplier.supplier_gstin || f.supplier_gstin,
+      supplier_phone: supplier.supplier_phone || f.supplier_phone,
+      supplier_address: supplier.supplier_address || f.supplier_address,
+      supplier_state: supplier.supplier_state || f.supplier_state,
+      supplier_state_code: supplier.supplier_state_code || f.supplier_state_code,
+    }))
+  }
+
   const addItem = () => setItems([...items, { description: '', hsn_code: '', quantity: 1, unit: 'NOS', rate: 0, cgst_rate: 9, sgst_rate: 9, igst_rate: 0, amount: 0 }])
   const removeItem = (idx) => { const n = items.filter((_, i) => i !== idx); setItems(n); recalc(n, form.discount, form.round_off) }
 
@@ -111,7 +124,7 @@ export default function PurchaseEdit() {
       <div className="card space-y-4">
         <div className="grid md:grid-cols-3 gap-4">
           <div><label className="block text-sm font-medium text-white/70 mb-1">Bill Number *</label><input value={form.bill_number} onChange={e => setForm({...form, bill_number: e.target.value})} className="input-field" required /></div>
-          <div><label className="block text-sm font-medium text-white/70 mb-1">Supplier Name *</label><input value={form.supplier_name} onChange={e => setForm({...form, supplier_name: e.target.value})} className="input-field" required /></div>
+          <div><label className="block text-sm font-medium text-white/70 mb-1">Supplier Name *</label><SupplierSuggestInput value={form.supplier_name} onChange={val => setForm({...form, supplier_name: val})} onSelect={handleSupplierSuggest} placeholder="Supplier name..." className="input-field" /></div>
           <div><label className="block text-sm font-medium text-white/70 mb-1">Supplier GSTIN</label><input value={form.supplier_gstin} onChange={e => setForm({...form, supplier_gstin: e.target.value.toUpperCase(), supplier_state_code: e.target.value.substring(0,2)})} className="input-field" /></div>
         </div>
         <div className="grid md:grid-cols-3 gap-4">
