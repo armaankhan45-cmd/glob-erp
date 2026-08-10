@@ -22,18 +22,14 @@ const HSN_KEYWORDS = [
   { keywords: ['PLASTIC', 'PVC', 'HDPE', 'PP', 'NYLON'], hsn: '3925' },
   { keywords: ['RUBBER', 'GASKET', 'SEAL', 'O-RING', 'BELT'], hsn: '4016' },
   { keywords: ['PAINT', 'COATING', 'PRIMER', 'VARNISH', 'LACQUER'], hsn: '3208' },
-  { keywords: ['WELDING', 'ELECTRODE', 'FILL?ER', 'FLUX', 'SOLDER'], hsn: '8311' },
+  { keywords: ['WELDING', 'ELECTRODE', 'FILLER', 'FLUX', 'SOLDER'], hsn: '8311' },
   { keywords: ['PUMP', 'COMPRESSOR', 'FAN', 'BLOWER', 'MOTOR', 'ENGINE', 'GENERATOR'], hsn: '8413' },
 ]
 
 function autoDetectHSN(description) {
   if (!description) return ''
   const upper = description.toUpperCase()
-  for (const rule of HSN_KEYWORDS) {
-    for (const kw of rule.keywords) {
-      if (upper.includes(kw)) return rule.hsn
-    }
-  }
+  for (const rule of HSN_KEYWORDS) { for (const kw of rule.keywords) { if (upper.includes(kw)) return rule.hsn } }
   return ''
 }
 
@@ -54,35 +50,17 @@ export default function PurchaseEdit() {
     api.get(`/purchases/${id}`).then(res => {
       const p = res.data.purchase
       setForm({
-        bill_number: p.bill_number || '',
-        supplier_name: p.supplier_name || '',
-        supplier_gstin: p.supplier_gstin || '',
-        supplier_state: p.supplier_state || '',
-        supplier_state_code: p.supplier_state_code || '',
-        supplier_address: p.supplier_address || '',
-        supplier_phone: p.supplier_phone || '',
-        bill_date: (p.bill_date || '').split('T')[0],
-        discount: p.discount || 0,
-        round_off: p.round_off || 0,
-        notes: p.notes || '',
-        payment_status: p.payment_status || 'Unpaid'
+        bill_number: p.bill_number || '', supplier_name: p.supplier_name || '',
+        supplier_gstin: p.supplier_gstin || '', supplier_state: p.supplier_state || '',
+        supplier_state_code: p.supplier_state_code || '', supplier_address: p.supplier_address || '',
+        supplier_phone: p.supplier_phone || '', bill_date: (p.bill_date || '').split('T')[0],
+        discount: p.discount || 0, round_off: p.round_off || 0,
+        notes: p.notes || '', payment_status: p.payment_status || 'Unpaid'
       })
-      const loadedItems = res.data.items && res.data.items.length > 0
-        ? res.data.items
-        : [{ description: '', hsn_code: '', quantity: 1, unit: 'NOS', rate: 0, cgst_rate: 9, sgst_rate: 9, igst_rate: 0, amount: 0 }]
+      const loadedItems = res.data.items && res.data.items.length > 0 ? res.data.items : [{ description: '', hsn_code: '', quantity: 1, unit: 'NOS', rate: 0, cgst_rate: 9, sgst_rate: 9, igst_rate: 0, amount: 0 }]
       setItems(loadedItems)
-      setCalculated({
-        subtotal: parseFloat(p.subtotal) || 0,
-        cgst_amount: parseFloat(p.cgst_amount) || 0,
-        sgst_amount: parseFloat(p.sgst_amount) || 0,
-        igst_amount: parseFloat(p.igst_amount) || 0,
-        total_amount: parseFloat(p.total_amount) || 0
-      })
-    }).catch(err => {
-      console.error('Load error:', err)
-      alert('Failed to load purchase bill')
-      navigate('/app/purchases')
-    }).finally(() => setLoading(false))
+      setCalculated({ subtotal: parseFloat(p.subtotal) || 0, cgst_amount: parseFloat(p.cgst_amount) || 0, sgst_amount: parseFloat(p.sgst_amount) || 0, igst_amount: parseFloat(p.igst_amount) || 0, total_amount: parseFloat(p.total_amount) || 0 })
+    }).catch(err => { console.error('Load error:', err); alert('Failed to load purchase bill'); navigate('/app/purchases') }).finally(() => setLoading(false))
   }, [id])
 
   const recalc = (itemsList, discountVal, roundOffVal) => {
@@ -98,34 +76,16 @@ export default function PurchaseEdit() {
   const updateItem = (idx, key, val) => {
     const newItems = [...items]
     newItems[idx] = { ...newItems[idx], [key]: val }
-    if (key === 'quantity' || key === 'rate') {
-      newItems[idx].amount = (parseFloat(newItems[idx].quantity) || 0) * (parseFloat(newItems[idx].rate) || 0)
-    }
-    if (key === 'description') {
-      const detected = autoDetectHSN(val)
-      if (detected && !newItems[idx].hsn_code) {
-        newItems[idx].hsn_code = detected
-      }
-    }
-    setItems(newItems)
-    recalc(newItems, form.discount, form.round_off)
+    if (key === 'quantity' || key === 'rate') { newItems[idx].amount = (parseFloat(newItems[idx].quantity) || 0) * (parseFloat(newItems[idx].rate) || 0) }
+    if (key === 'description') { const detected = autoDetectHSN(val); if (detected && !newItems[idx].hsn_code) { newItems[idx].hsn_code = detected } }
+    setItems(newItems); recalc(newItems, form.discount, form.round_off)
   }
 
   const handleItemSuggest = (idx, suggested) => {
     const newItems = [...items]
-    newItems[idx] = {
-      ...newItems[idx],
-      description: suggested.description,
-      hsn_code: suggested.hsn_code || newItems[idx].hsn_code,
-      unit: suggested.unit || newItems[idx].unit,
-      rate: suggested.rate || newItems[idx].rate,
-      cgst_rate: suggested.cgst_rate || newItems[idx].cgst_rate,
-      sgst_rate: suggested.sgst_rate || newItems[idx].sgst_rate,
-      igst_rate: suggested.igst_rate || newItems[idx].igst_rate,
-    }
+    newItems[idx] = { ...newItems[idx], description: suggested.description, hsn_code: suggested.hsn_code || newItems[idx].hsn_code, unit: suggested.unit || newItems[idx].unit, rate: suggested.rate || newItems[idx].rate, cgst_rate: suggested.cgst_rate || newItems[idx].cgst_rate, sgst_rate: suggested.sgst_rate || newItems[idx].sgst_rate, igst_rate: suggested.igst_rate || newItems[idx].igst_rate }
     newItems[idx].amount = (parseFloat(newItems[idx].quantity) || 0) * (parseFloat(newItems[idx].rate) || 0)
-    setItems(newItems)
-    recalc(newItems, form.discount, form.round_off)
+    setItems(newItems); recalc(newItems, form.discount, form.round_off)
   }
 
   const addItem = () => setItems([...items, { description: '', hsn_code: '', quantity: 1, unit: 'NOS', rate: 0, cgst_rate: 9, sgst_rate: 9, igst_rate: 0, amount: 0 }])
@@ -134,32 +94,10 @@ export default function PurchaseEdit() {
   const handleSave = async () => {
     setSaving(true)
     try {
-      await api.put(`/purchases/${id}`, {
-        ...form,
-        bill_date: form.bill_date || null,
-        subtotal: calculated.subtotal,
-        cgst_amount: calculated.cgst_amount,
-        sgst_amount: calculated.sgst_amount,
-        igst_amount: calculated.igst_amount,
-        total_amount: calculated.total_amount,
-        items: items.map(i => ({
-          description: i.description,
-          hsn_code: i.hsn_code,
-          quantity: parseFloat(i.quantity) || 0,
-          unit: i.unit,
-          rate: parseFloat(i.rate) || 0,
-          cgst_rate: parseFloat(i.cgst_rate) || 0,
-          sgst_rate: parseFloat(i.sgst_rate) || 0,
-          igst_rate: parseFloat(i.igst_rate) || 0,
-          amount: parseFloat(i.amount) || 0
-        }))
-      })
+      await api.put(`/purchases/${id}`, { ...form, bill_date: form.bill_date || null, subtotal: calculated.subtotal, cgst_amount: calculated.cgst_amount, sgst_amount: calculated.sgst_amount, igst_amount: calculated.igst_amount, total_amount: calculated.total_amount, items: items.map(i => ({ description: i.description, hsn_code: i.hsn_code, quantity: parseFloat(i.quantity) || 0, unit: i.unit, rate: parseFloat(i.rate) || 0, cgst_rate: parseFloat(i.cgst_rate) || 0, sgst_rate: parseFloat(i.sgst_rate) || 0, igst_rate: parseFloat(i.igst_rate) || 0, amount: parseFloat(i.amount) || 0 })) })
       navigate(`/app/purchases/${id}`)
-    } catch (err) {
-      alert(err.response && err.response.data && err.response.data.msg || 'Update failed')
-    } finally {
-      setSaving(false)
-    }
+    } catch (err) { alert(err.response && err.response.data && err.response.data.msg || 'Update failed') }
+    finally { setSaving(false) }
   }
 
   if (loading) return <div className="flex justify-center py-20"><div className="animate-spin h-8 w-8 border-4 border-primary-500 border-t-transparent rounded-full"></div></div>
@@ -170,7 +108,6 @@ export default function PurchaseEdit() {
         <button onClick={() => navigate(`/app/purchases/${id}`)} className="p-2 hover:bg-gray-100 rounded-lg"><ArrowLeft size={20} /></button>
         <h1 className="text-2xl font-bold">Edit Purchase Bill</h1>
       </div>
-
       <div className="card space-y-4">
         <div className="grid md:grid-cols-3 gap-4">
           <div><label className="block text-sm font-medium text-white/70 mb-1">Bill Number *</label><input value={form.bill_number} onChange={e => setForm({...form, bill_number: e.target.value})} className="input-field" required /></div>
@@ -183,36 +120,18 @@ export default function PurchaseEdit() {
           <div><label className="block text-sm font-medium text-white/70 mb-1">Supplier Address</label><input value={form.supplier_address} onChange={e => setForm({...form, supplier_address: e.target.value})} className="input-field" /></div>
         </div>
         <div className="grid md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-white/70 mb-1">Payment Status</label>
-            <select value={form.payment_status} onChange={e => setForm({...form, payment_status: e.target.value})} className="input-field">
-              <option value="Unpaid">Unpaid</option>
-              <option value="Paid">Paid</option>
-              <option value="Partial">Partial</option>
-            </select>
-          </div>
+          <div><label className="block text-sm font-medium text-white/70 mb-1">Payment Status</label><select value={form.payment_status} onChange={e => setForm({...form, payment_status: e.target.value})} className="input-field"><option value="Unpaid">Unpaid</option><option value="Paid">Paid</option><option value="Partial">Partial</option></select></div>
         </div>
       </div>
-
       <div className="card">
         <h3 className="font-bold mb-3">Items</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="border-b text-white/40 text-left">
-              <th className="pb-2">Description</th><th className="pb-2">HSN</th><th className="pb-2 w-20">Qty</th><th className="pb-2 w-20">Unit</th><th className="pb-2 w-24">Rate</th><th className="pb-2 w-20">GST%</th><th className="pb-2 w-24 text-right">Amount</th><th className="pb-2 w-10"></th>
-            </tr></thead>
+            <thead><tr className="border-b text-white/40 text-left"><th className="pb-2">Description</th><th className="pb-2">HSN</th><th className="pb-2 w-20">Qty</th><th className="pb-2 w-20">Unit</th><th className="pb-2 w-24">Rate</th><th className="pb-2 w-20">GST%</th><th className="pb-2 w-24 text-right">Amount</th><th className="pb-2 w-10"></th></tr></thead>
             <tbody>
               {items.map((item, idx) => (
                 <tr key={idx} className="border-b border-gray-50">
-                  <td className="py-2 pr-2">
-                    <ItemSuggestInput
-                      value={item.description || ''}
-                      onChange={(val) => updateItem(idx, 'description', val)}
-                      onSelect={(suggested) => handleItemSuggest(idx, suggested)}
-                      placeholder="e.g. SS TANK"
-                      className="input-field text-sm"
-                    />
-                  </td>
+                  <td className="py-2 pr-2"><ItemSuggestInput value={item.description || ''} onChange={(val) => updateItem(idx, 'description', val)} onSelect={(suggested) => handleItemSuggest(idx, suggested)} placeholder="e.g. SS TANK" className="input-field text-sm" /></td>
                   <td className="py-2 pr-2"><input value={item.hsn_code || ''} onChange={e => updateItem(idx, 'hsn_code', e.target.value)} list="hsn-list-pedit" className="input-field text-sm w-32" /><datalist id="hsn-list-pedit">{HSN_CODES.map(h => <option key={h.code} value={h.code}>{h.label}</option>)}</datalist></td>
                   <td className="py-2 pr-2"><input type="number" value={item.quantity} onChange={e => updateItem(idx, 'quantity', e.target.value)} className="input-field text-sm" /></td>
                   <td className="py-2 pr-2"><select value={item.unit} onChange={e => updateItem(idx, 'unit', e.target.value)} className="input-field text-sm">{['NOS','KG','MTR','SET','LOT','PCS'].map(u=><option key={u}>{u}</option>)}</select></td>
@@ -227,7 +146,6 @@ export default function PurchaseEdit() {
         </div>
         <button onClick={addItem} className="btn-secondary mt-3 text-sm flex items-center gap-1"><Plus size={14} /> Add Item</button>
       </div>
-
       <div className="card">
         <div className="max-w-sm ml-auto space-y-2 text-sm">
           <div className="flex justify-between"><span>Subtotal</span><span>₹{calculated.subtotal.toFixed(2)}</span></div>
@@ -240,12 +158,7 @@ export default function PurchaseEdit() {
           <div className="flex justify-between text-base font-bold"><span>TOTAL</span><span>₹{calculated.total_amount.toFixed(2)}</span></div>
         </div>
       </div>
-
-      <div className="card">
-        <label className="block text-sm font-medium text-white/70 mb-1">Notes</label>
-        <textarea value={form.notes || ''} onChange={e => setForm({...form, notes: e.target.value})} className="input-field" rows={3} />
-      </div>
-
+      <div className="card"><label className="block text-sm font-medium text-white/70 mb-1">Notes</label><textarea value={form.notes || ''} onChange={e => setForm({...form, notes: e.target.value})} className="input-field" rows={3} /></div>
       <div className="flex justify-end gap-3">
         <button onClick={() => navigate(`/app/purchases/${id}`)} className="btn-secondary">Cancel</button>
         <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2"><Save size={16} /> {saving ? 'Saving...' : 'Update Purchase Bill'}</button>
