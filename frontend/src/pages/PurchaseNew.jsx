@@ -4,6 +4,7 @@ import api from '../api/client'
 import { HSN_CODES } from '../data/hsnCodes'
 import { Save, Plus, X, ArrowLeft } from 'lucide-react'
 import ItemSuggestInput from '../components/ItemSuggestInput'
+import SupplierSuggestInput from '../components/SupplierSuggestInput'
 
 export default function PurchaseNew() {
   const navigate = useNavigate()
@@ -24,17 +25,21 @@ export default function PurchaseNew() {
 
   const handleItemSuggest = (idx, suggested) => {
     const newItems = [...items]
-    newItems[idx] = {
-      ...newItems[idx], description: suggested.description,
-      hsn_code: suggested.hsn_code || newItems[idx].hsn_code,
-      unit: suggested.unit || newItems[idx].unit,
-      rate: suggested.rate || newItems[idx].rate,
-      cgst_rate: suggested.cgst_rate || newItems[idx].cgst_rate,
-      sgst_rate: suggested.sgst_rate || newItems[idx].sgst_rate,
-      igst_rate: suggested.igst_rate || newItems[idx].igst_rate,
-    }
+    newItems[idx] = { ...newItems[idx], description: suggested.description, hsn_code: suggested.hsn_code || newItems[idx].hsn_code, unit: suggested.unit || newItems[idx].unit, rate: suggested.rate || newItems[idx].rate, cgst_rate: suggested.cgst_rate || newItems[idx].cgst_rate, sgst_rate: suggested.sgst_rate || newItems[idx].sgst_rate, igst_rate: suggested.igst_rate || newItems[idx].igst_rate }
     newItems[idx].amount = (parseFloat(newItems[idx].quantity) || 0) * (parseFloat(newItems[idx].rate) || 0)
     setItems(newItems); recalc(newItems)
+  }
+
+  const handleSupplierSuggest = (supplier) => {
+    setForm(f => ({
+      ...f,
+      supplier_name: supplier.supplier_name || f.supplier_name,
+      supplier_gstin: supplier.supplier_gstin || f.supplier_gstin,
+      supplier_phone: supplier.supplier_phone || f.supplier_phone,
+      supplier_address: supplier.supplier_address || f.supplier_address,
+      supplier_state: supplier.supplier_state || f.supplier_state,
+      supplier_state_code: supplier.supplier_state_code || f.supplier_state_code,
+    }))
   }
 
   const recalc = (itemsList) => {
@@ -67,7 +72,7 @@ export default function PurchaseNew() {
       <div className="card space-y-4">
         <div className="grid md:grid-cols-3 gap-4">
           <div><label className="block text-sm font-medium text-white/70 mb-1">Bill Number *</label><input value={form.bill_number} onChange={e => setForm({...form, bill_number: e.target.value})} className="input-field" required /></div>
-          <div><label className="block text-sm font-medium text-white/70 mb-1">Supplier Name *</label><input value={form.supplier_name} onChange={e => setForm({...form, supplier_name: e.target.value})} className="input-field" required /></div>
+          <div><label className="block text-sm font-medium text-white/70 mb-1">Supplier Name *</label><SupplierSuggestInput value={form.supplier_name} onChange={val => setForm({...form, supplier_name: val})} onSelect={handleSupplierSuggest} placeholder="Supplier name..." className="input-field" /></div>
           <div><label className="block text-sm font-medium text-white/70 mb-1">Supplier GSTIN</label><input value={form.supplier_gstin} onChange={e => setForm({...form, supplier_gstin: e.target.value.toUpperCase(), supplier_state_code: e.target.value.substring(0,2)})} className="input-field" /></div>
         </div>
         <div className="grid md:grid-cols-3 gap-4">
