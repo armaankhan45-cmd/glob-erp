@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import api from '../api/client'
-import { Plus, Users, CreditCard, FileText, Calculator, TrendingUp, IndianRupee, AlertCircle, UserPlus, ArrowUpRight, ArrowDownRight } from 'lucide-react'
+import { Plus, Users, CreditCard, FileText, Calculator, TrendingUp, IndianRupee, AlertCircle, UserPlus, ArrowUpRight, ArrowDownRight, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell } from 'recharts'
 import GSTCalcModal from '../components/GSTCalcModal'
 import BorderGlow from '../components/BorderGlow'
@@ -127,43 +127,55 @@ function SkeletonList() {
   )
 }
 
+// Current calendar month as 'YYYY-MM', used as the dashboard's default view.
+function currentMonthStr() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+
+function shiftMonth(monthStr, delta) {
+  const [y, m] = monthStr.split('-').map(Number)
+  const d = new Date(Date.UTC(y, m - 1 + delta, 1))
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+}
+
 export default function Dashboard() {
   const { user } = useAuth()
   const [stats, setStats] = useState({})
   const [recentInvoices, setRecentInvoices] = useState([])
   const [topCustomers, setTopCustomers] = useState([])
-  const [monthlySales, setMonthlySales] = useState([])
+  const [chartData, setChartData] = useState([])
   const [chartType, setChartType] = useState('bar')
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
-  useEffect(() => { loadDashboard() }, [])
+  // ═══ Period selector: 'month' shows one calendar month, 'all' shows everything ═══
+  const [period, setPeriod] = useState('month')
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthStr())
+  const [periodMeta, setPeriodMeta] = useState({ periodLabel: '', isCurrentMonth: true, momGrowth: null, momCompareLabel: '' })
+
+  useEffect(() => { loadDashboard() }, [period, selectedMonth])
 
   const loadDashboard = async () => {
+    const isFirstLoad = Object.keys(stats).length === 0
+    if (isFirstLoad) setLoading(true); else setRefreshing(true)
     try {
-      const [statsRes, custRes] = await Promise.all([
-        api.get('/dashboard/stats').catch(() => ({ data: { stats: {}, recentInvoices: [], monthlySales: [] } })),
-        api.get('/customers').catch(() => ({ data: { customers: [] } }))
-      ])
+      const params = period === 'all' ? { period: 'all' } : { period: 'month', month: selectedMonth }
+      const statsRes = await api.get('/dashboard/stats', { params })
       setStats(statsRes.data.stats || {})
       setRecentInvoices(statsRes.data.recentInvoices || [])
-      setMonthlySales(statsRes.data.monthlySales || [])
-
-      const allCusts = custRes.data.customers || []
-      if (allCusts.length > 0) {
-        const custDetails = await Promise.allSettled(
-          allCusts.slice(0, 20).map(async c => {
-            try {
-              const cRes = await api.get(`/customers/${c.id}`)
-              return { ...c, totalBusiness: cRes.data.totalBusiness || 0 }
-            } catch { return { ...c, totalBusiness: 0 } }
-          })
-        )
-        const successful = custDetails.filter(r => r.status === 'fulfilled').map(r => r.value)
-          .sort((a, b) => b.totalBusiness - a.totalBusiness).slice(0, 5)
-        setTopCustomers(successful)
-      }
+      // The backend already computes top customers with a single grouped query —
+      // no need to loop over /customers/:id client-side like before.
+      setTopCustomers(statsRes.data.topCustomers || [])
+      setChartData(statsRes.data.chartData || [])
+      setPeriodMeta({
+        periodLabel: statsRes.data.periodLabel || '',
+        isCurrentMonth: !!statsRes.data.isCurrentMonth,
+        momGrowth: statsRes.data.momGrowth,
+        momCompareLabel: statsRes.data.momCompareLabel || ''
+      })
     } catch (err) { console.error('Dashboard error:', err) }
-    finally { setLoading(false) }
+    finally { setLoading(false); setRefreshing(false) }
   }
 
   const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
@@ -178,15 +190,14 @@ export default function Dashboard() {
 
   const pendingAmount = stats.pendingAmount || 0
   const netPayable = (stats.netPayable?.cgst || 0) + (stats.netPayable?.sgst || 0) + (stats.netPayable?.igst || 0)
+  const periodSub = period === 'all' ? 'All time' : periodMeta.periodLabel || 'This month'
 
   const metricCards = [
-    { label: 'Total Revenue', value: stats.totalRevenue || 0, icon: IndianRupee, color: '#22c55e', bg: 'rgba(34,197,94,0.12)', sub: 'All time sales', isCurrency: true },
+    { label: 'Total Revenue', value: stats.totalRevenue || 0, icon: IndianRupee, color: '#22c55e', bg: 'rgba(34,197,94,0.12)', sub: periodSub, isCurrency: true },
     { label: 'Outstanding', value: pendingAmount || 0, icon: AlertCircle, color: '#ef4444', bg: 'rgba(239,68,68,0.12)', sub: `${stats.pendingInvoices || 0} unpaid invoices`, isCurrency: true },
-    { label: 'GST Payable', value: netPayable || 0, icon: TrendingUp, color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', sub: 'Output − Input', isCurrency: true },
+    { label: 'GST Payable', value: netPayable || 0, icon: TrendingUp, color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', sub: `${periodSub} · Output − Input`, isCurrency: true },
     { label: 'Customers', value: stats.customerCount || 0, icon: Users, color: '#4f8fff', bg: 'rgba(79,143,255,0.12)', sub: 'In your database', isCurrency: false },
   ]
-
-  const chartData = monthlySales.map(m => ({ ...m, revenue: m.total || m.revenue || 0 }))
 
   const gstPie = [
     { name: 'CGST', value: Math.max(0, stats.netPayable?.cgst || 0) },
@@ -194,9 +205,8 @@ export default function Dashboard() {
     { name: 'IGST', value: Math.max(0, stats.netPayable?.igst || 0) },
   ].filter(d => d.value > 0)
 
-  const thisMonth = monthlySales.length > 0 ? parseFloat(monthlySales[monthlySales.length - 1]?.total || 0) : 0
-  const lastMonth = monthlySales.length > 1 ? parseFloat(monthlySales[monthlySales.length - 2]?.total || 0) : 0
-  const monthGrowth = lastMonth > 0 ? ((thisMonth - lastMonth) / lastMonth * 100).toFixed(1) : null
+  const monthGrowth = periodMeta.momGrowth
+  const chartHasData = chartData.some(d => (d.revenue || 0) > 0 || (d.expenses || 0) > 0)
 
   // ═══ SKELETON LOADING ═══
   if (loading) return (
@@ -318,10 +328,10 @@ export default function Dashboard() {
           </div>
           {monthGrowth !== null && (
             <div className="flex items-center gap-3 px-5 py-3 rounded-2xl" style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(12px)' }}>
-              {parseFloat(monthGrowth) >= 0 ? <ArrowUpRight size={22} /> : <ArrowDownRight size={22} />}
+              {monthGrowth >= 0 ? <ArrowUpRight size={22} /> : <ArrowDownRight size={22} />}
               <div>
-                <p className="text-[10px] font-medium" style={{ color: 'rgba(255,255,255,0.75)' }}>vs Last Month</p>
-                <p className="font-extrabold text-xl">{parseFloat(monthGrowth) >= 0 ? '+' : ''}{monthGrowth}%</p>
+                <p className="text-[10px] font-medium" style={{ color: 'rgba(255,255,255,0.75)' }}>vs {periodMeta.momCompareLabel || 'Last Month'}</p>
+                <p className="font-extrabold text-xl">{monthGrowth >= 0 ? '+' : ''}{monthGrowth}%</p>
               </div>
             </div>
           )}
@@ -345,9 +355,60 @@ export default function Dashboard() {
       </div>
 
       {/* ═══════════════════════════════════════════
+          PERIOD SELECTOR — drives stat cards + Sales Performance chart below
+          ═══════════════════════════════════════════ */}
+      <div className="card card-premium flex flex-wrap items-center justify-between gap-3" style={{ padding: '12px 16px' }}>
+        <div className="flex items-center gap-2 text-white/40 text-xs font-semibold uppercase tracking-wider">
+          <Calendar size={14} />
+          Viewing
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => { setPeriod('month'); setSelectedMonth(currentMonthStr()) }}
+            className={`chip btn-shine ${period === 'month' && periodMeta.isCurrentMonth ? 'active' : ''}`}
+          >
+            This Month
+          </button>
+
+          <div className="flex items-center gap-1 rounded-xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', padding: '2px' }}>
+            <button
+              onClick={() => { setPeriod('month'); setSelectedMonth(m => shiftMonth(m, -1)) }}
+              className="p-1.5 rounded-lg hover:bg-white/10 transition"
+              title="Previous month"
+            >
+              <ChevronLeft size={16} className="text-white/50" />
+            </button>
+            <input
+              type="month"
+              value={selectedMonth}
+              max={currentMonthStr()}
+              onChange={e => { if (e.target.value) { setPeriod('month'); setSelectedMonth(e.target.value) } }}
+              className="bg-transparent text-sm font-semibold text-white/80 outline-none"
+              style={{ colorScheme: 'dark', border: 'none', padding: '4px 6px' }}
+            />
+            <button
+              onClick={() => { setPeriod('month'); setSelectedMonth(m => shiftMonth(m, 1)) }}
+              disabled={selectedMonth >= currentMonthStr()}
+              className="p-1.5 rounded-lg hover:bg-white/10 transition disabled:opacity-20 disabled:cursor-not-allowed"
+              title="Next month"
+            >
+              <ChevronRight size={16} className="text-white/50" />
+            </button>
+          </div>
+
+          <button
+            onClick={() => setPeriod('all')}
+            className={`chip btn-shine ${period === 'all' ? 'active' : ''}`}
+          >
+            All Time
+          </button>
+        </div>
+      </div>
+
+      {/* ═══════════════════════════════════════════
           STAT CARDS — BorderGlow premium hover effect
           ═══════════════════════════════════════════ */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4" style={{ opacity: refreshing ? 0.6 : 1, transition: 'opacity 0.2s' }}>
         {metricCards.map((m, i) => (
           <BorderGlow
             key={i}
@@ -386,10 +447,12 @@ export default function Dashboard() {
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 card card-premium" style={{ animation: 'entranceUp 0.7s cubic-bezier(0.16,1,0.3,1) 0.4s both' }}>
           <div className="shimmer"></div>
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center justify-between mb-2">
             <div>
               <h3 className="font-bold text-white text-[15px]">Sales Performance</h3>
-              <p className="text-xs text-white/25 mt-0.5">Current Financial Year</p>
+              <p className="text-xs text-white/25 mt-0.5">
+                {period === 'all' ? 'Monthly revenue vs expenses — trailing 12 months' : `Daily revenue vs expenses — ${periodMeta.periodLabel}`}
+              </p>
             </div>
             <div className="flex gap-1.5">
               {[['bar','Bar'],['line','Line'],['area','Area']].map(([val, label]) => (
@@ -400,53 +463,74 @@ export default function Dashboard() {
               ))}
             </div>
           </div>
+          <div className="flex items-center gap-4 mb-3 text-xs">
+            <span className="flex items-center gap-1.5 text-white/50"><span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--accent)', display: 'inline-block' }}></span>Revenue: <b className="text-white/80">{formatCurrency(chartData.reduce((s, d) => s + (d.revenue || 0), 0))}</b></span>
+            <span className="flex items-center gap-1.5 text-white/50"><span style={{ width: 8, height: 8, borderRadius: 2, background: '#ef4444', display: 'inline-block' }}></span>Expenses: <b className="text-white/80">{formatCurrency(chartData.reduce((s, d) => s + (d.expenses || 0), 0))}</b></span>
+          </div>
           <div className="h-64">
+            {!chartHasData ? (
+              <div className="h-full flex flex-col items-center justify-center text-center gap-2">
+                <TrendingUp size={28} className="text-white/15" />
+                <p className="text-sm text-white/30">No invoices or expenses recorded {period === 'all' ? 'in the last 12 months' : `in ${periodMeta.periodLabel}`}</p>
+              </div>
+            ) : <>
             {chartType === 'bar' && (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} />
-                  <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.3)' }} interval={period === 'month' ? Math.ceil(chartData.length / 12) - 1 : 0} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} width={70} tickFormatter={(v) => v >= 100000 ? `₹${(v/100000).toFixed(1)}L` : v >= 1000 ? `₹${(v/1000).toFixed(0)}k` : `₹${v}`} axisLine={false} tickLine={false} />
                   <Tooltip formatter={fmtTooltip} contentStyle={{ background: 'rgba(12,16,32,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff', backdropFilter: 'blur(20px)' }} />
-                  <Bar dataKey="revenue" fill="var(--accent)" radius={[6,6,0,0]} name="Revenue" />
+                  <Bar dataKey="revenue" fill="var(--accent)" radius={[4,4,0,0]} name="Revenue" />
+                  <Bar dataKey="expenses" fill="#ef4444" radius={[4,4,0,0]} name="Expenses" fillOpacity={0.65} />
                 </BarChart>
               </ResponsiveContainer>
             )}
             {chartType === 'line' && (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} />
-                  <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.3)' }} interval={period === 'month' ? Math.ceil(chartData.length / 12) - 1 : 0} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} width={70} tickFormatter={(v) => v >= 100000 ? `₹${(v/100000).toFixed(1)}L` : v >= 1000 ? `₹${(v/1000).toFixed(0)}k` : `₹${v}`} axisLine={false} tickLine={false} />
                   <Tooltip formatter={fmtTooltip} contentStyle={{ background: 'rgba(12,16,32,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} />
-                  <Line type="monotone" dataKey="revenue" stroke="#4f8fff" strokeWidth={2.5} name="Revenue" dot={{ r: 4, fill: '#4f8fff', strokeWidth: 2 }} />
+                  <Line type="monotone" dataKey="revenue" stroke="#4f8fff" strokeWidth={2.5} name="Revenue" dot={chartData.length <= 15} />
+                  <Line type="monotone" dataKey="expenses" stroke="#ef4444" strokeWidth={2} name="Expenses" dot={chartData.length <= 15} strokeDasharray="4 3" />
                 </LineChart>
               </ResponsiveContainer>
             )}
             {chartType === 'area' && (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} />
-                  <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.3)' }} interval={period === 'month' ? Math.ceil(chartData.length / 12) - 1 : 0} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} width={70} tickFormatter={(v) => v >= 100000 ? `₹${(v/100000).toFixed(1)}L` : v >= 1000 ? `₹${(v/1000).toFixed(0)}k` : `₹${v}`} axisLine={false} tickLine={false} />
                   <Tooltip formatter={fmtTooltip} contentStyle={{ background: 'rgba(12,16,32,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} />
                   <defs>
                     <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="var(--accent)" stopOpacity={0.3} />
                       <stop offset="95%" stopColor="var(--accent)" stopOpacity={0} />
                     </linearGradient>
+                    <linearGradient id="colorExpenses" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                    </linearGradient>
                   </defs>
                   <Area type="monotone" dataKey="revenue" stroke="var(--accent)" strokeWidth={2.5} fill="url(#colorRevenue)" name="Revenue" />
+                  <Area type="monotone" dataKey="expenses" stroke="#ef4444" strokeWidth={2} fill="url(#colorExpenses)" name="Expenses" />
                 </AreaChart>
               </ResponsiveContainer>
             )}
+            </>}
           </div>
         </div>
 
         <div className="space-y-4" style={{ animation: 'entranceUp 0.7s cubic-bezier(0.16,1,0.3,1) 0.5s both' }}>
           {/* GST Summary */}
           <div className="card card-premium">
-            <h3 className="font-bold text-white mb-4 text-[15px]">GST Summary</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-white text-[15px]">GST Summary</h3>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-white/25">{periodSub}</span>
+            </div>
             <div className="space-y-3">
               <div className="gst-card cgst rounded-xl p-4 relative overflow-hidden">
                 <p className="text-sm font-semibold text-blue-400 mb-1">Output GST (Sales)</p>
