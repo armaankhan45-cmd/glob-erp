@@ -118,7 +118,7 @@ export default function PurchaseEdit() {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
-        <button onClick={() => navigate(`/app/purchases/${id}`)} className="p-2 hover:bg-gray-100 rounded-lg"><ArrowLeft size={20} /></button>
+        <button onClick={() => navigate(`/app/purchases/${id}`)} className="p-2 hover:bg-white/10 rounded-lg transition-colors"><ArrowLeft size={20} /></button>
         <h1 className="text-2xl font-bold">Edit Purchase Bill</h1>
       </div>
       <div className="card space-y-4">
@@ -143,7 +143,7 @@ export default function PurchaseEdit() {
             <thead><tr className="border-b text-white/40 text-left"><th className="pb-2">Description</th><th className="pb-2">HSN</th><th className="pb-2 w-20">Qty</th><th className="pb-2 w-20">Unit</th><th className="pb-2 w-24">Rate</th><th className="pb-2 w-20">GST%</th><th className="pb-2 w-24 text-right">Amount</th><th className="pb-2 w-10"></th></tr></thead>
             <tbody>
               {items.map((item, idx) => (
-                <tr key={idx} className="border-b border-gray-50">
+                <tr key={idx} className="border-b" style={{ borderColor: "var(--border)" }}>
                   <td className="py-2 pr-2"><ItemSuggestInput value={item.description || ''} onChange={(val) => updateItem(idx, 'description', val)} onSelect={(suggested) => handleItemSuggest(idx, suggested)} placeholder="e.g. SS TANK" className="input-field text-sm" /></td>
                   <td className="py-2 pr-2"><input value={item.hsn_code || ''} onChange={e => updateItem(idx, 'hsn_code', e.target.value)} list="hsn-list-pedit" className="input-field text-sm w-32" /><datalist id="hsn-list-pedit">{HSN_CODES.map(h => <option key={h.code} value={h.code}>{h.label}</option>)}</datalist></td>
                   <td className="py-2 pr-2"><input type="number" value={item.quantity} onChange={e => updateItem(idx, 'quantity', e.target.value)} className="input-field text-sm" /></td>
