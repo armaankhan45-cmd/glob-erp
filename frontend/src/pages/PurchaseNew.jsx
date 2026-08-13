@@ -66,7 +66,7 @@ export default function PurchaseNew() {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
-        <button onClick={() => navigate('/app/purchases')} className="p-2 hover:bg-gray-100 rounded-lg"><ArrowLeft size={20} /></button>
+        <button onClick={() => navigate('/app/purchases')} className="p-2 hover:bg-white/10 rounded-lg transition-colors"><ArrowLeft size={20} /></button>
         <h1 className="text-2xl font-bold">New Purchase Bill</h1>
       </div>
       <div className="card space-y-4">
