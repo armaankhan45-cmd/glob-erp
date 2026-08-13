@@ -75,7 +75,7 @@ export default function Reports() {
                         </tr></thead>
                         <tbody>
                           {invoices.map(inv => (
-                            <tr key={inv.id} className="border-b border-gray-50">
+                            <tr key={inv.id} className="border-b" style={{ borderColor: "var(--border)" }}>
                               <td className="py-2">{inv.invoice_number}</td>
                               <td className="py-2">{inv.customer_name}</td>
                               <td className="py-2">{inv.days}</td>
@@ -101,7 +101,7 @@ export default function Reports() {
                 </tr></thead>
                 <tbody>
                   {Array.isArray(data) && data.map((row, i) => (
-                    <tr key={i} className="border-b border-gray-50">
+                    <tr key={i} className="border-b" style={{ borderColor: "var(--border)" }}>
                       {tab === 'item-wise' ? (
                         <><td className="py-2">{row.description}</td><td className="py-2">{row.hsn_code}</td><td className="py-2 text-right">{row.total_qty}</td><td className="py-2 text-right font-medium">{formatCurrency(row.total_amount)}</td></>
                       ) : (
