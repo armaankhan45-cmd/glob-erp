@@ -49,7 +49,7 @@ export default function PurchaseDetail() {
     <div className="space-y-4">
       {/* Action buttons — hidden on print */}
       <div className="flex flex-wrap items-center gap-2 no-print">
-        <button onClick={() => navigate('/app/purchases')} className="p-2 hover:bg-gray-100 rounded-lg"><ArrowLeft size={20} /></button>
+        <button onClick={() => navigate('/app/purchases')} className="p-2 hover:bg-white/10 rounded-lg transition-colors"><ArrowLeft size={20} /></button>
         <h1 className="text-xl font-bold flex-1">Purchase Bill {purchase.bill_number}</h1>
         <button onClick={handlePrint} className="btn-secondary flex items-center gap-2"><Printer size={16} /> Print</button>
         <button onClick={() => navigate(`/app/purchases/${id}/edit`)} className="btn-primary flex items-center gap-2"><Edit size={16} /> Edit</button>
