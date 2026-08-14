@@ -2,15 +2,36 @@ import React, { useState, useEffect, useCallback } from 'react'
 import api from '../api/client'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell } from 'recharts'
 import { formatCurrency, formatDate } from '../utils'
-import { ChevronDown, ChevronRight, FileText, ShoppingCart, ArrowRight, RefreshCw } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronLeft, FileText, ShoppingCart, ArrowRight, RefreshCw, Calendar, TrendingUp, TrendingDown, Info } from 'lucide-react'
 
 const COLORS = ['#3b82f6', '#f97316', '#ef4444', '#22c55e', '#8b5cf6', '#06b6d4']
 const MONTH_FULL = { Apr:'April', May:'May', Jun:'June', Jul:'July', Aug:'August', Sep:'September', Oct:'October', Nov:'November', Dec:'December', Jan:'January', Feb:'February', Mar:'March' }
+const FY_MONTHS = ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar']
 
 const darkTooltip = { background: 'rgba(12,16,32,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff', backdropFilter: 'blur(20px)', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }
 
+// 'YYYY-MM' for the current calendar month
+function currentMonthStr() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+function shiftMonth(monthStr, delta) {
+  const [y, m] = monthStr.split('-').map(Number)
+  const d = new Date(Date.UTC(y, m - 1 + delta, 1))
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+}
+// GST "financial year" runs April → March. Given 'YYYY-MM', return the FY start year.
+function monthKeyToFyYear(monthStr) {
+  const [y, m] = monthStr.split('-').map(Number)
+  return m >= 4 ? y : y - 1
+}
+
 export default function GSTReports() {
-  const [year, setYear] = useState(new Date().getFullYear())
+  // ═══ View mode: 'month' shows one month clearly, 'year' shows the full FY table ═══
+  const [viewMode, setViewMode] = useState('month')
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthStr())
+  const [year, setYear] = useState(monthKeyToFyYear(currentMonthStr()))
+
   const [data, setData] = useState({ gstr1: [], gstr2: [], gstr3b: {}, monthlyPayable: [], salesTotal: 0, purchaseTotal: 0 })
   const [chartType, setChartType] = useState('bar')
   const [loading, setLoading] = useState(true)
@@ -18,24 +39,31 @@ export default function GSTReports() {
   const [monthlyBills, setMonthlyBills] = useState({ invoices: [], purchases: [] })
   const [billsLoading, setBillsLoading] = useState(false)
 
+  // Keep `year` (the FY fetched from the backend) in sync with the month picker
+  useEffect(() => {
+    if (viewMode === 'month') setYear(monthKeyToFyYear(selectedMonth))
+  }, [selectedMonth, viewMode])
+
   const loadData = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true)
     try {
       const res = await api.get('/gst/summary', { params: { year } })
       setData(res.data)
-      const now = new Date()
-      const m = now.getMonth()
-      const fyMonths = ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar']
-      const currentFyMonth = fyMonths[m < 3 ? m + 9 : m - 3]
-      const hasBills = (res.data.monthlyPayable || []).find(mp => mp.month === currentFyMonth)
-      if (hasBills && (hasBills.invoiceCount > 0 || hasBills.billCount > 0)) {
-        handleExpandMonth(currentFyMonth, hasBills.monthKey)
+      if (viewMode === 'year') {
+        const now = new Date()
+        const m = now.getMonth()
+        const currentFyMonth = FY_MONTHS[m < 3 ? m + 9 : m - 3]
+        const hasBills = (res.data.monthlyPayable || []).find(mp => mp.month === currentFyMonth)
+        if (hasBills && (hasBills.invoiceCount > 0 || hasBills.billCount > 0)) {
+          handleExpandMonth(currentFyMonth, hasBills.monthKey)
+        }
       }
     } catch (err) { console.error('GST reports error:', err) }
     finally { setLoading(false) }
-  }, [year])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [year, viewMode])
 
-  useEffect(() => { loadData() }, [year])
+  useEffect(() => { loadData() }, [year]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-refresh every 30 seconds
   useEffect(() => {
@@ -45,20 +73,32 @@ export default function GSTReports() {
     return () => { clearInterval(interval); document.removeEventListener('visibilitychange', handleVisibility) }
   }, [loadData])
 
-  const handleExpandMonth = async (monthName, monthKey) => {
-    if (expandedMonth === monthName) { setExpandedMonth(null); return }
-    setExpandedMonth(monthName); setBillsLoading(true)
+  const fetchMonthBills = useCallback(async (monthKey) => {
+    setBillsLoading(true)
     try {
       const res = await api.get('/gst/monthly-bills', { params: { month: monthKey } })
       setMonthlyBills({ invoices: res.data.invoices || [], purchases: res.data.purchases || [] })
     } catch { setMonthlyBills({ invoices: [], purchases: [] }) }
     finally { setBillsLoading(false) }
+  }, [])
+
+  // In Month View, always keep the bill list in sync with the selected month
+  useEffect(() => {
+    if (viewMode === 'month') fetchMonthBills(selectedMonth)
+  }, [viewMode, selectedMonth, fetchMonthBills])
+
+  const handleExpandMonth = async (monthName, monthKey) => {
+    if (expandedMonth === monthName) { setExpandedMonth(null); return }
+    setExpandedMonth(monthName)
+    await fetchMonthBills(monthKey)
   }
 
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i)
   const g3b = data.gstr3b || {}
   const monthlyPayable = data.monthlyPayable || []
   const activeMonths = monthlyPayable.filter(m => m.sales > 0 || m.purchases > 0)
+  const selectedEntry = monthlyPayable.find(m => m.monthKey === selectedMonth) || null
+  const monthFullName = new Date(selectedMonth + '-02').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
 
   const barData = activeMonths.map(m => ({ month: m.month, 'Output GST': m.outputGST, 'Input GST': m.inputGST, 'Carry Forward': m.carryForward, 'Net Payable': m.payable }))
   const lineData = activeMonths.map(m => ({ month: m.month, 'Sales': m.sales, 'Purchases': m.purchases }))
@@ -72,6 +112,10 @@ export default function GSTReports() {
 
   const fmtTooltip = (val) => formatCurrency(val)
   const totalActualPayable = monthlyPayable.reduce((s, m) => s + m.payable, 0)
+  // Most recent month (within this FY) that actually has invoices/bills — used so an empty
+  // "This Month" doesn't read as "my data disappeared" when the real data is a month or two back.
+  const activeMonthKeys = monthlyPayable.filter(m => m.sales > 0 || m.purchases > 0).map(m => m.monthKey)
+  const lastActiveMonthKey = activeMonthKeys.length > 0 ? activeMonthKeys[activeMonthKeys.length - 1] : null
 
   if (loading) return <div className="flex justify-center py-20"><div className="animate-spin h-8 w-8 border-4 rounded-full" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}></div></div>
 
@@ -80,17 +124,251 @@ export default function GSTReports() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white">GST Reports</h1>
-          <p className="text-white/40 text-sm">Monthly GST with carry-forward balance & bill details</p>
+          <p className="text-white/40 text-sm">What you owe, what you can claim back, and every bill behind the number</p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={() => loadData(true)} className="btn-secondary flex items-center gap-2 text-sm"><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /></button>
-          <select value={year} onChange={e => setYear(parseInt(e.target.value))} className="input-field w-auto">
-            {years.map(y => <option key={y} value={y}>FY {y}-{String(y+1).slice(2)}</option>)}
-          </select>
+        <button onClick={() => loadData(true)} className="btn-secondary flex items-center gap-2 text-sm"><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /></button>
+      </div>
+
+      {/* ═══════════════════════════════════════════
+          VIEW SELECTOR — Month (default, clear & simple) vs Full Year (detailed table)
+          ═══════════════════════════════════════════ */}
+      <div className="card flex flex-wrap items-center justify-between gap-3" style={{ padding: '12px 16px' }}>
+        <div className="flex items-center gap-2 text-white/40 text-xs font-semibold uppercase tracking-wider">
+          <Calendar size={14} /> Viewing
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={() => { setViewMode('month'); setSelectedMonth(currentMonthStr()) }}
+            className={`chip ${viewMode === 'month' && selectedMonth === currentMonthStr() ? 'active' : ''}`}>
+            This Month
+          </button>
+          {viewMode === 'month' && (
+            <div className="flex items-center gap-1 rounded-xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', padding: '2px' }}>
+              <button onClick={() => setSelectedMonth(m => shiftMonth(m, -1))} className="p-1.5 rounded-lg hover:bg-white/10 transition" title="Previous month">
+                <ChevronLeft size={16} className="text-white/50" />
+              </button>
+              <input type="month" value={selectedMonth} max={currentMonthStr()}
+                onChange={e => { if (e.target.value) setSelectedMonth(e.target.value) }}
+                className="bg-transparent text-sm font-semibold text-white/80 outline-none"
+                style={{ colorScheme: 'dark', border: 'none', padding: '4px 6px' }} />
+              <button onClick={() => setSelectedMonth(m => shiftMonth(m, 1))} disabled={selectedMonth >= currentMonthStr()}
+                className="p-1.5 rounded-lg hover:bg-white/10 transition disabled:opacity-20 disabled:cursor-not-allowed" title="Next month">
+                <ChevronRight size={16} className="text-white/50" />
+              </button>
+            </div>
+          )}
+          <button onClick={() => setViewMode('year')} className={`chip ${viewMode === 'year' ? 'active' : ''}`}>Full Year</button>
+          {viewMode === 'year' && (
+            <select value={year} onChange={e => setYear(parseInt(e.target.value))} className="input-field w-auto">
+              {years.map(y => <option key={y} value={y}>FY {y}-{String(y + 1).slice(2)}</option>)}
+            </select>
+          )}
         </div>
       </div>
 
-      {/* Summary Cards - Dark themed */}
+      {viewMode === 'month' ? (
+        <MonthView
+          monthFullName={monthFullName}
+          entry={selectedEntry}
+          monthlyBills={monthlyBills}
+          billsLoading={billsLoading}
+          lastActiveMonthKey={lastActiveMonthKey}
+          onViewFullYear={() => setViewMode('year')}
+          onJumpToMonth={(mk) => setSelectedMonth(mk)}
+        />
+      ) : (
+        <YearView
+          data={data} g3b={g3b} monthlyPayable={monthlyPayable} activeMonths={activeMonths}
+          barData={barData} lineData={lineData} areaData={areaData} pieData={pieData}
+          chartType={chartType} setChartType={setChartType} fmtTooltip={fmtTooltip}
+          totalActualPayable={totalActualPayable} expandedMonth={expandedMonth} handleExpandMonth={handleExpandMonth}
+          monthlyBills={monthlyBills} billsLoading={billsLoading}
+        />
+      )}
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════
+// MONTH VIEW — one month, explained plainly, bills always visible
+// ═══════════════════════════════════════════════
+function MonthView({ monthFullName, entry, monthlyBills, billsLoading, lastActiveMonthKey, onViewFullYear, onJumpToMonth }) {
+  const outputGST = entry?.outputGST || 0
+  const inputGST = entry?.inputGST || 0
+  const carryForward = entry?.carryForward || 0
+  const payable = entry?.payable || 0
+  const balance = entry?.balance || 0
+  const isPayable = payable > 0
+  const hasAnyData = (entry?.sales || 0) > 0 || (entry?.purchases || 0) > 0 || carryForward > 0
+
+  return (
+    <div className="space-y-6">
+      {/* Hero: the one number that matters */}
+      <div className="card card-premium" style={{ padding: '28px', textAlign: 'center' }}>
+        <p className="text-white/40 text-xs font-semibold uppercase tracking-wider mb-2">{monthFullName}</p>
+        {!hasAnyData ? (
+          <>
+            <p className="text-3xl font-extrabold text-white/30 mb-1">No GST activity</p>
+            <p className="text-sm text-white/30 mb-4">No sales invoices or purchase bills recorded in {monthFullName} — your data is safe, this just means nothing is dated in this specific month yet.</p>
+            <div className="flex items-center justify-center gap-2 flex-wrap">
+              {lastActiveMonthKey && (
+                <button onClick={() => onJumpToMonth(lastActiveMonthKey)} className="chip active" style={{ padding: '8px 14px' }}>
+                  Jump to last active month
+                </button>
+              )}
+              <button onClick={onViewFullYear} className="chip" style={{ padding: '8px 14px' }}>
+                View Full Year instead
+              </button>
+            </div>
+          </>
+        ) : isPayable ? (
+          <>
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <TrendingDown size={22} className="text-red-400" />
+              <p className="text-3xl font-extrabold text-red-400">{formatCurrency(payable)}</p>
+            </div>
+            <p className="text-sm text-white/40">You need to pay this to the government for {monthFullName}</p>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <TrendingUp size={22} className="text-green-400" />
+              <p className="text-3xl font-extrabold text-green-400">{formatCurrency(balance)}</p>
+            </div>
+            <p className="text-sm text-white/40">Nothing to pay — this credit carries forward to next month</p>
+          </>
+        )}
+      </div>
+
+      {hasAnyData && (
+        <>
+        {/* The math, laid out as a simple flow so it's obvious how we got the number above */}
+        <div className="card">
+          <h3 className="font-bold text-white mb-4 text-sm flex items-center gap-2"><Info size={14} className="text-white/30" /> How this was calculated</h3>
+          <div className="flex flex-wrap items-stretch gap-2">
+            <FlowStep label="Output GST" sub="Collected on your sales" value={outputGST} color="#3b82f6" />
+            <FlowOp symbol="−" />
+            <FlowStep label="Input GST" sub="Paid on your purchases" value={inputGST} color="#f97316" />
+            <FlowOp symbol="−" />
+            <FlowStep label="Carry Forward" sub="Credit from last month" value={carryForward} color="#8b5cf6" />
+            <FlowOp symbol="=" />
+            <FlowStep
+              label={isPayable ? 'You Pay' : 'Credit Forward'}
+              sub={isPayable ? 'Net GST payable' : 'Goes to next month'}
+              value={isPayable ? payable : balance}
+              color={isPayable ? '#ef4444' : '#22c55e'}
+              emphasize
+            />
+          </div>
+        </div>
+
+        {/* Supporting numbers */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="gst-card" style={{ background: 'rgba(59,130,246,0.06)', borderLeft: '3px solid #3b82f6' }}>
+            <p className="text-xs text-blue-400 font-medium">Sales this month</p>
+            <p className="text-lg font-bold text-blue-300">{formatCurrency(entry?.sales || 0)}</p>
+            <p className="text-xs text-white/30 mt-1">{entry?.invoiceCount || 0} invoice{entry?.invoiceCount === 1 ? '' : 's'}</p>
+          </div>
+          <div className="gst-card" style={{ background: 'rgba(249,115,22,0.06)', borderLeft: '3px solid #f97316' }}>
+            <p className="text-xs text-orange-400 font-medium">Purchases this month</p>
+            <p className="text-lg font-bold text-orange-300">{formatCurrency(entry?.purchases || 0)}</p>
+            <p className="text-xs text-white/30 mt-1">{entry?.billCount || 0} bill{entry?.billCount === 1 ? '' : 's'}</p>
+          </div>
+          <div className="gst-card" style={{ background: 'rgba(139,92,246,0.06)', borderLeft: '3px solid #8b5cf6' }}>
+            <p className="text-xs text-purple-400 font-medium">Carried in</p>
+            <p className="text-lg font-bold text-purple-300">{carryForward > 0 ? formatCurrency(carryForward) : '—'}</p>
+            <p className="text-xs text-white/30 mt-1">From previous month's credit</p>
+          </div>
+          <div className="gst-card" style={{ background: isPayable ? 'rgba(239,68,68,0.06)' : 'rgba(34,197,94,0.06)', borderLeft: `3px solid ${isPayable ? '#ef4444' : '#22c55e'}` }}>
+            <p className={`text-xs font-medium ${isPayable ? 'text-red-400' : 'text-green-400'}`}>{isPayable ? 'Payable' : 'Carried out'}</p>
+            <p className={`text-lg font-bold ${isPayable ? 'text-red-300' : 'text-green-300'}`}>{formatCurrency(isPayable ? payable : balance)}</p>
+            <p className="text-xs text-white/30 mt-1">{isPayable ? 'Due for this month' : 'Goes to next month'}</p>
+          </div>
+        </div>
+
+        {/* Bills behind the numbers — always visible, no clicking required */}
+        <div className="card">
+          <h3 className="font-bold text-white mb-4 text-sm">Bills in {monthFullName}</h3>
+          {billsLoading ? (
+            <div className="flex justify-center py-8"><div className="animate-spin h-6 w-6 border-3 rounded-full" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}></div></div>
+          ) : (
+            <div className="grid lg:grid-cols-2 gap-6">
+              <div>
+                <h4 className="font-bold text-sm text-blue-400 mb-2 flex items-center gap-2"><FileText size={14} /> Sales Invoices ({monthlyBills.invoices.length})</h4>
+                {monthlyBills.invoices.length === 0 ? (
+                  <p className="text-xs text-white/30 italic">No sales invoices in this month</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs nebula-table">
+                      <thead><tr><th className="text-left">Invoice #</th><th className="text-left">Customer</th><th className="text-left">Date</th><th className="text-right">Taxable</th><th className="text-right">GST</th><th className="text-right">Total</th></tr></thead>
+                      <tbody>
+                        {monthlyBills.invoices.map(inv => (
+                          <tr key={inv.id} className="anim-row">
+                            <td className="font-medium text-blue-400">{inv.invoice_number}</td>
+                            <td className="text-white/70">{inv.customer_name}</td>
+                            <td className="text-white/40">{formatDate(inv.invoice_date)}</td>
+                            <td className="text-right text-white/70">{formatCurrency(inv.subtotal)}</td>
+                            <td className="text-right text-white/70">{formatCurrency((parseFloat(inv.cgst_amount) || 0) + (parseFloat(inv.sgst_amount) || 0) + (parseFloat(inv.igst_amount) || 0))}</td>
+                            <td className="text-right font-bold text-white">{formatCurrency(inv.total_amount)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-orange-400 mb-2 flex items-center gap-2"><ShoppingCart size={14} /> Purchase Bills ({monthlyBills.purchases.length})</h4>
+                {monthlyBills.purchases.length === 0 ? (
+                  <p className="text-xs text-white/30 italic">No purchase bills in this month</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs nebula-table">
+                      <thead><tr><th className="text-left">Bill #</th><th className="text-left">Supplier</th><th className="text-left">Date</th><th className="text-right">Taxable</th><th className="text-right">GST</th><th className="text-right">Total</th></tr></thead>
+                      <tbody>
+                        {monthlyBills.purchases.map(pur => (
+                        <tr key={pur.id} className="anim-row">
+                          <td className="font-medium text-orange-400">{pur.bill_number}</td>
+                          <td className="text-white/70">{pur.supplier_name}</td>
+                          <td className="text-white/40">{formatDate(pur.bill_date)}</td>
+                          <td className="text-right text-white/70">{formatCurrency(pur.subtotal)}</td>
+                          <td className="text-right text-white/70">{formatCurrency((parseFloat(pur.cgst_amount) || 0) + (parseFloat(pur.sgst_amount) || 0) + (parseFloat(pur.igst_amount) || 0))}</td>
+                          <td className="text-right font-bold text-white">{formatCurrency(pur.total_amount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function FlowStep({ label, sub, value, color, emphasize }) {
+  return (
+    <div className="flex-1 min-w-[130px] rounded-xl p-3" style={{ background: `${color}14`, border: `1px solid ${color}30` }}>
+      <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color }}>{label}</p>
+      <p className={`font-bold ${emphasize ? 'text-lg' : 'text-base'} text-white mt-0.5`}>{formatCurrency(value)}</p>
+      <p className="text-[10px] text-white/30 mt-0.5">{sub}</p>
+    </div>
+  )
+}
+function FlowOp({ symbol }) {
+  return <div className="flex items-center justify-center text-white/25 font-bold text-lg px-1">{symbol}</div>
+}
+
+// ═══════════════════════════════════════════════
+// YEAR VIEW — the original full-FY table, charts, and GSTR breakdown
+// ═══════════════════════════════════════════════
+function YearView({ data, g3b, monthlyPayable, activeMonths, barData, lineData, areaData, pieData, chartType, setChartType, fmtTooltip, totalActualPayable, expandedMonth, handleExpandMonth, monthlyBills, billsLoading }) {
+  return (
+    <div className="space-y-6">
+      {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 stagger">
         <div className="gst-card" style={{ background: 'rgba(59,130,246,0.06)', borderLeft: '3px solid #3b82f6' }}>
           <p className="text-xs text-blue-400 font-medium">Total Sales</p>
@@ -121,7 +399,7 @@ export default function GSTReports() {
         </div>
       </div>
 
-      {/* GSTR-3B Breakdown - Dark themed */}
+      {/* GSTR-3B Breakdown */}
       <div className="grid md:grid-cols-3 gap-4">
         <div className="card">
           <h3 className="font-bold text-blue-400 mb-3">Output GST (GSTR-1)</h3>
