@@ -94,53 +94,84 @@ router.get('/summary', auth, async (req, res) => {
     const inSGST = parseFloat(inputTotal?.sgst || 0);
     const inIGST = parseFloat(inputTotal?.igst || 0);
 
-    // Monthly payable with CARRY FORWARD balance
-    // Running balance: if input > output in a month, excess credit carries to next month
+    // Monthly payable with CARRY FORWARD balance — per Indian GST ITC set-off rules
+    // (CGST Act §49): CGST, SGST and IGST are SEPARATE credit ledgers.
+    //   • IGST liability ← IGST credit, then CGST credit, then SGST credit
+    //   • CGST liability ← CGST credit, then IGST credit
+    //   • SGST liability ← SGST credit, then IGST credit
+    //   • CGST credit can NEVER pay SGST (and vice-versa).
+    // Payable is PAID in the month — it never carries forward. Only excess INPUT
+    // credit (purchases > sales) carries forward to the next month.
     const monthNames = ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
-    let carryForward = 0; // running carry-forward balance from previous months
+
+    // Running credit ledgers (opening balance carried from previous months)
+    let ledC = 0; // CGST credit
+    let ledS = 0; // SGST credit
+    let ledI = 0; // IGST credit
 
     const monthlyPayable = monthNames.map((m, i) => {
       const monthKey = i < 9 ? `${year}-${String(i + 4).padStart(2, '0')}` : `${year + 1}-${String(i - 8).padStart(2, '0')}`;
       const o = outputMonthly.find(g => g.month === monthKey) || {};
       const inp = inputMonthly.find(g => g.month === monthKey) || {};
-      const oTotal = parseFloat(o.cgst || 0) + parseFloat(o.sgst || 0) + parseFloat(o.igst || 0);
-      const iTotal = parseFloat(inp.cgst || 0) + parseFloat(inp.sgst || 0) + parseFloat(inp.igst || 0);
+
+      const oC = parseFloat(o.cgst || 0);
+      const oS = parseFloat(o.sgst || 0);
+      const oI = parseFloat(o.igst || 0);
+      const iC = parseFloat(inp.cgst || 0);
+      const iS = parseFloat(inp.sgst || 0);
+      const iI = parseFloat(inp.igst || 0);
       const invoiceCount = parseInt(o.invoice_count || 0);
       const billCount = parseInt(inp.bill_count || 0);
 
-      // Net = Output - Input - Carry Forward from previous month
-      const net = oTotal - iTotal - carryForward;
+      const openingTotal = ledC + ledS + ledI; // credit brought forward FROM previous month
 
-      let payable = 0;
-      let newCarryForward = 0;
-      if (net > 0) {
-        payable = net;       // You need to pay this
-        newCarryForward = 0; // No credit left
-      } else {
-        payable = 0;              // Nothing to pay
-        newCarryForward = Math.abs(net); // Credit carries forward
-      }
+      // Add this month's input tax credit to the ledgers
+      ledC += iC;
+      ledS += iS;
+      ledI += iI;
+
+      // Settle liabilities in the statutory order
+      // 1) IGST liability: IGST credit → CGST credit → SGST credit
+      let due = oI;
+      let use = Math.min(ledI, due); ledI -= use; due -= use;
+      if (due > 0) { use = Math.min(ledC, due); ledC -= use; due -= use; }
+      if (due > 0) { use = Math.min(ledS, due); ledS -= use; due -= use; }
+      const payI = due;
+
+      // 2) CGST liability: CGST credit → IGST credit
+      due = oC;
+      use = Math.min(ledC, due); ledC -= use; due -= use;
+      if (due > 0) { use = Math.min(ledI, due); ledI -= use; due -= use; }
+      const payC = due;
+
+      // 3) SGST liability: SGST credit → IGST credit
+      due = oS;
+      use = Math.min(ledS, due); ledS -= use; due -= use;
+      if (due > 0) { use = Math.min(ledI, due); ledI -= use; due -= use; }
+      const payS = due;
+
+      const payable = payC + payS + payI;      // paid this month — does NOT carry forward
+      const closingTotal = ledC + ledS + ledI; // excess INPUT credit → carries to next month
 
       const entry = {
         month: m,
         monthKey,
         sales: parseFloat(o.total_amount || 0),
         purchases: parseFloat(inp.total_amount || 0),
-        outputGST: oTotal,
-        inputGST: iTotal,
+        outputGST: oC + oS + oI,
+        inputGST: iC + iS + iI,
         invoiceCount,
         billCount,
-        carryForward,           // Credit brought forward FROM previous month
-        payable,                // How much you actually pay this month
-        balance: newCarryForward, // Credit carried forward TO next month
+        carryForward: openingTotal, // Credit brought forward FROM previous month
+        payable,                    // How much you actually pay this month
+        balance: closingTotal,      // Credit carried forward TO next month
       };
 
-      carryForward = newCarryForward; // Update for next iteration
       return entry;
     });
 
-    // Final carry-forward is the balance from the last month
-    const finalCarryForward = carryForward;
+    // Final carry-forward is the credit left after March
+    const finalCarryForward = ledC + ledS + ledI;
 
     res.json({
       success: true,
