@@ -27,8 +27,9 @@ function monthKeyToFyYear(monthStr) {
 }
 
 export default function GSTReports() {
-  // ═══ View mode: 'month' shows one month clearly, 'year' shows the full FY table ═══
-  const [viewMode, setViewMode] = useState('month')
+  // ═══ View mode: 'year' (default — matches the totals you're used to seeing immediately)
+  // shows the full FY table, 'month' shows one month clearly ═══
+  const [viewMode, setViewMode] = useState('year')
   const [selectedMonth, setSelectedMonth] = useState(currentMonthStr())
   const [year, setYear] = useState(monthKeyToFyYear(currentMonthStr()))
 
@@ -162,6 +163,27 @@ export default function GSTReports() {
               {years.map(y => <option key={y} value={y}>FY {y}-{String(y + 1).slice(2)}</option>)}
             </select>
           )}
+        </div>
+      </div>
+
+      {/* ═══════════════════════════════════════════
+          ALWAYS-VISIBLE FY TOTALS — the headline numbers, regardless of which view is open below
+          ═══════════════════════════════════════════ */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="gst-card" style={{ background: 'rgba(59,130,246,0.06)', borderLeft: '3px solid #3b82f6' }}>
+          <p className="text-xs text-blue-400 font-medium">Output GST (Sales) — FY {year}-{String(year + 1).slice(2)}</p>
+          <p className="text-xl font-bold text-blue-300">{formatCurrency(g3b.outputTotal || 0)}</p>
+          <p className="text-xs text-white/30 mt-1">CGST: {formatCurrency(g3b.outputCGST || 0)} · SGST: {formatCurrency(g3b.outputSGST || 0)} · IGST: {formatCurrency(g3b.outputIGST || 0)}</p>
+        </div>
+        <div className="gst-card" style={{ background: 'rgba(249,115,22,0.06)', borderLeft: '3px solid #f97316' }}>
+          <p className="text-xs text-orange-400 font-medium">Input GST (Purchases) — FY {year}-{String(year + 1).slice(2)}</p>
+          <p className="text-xl font-bold text-orange-300">{formatCurrency(g3b.inputTotal || 0)}</p>
+          <p className="text-xs text-white/30 mt-1">CGST: {formatCurrency(g3b.inputCGST || 0)} · SGST: {formatCurrency(g3b.inputSGST || 0)} · IGST: {formatCurrency(g3b.inputIGST || 0)}</p>
+        </div>
+        <div className="gst-card" style={{ background: 'rgba(239,68,68,0.06)', borderLeft: '3px solid #ef4444' }}>
+          <p className="text-xs text-red-400 font-medium">Net Payable — FY {year}-{String(year + 1).slice(2)}</p>
+          <p className="text-xl font-bold text-red-300">{formatCurrency(totalActualPayable)}</p>
+          <p className="text-xs text-white/30 mt-1">After carry-forward · {formatCurrency(g3b.finalCarryForward || 0)} credit remaining</p>
         </div>
       </div>
 
