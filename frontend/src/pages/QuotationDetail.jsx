@@ -76,80 +76,62 @@ function ClassicLayout({ quotation, items, org, boldOn, customerSize, detailSize
    PRO LAYOUT — With letterhead image header, stamp, signature
    Matches the company's printed letterhead format
    ═══════════════════════════════════════════════════════════════ */
-function ProLayout({ quotation, items, org, boldOn, customerSize, detailSize, qNum, gstRate, totalGST, totalAmount, amountWords, selectedFont, selectedFontSize, letterheadMm, footerMm }) {
-  const companyName = (org?.name || 'GLOB FABRICATION & ENTERPRISES').toUpperCase()
-  const tagline = org?.tagline || 'BOTTOM LOADING TANK & TOP LOADING TANK'
-  const specialist = org?.specialist_line || 'Specialist in : New Tank Fabricators, S.S., M.S. & Steel, Structural Steel Cab Body Repairs & All other Works.'
+function ProLayout({ quotation, items, boldOn, customerSize, detailSize, qNum, gstRate, totalGST, totalAmount, amountWords }) {
   const bdr = '1.5px solid #000'
-
   return (
-    <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily: selectedFont, fontSize: selectedFontSize, width: '210mm', minHeight: '297mm', background: '#fff', color: '#000', display: 'flex', flexDirection: 'column' }}>
-      {letterheadMm > 0 && <div style={{ height: letterheadMm + 'mm', flexShrink: 0 }} />}
+    <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily: 'Arial, sans-serif', width: '210mm', minHeight: '297mm', background: '#fff', color: '#000', display: 'flex', flexDirection: 'column' }}>
+      {/* Real scanned letterhead — logo, GLOB wordmark, tagline, GSTIN, mobile numbers */}
+      <img src="/letterhead/glob-header.png" alt="" style={{ width: '100%', display: 'block' }} />
 
-      {/* GSTIN / mobile strip */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 10mm', background: '#111', color: '#fff' }}>
-        <span style={{ fontWeight: 800, fontSize: '9pt', letterSpacing: 1 }}>{org?.gstin ? `GSTIN : ${org.gstin}` : ''}</span>
-        <span style={{ fontSize: '8.5pt', fontWeight: 600, textAlign: 'right' }}>{org?.phone ? `Mobile : ${org.phone}` : ''}</span>
+      <div style={{ textAlign: 'right', padding: '2px 10mm 0', fontSize: '10pt', fontWeight: 600 }}>
+        Date : <b>{fmtDate(quotation.quotation_date)}</b>
       </div>
 
-      {/* Header: logo + company banner + date */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10mm 4px', borderBottom: '3px solid #000' }}>
-        {org?.logo_url && <img src={org.logo_url} alt="Logo" style={{ width: 60, height: 60, objectFit: 'contain', flexShrink: 0 }} />}
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: '22pt', fontWeight: 900, letterSpacing: 1, color: '#b91c1c', lineHeight: 1 }}>{companyName}</div>
-          <div style={{ fontSize: '10.5pt', fontWeight: 800, letterSpacing: 0.5, marginTop: 2 }}>{tagline}</div>
-          <div style={{ fontSize: '8pt', fontWeight: 600, marginTop: 1, lineHeight: 1.3 }}>{specialist}</div>
-        </div>
-        <div style={{ fontSize: '9pt', fontWeight: 700, alignSelf: 'flex-start' }}>Date : {fmtDate(quotation.quotation_date)}</div>
-      </div>
-
-      {/* Title */}
-      <div style={{ textAlign: 'center', padding: '8px 0 6px', fontSize: '16pt', fontWeight: 800, letterSpacing: 1 }}>
+      <div style={{ textAlign: 'center', padding: '10px 0 8px', fontSize: '17pt', fontWeight: 700, letterSpacing: 0.5 }}>
         QUOTATION <u>No</u> :- {qNum}
       </div>
 
-      {/* Boxed body */}
-      <div style={{ border: '2px solid #000', margin: '0 10mm', overflow: 'hidden' }}>
-        <div style={{ padding: '8px 10px 6px', borderBottom: bdr, background: '#f8f9fa' }}>
-          <div style={{ fontSize: `${customerSize}pt`, fontWeight: 800, textTransform: 'uppercase', lineHeight: 1.2 }}>{(quotation.customer_name || '').toUpperCase()}</div>
-          {quotation.additional_info && <div style={{ fontSize: `${detailSize}pt`, fontWeight: 700, marginTop: 3 }}>{quotation.additional_info}</div>}
+      {/* Boxed body — grows to fill page, leaves room for stamp + footer */}
+      <div style={{ position: 'relative', flex: 1 }}>
+        <div style={{ border: '2px solid #000', margin: '0 10mm 20mm', overflow: 'hidden' }}>
+          <div style={{ padding: '8px 10px 6px', borderBottom: bdr }}>
+            <div style={{ fontSize: `${customerSize}pt`, fontWeight: 800, textTransform: 'uppercase', lineHeight: 1.2 }}>{(quotation.customer_name || '').toUpperCase()}</div>
+            {quotation.additional_info && <div style={{ fontSize: `${detailSize}pt`, fontWeight: 700, marginTop: 3 }}>{quotation.additional_info}</div>}
+          </div>
+
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10pt', tableLayout: 'fixed' }}>
+            <colgroup><col style={{ width: '6%' }} /><col style={{ width: '56%' }} /><col style={{ width: '10%' }} /><col style={{ width: '14%' }} /><col style={{ width: '14%' }} /></colgroup>
+            <thead><tr>
+              <th style={{ border: bdr, padding: '6px 4px' }}>SR<br />No.</th>
+              <th style={{ border: bdr, padding: '6px 4px', textAlign: 'left' }}>Particulars</th>
+              <th style={{ border: bdr, padding: '6px 4px' }}>Qty</th>
+              <th style={{ border: bdr, padding: '6px 4px' }}>Rate</th>
+              <th style={{ border: bdr, padding: '6px 4px' }}>Amount</th>
+            </tr></thead>
+            <tbody>{items.map((it, i) => (
+              <tr key={i}>
+                <td style={{ border: bdr, padding: '5px 4px', textAlign: 'center', fontWeight: 700 }}>{i + 1}</td>
+                <td style={{ border: bdr, padding: '5px 4px', fontWeight: boldOn ? 700 : 400, whiteSpace: 'pre-line', lineHeight: 1.3 }}>{it.description || ''}</td>
+                <td style={{ border: bdr, padding: '5px 4px', textAlign: 'center', fontWeight: 700 }}>{it.quantity}{it.unit && it.unit !== 'Unit' ? ` ${it.unit}` : ''}</td>
+                <td style={{ border: bdr, padding: '5px 4px', textAlign: 'right', fontWeight: 700 }}>₹{fmt(it.rate)}</td>
+                <td style={{ border: bdr, padding: '5px 4px', textAlign: 'right', fontWeight: 700 }}>₹{fmt(it.amount)}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10.5pt' }}><tbody>
+            <tr><td style={{ border: bdr, padding: '5px 8px', fontWeight: 700 }}>GST: {gstRate}%</td><td style={{ border: bdr, padding: '5px 8px', textAlign: 'right', fontWeight: 700 }}>₹{fmt(totalGST)}</td></tr>
+            <tr><td colSpan={2} style={{ border: bdr, padding: '6px 8px', fontSize: '11pt', fontWeight: 700 }}>Total : {amountWords} ONLY</td></tr>
+            <tr><td style={{ border: bdr, padding: '7px 8px', fontSize: '13pt', fontWeight: 800 }}>Total Amount</td><td style={{ border: bdr, padding: '7px 8px', textAlign: 'right', fontSize: '13pt', fontWeight: 800 }}>₹{fmt(totalAmount)}</td></tr>
+          </tbody></table>
         </div>
 
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10pt', tableLayout: 'fixed' }}>
-          <colgroup><col style={{ width: '6%' }} /><col style={{ width: '56%' }} /><col style={{ width: '10%' }} /><col style={{ width: '14%' }} /><col style={{ width: '14%' }} /></colgroup>
-          <thead><tr>
-            <th style={{ border: bdr, padding: '6px 4px', background: '#e8e8e8', fontSize: '10pt' }}>SR No.</th>
-            <th style={{ border: bdr, padding: '6px 4px', background: '#e8e8e8', fontSize: '10pt', textAlign: 'left' }}>Particulars</th>
-            <th style={{ border: bdr, padding: '6px 4px', background: '#e8e8e8', fontSize: '10pt' }}>Qty</th>
-            <th style={{ border: bdr, padding: '6px 4px', background: '#e8e8e8', fontSize: '10pt' }}>Rate</th>
-            <th style={{ border: bdr, padding: '6px 4px', background: '#e8e8e8', fontSize: '10pt' }}>Amount</th>
-          </tr></thead>
-          <tbody>{items.map((it, i) => (
-            <tr key={i}>
-              <td style={{ border: bdr, padding: '5px 4px', textAlign: 'center', fontWeight: 700 }}>{i + 1}</td>
-              <td style={{ border: bdr, padding: '5px 4px', fontWeight: boldOn ? 700 : 400, whiteSpace: 'pre-line', lineHeight: 1.3 }}>{it.description || ''}</td>
-              <td style={{ border: bdr, padding: '5px 4px', textAlign: 'center', fontWeight: 700 }}>{it.quantity}{it.unit && it.unit !== 'Unit' ? ` ${it.unit}` : ''}</td>
-              <td style={{ border: bdr, padding: '5px 4px', textAlign: 'right', fontWeight: 700 }}>₹{fmt(it.rate)}</td>
-              <td style={{ border: bdr, padding: '5px 4px', textAlign: 'right', fontWeight: 700 }}>₹{fmt(it.amount)}</td>
-            </tr>
-          ))}</tbody>
-        </table>
-
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10.5pt' }}><tbody>
-          <tr><td style={{ border: bdr, padding: '5px 8px', fontWeight: 700 }}>GST: {gstRate}%</td><td style={{ border: bdr, padding: '5px 8px', textAlign: 'right', fontWeight: 700 }}>₹{fmt(totalGST)}</td></tr>
-          <tr style={{ background: '#f5f5f5' }}><td colSpan={2} style={{ border: bdr, padding: '6px 8px', fontSize: '11pt', fontWeight: 700 }}>Total : {amountWords} ONLY</td></tr>
-          <tr style={{ background: '#e8e8e8' }}><td style={{ border: bdr, padding: '7px 8px', fontSize: '13pt', fontWeight: 800 }}>Total Amount</td><td style={{ border: bdr, padding: '7px 8px', textAlign: 'right', fontSize: '13pt', fontWeight: 800 }}>₹{fmt(totalAmount)}</td></tr>
-        </tbody></table>
+        {/* Company stamp, overlapping the box's bottom edge like the original */}
+        <img src="/letterhead/glob-stamp.png" alt="" style={{ position: 'absolute', right: '16mm', bottom: '2mm', width: '52mm', opacity: 0.9 }} />
       </div>
 
-      {footerMm > 0 && <div style={{ height: footerMm + 'mm', flexShrink: 0 }} />}
-
-      {/* Footer address / email bar + stamp */}
-      <div style={{ position: 'relative', marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#111', color: '#fff', padding: '5px 10mm', fontSize: '8.5pt', fontWeight: 600 }}>
-        <span>{[org?.address, org?.city, org?.state].filter(Boolean).join(', ') || 'Gala No. 4, Shilphata-Panvel Highway, Dhanar Village, Toll Plaza, 1 Km., Dist. Raigad (Maharashtra)'}</span>
-        <span>{org?.email ? `E-mail : ${org.email}` : ''}</span>
-        {org?.stamp_url && <img src={org.stamp_url} alt="Stamp" style={{ position: 'absolute', right: 10, bottom: '100%', width: 70, height: 70, objectFit: 'contain', opacity: 0.85 }} />}
-      </div>
+      {/* Real scanned footer — address + email bar */}
+      <img src="/letterhead/glob-footer.png" alt="" style={{ width: '100%', display: 'block' }} />
     </div>
   )
 }
