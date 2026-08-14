@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Download, Trash2, Printer, Edit, AlertCircle, Share2, MessageCircle, Mail, LayoutTemplate } from 'lucide-react'
 import api from '../api/client'
 import BoldToggle from '../components/BoldToggle'
+import { downloadPdf, printElement } from '../utils/printPdf'
 
 function fmt(n) {
   return new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0)
@@ -96,35 +97,27 @@ export default function InvoiceDetail() {
     return `https://fonts.googleapis.com/css2?family=${family}:wght@300;400;500;600;700;800;900&display=swap`
   }
 
-  const handlePrint = () => {
-    /* Open a CLEAN new window with ONLY the invoice content.
-       This completely bypasses the dark theme / dark background issue.
-       Also loads the selected Google Font so it appears correctly in print. */
+  const handlePrint = async () => {
+    // WYSIWYG single-page print: renders the actual invoice (including
+    // stamp/signature) to a canvas and prints it on exactly one A4 page.
     const printEl = document.querySelector('.print-area')
     if (!printEl) { window.print(); return }
-    const html = printEl.innerHTML
-
-    // Build Google Fonts link for the selected font
-    const fontUrl = getGoogleFontUrl(fontFamily)
-    const fontLinkTag = fontUrl ? `<link href="${fontUrl}" rel="stylesheet">` : ''
-
-    const w = window.open('', '_blank', 'width=900,height=600')
-    w.document.write(`<!DOCTYPE html><html><head><title>Invoice ${invNum}</title>
-${fontLinkTag}
-<style>
-@page { margin: 12mm 10mm; size: A4; }
-* { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-body { margin:0; padding:0; background:white; color:#000; font-family:'${fontFamily}', 'Segoe UI', Arial, sans-serif; }
-img { max-width:100%; }
-table { border-collapse:collapse; width:100%; }
-th,td { padding:6px 10px; word-break:break-word; overflow-wrap:break-word; }
-</style></head><body>${html}</body></html>`)
-    w.document.close()
-    setTimeout(() => { w.print(); w.close() }, 500)
+    await printElement(printEl, `Invoice ${invNum}`)
   }
 
-  // FIX #1: PDF download uses fetch + blob (no token in URL — prevents browser history/log leak)
+  // FIX: PDF download now generates a REAL .pdf client-side (single A4 page,
+  // includes stamp/signature). Falls back to the server endpoint if needed.
   const handleDownloadPDF = async () => {
+    const printEl = document.querySelector('.print-area')
+    const safeName = (inv.invoice_number || `invoice-${id}`).replace(/\//g, '-')
+    try {
+      if (printEl) {
+        await downloadPdf(printEl, `Invoice_${safeName}.pdf`)
+        return
+      }
+    } catch (e) {
+      console.warn('Client-side PDF failed, falling back to server:', e.message)
+    }
     try {
       const token = localStorage.getItem('token')
       const response = await fetch(`${api.defaults.baseURL}/invoices/${id}/pdf?token=${token}&layout=${layout}`, {
@@ -134,7 +127,7 @@ th,td { padding:6px 10px; word-break:break-word; overflow-wrap:break-word; }
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `Invoice_${(inv.invoice_number || '').replace(/\//g, '-')}.html`
+      a.download = `Invoice_${safeName}.pdf`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
@@ -558,7 +551,7 @@ function ProLayout({ inv, items, org, invNum, isPaid, placeOfSupply, invoiceDate
         <div style={{ padding: '14px 20px', borderRight: DIVIDER, fontSize: '12.5px', color: '#000' }}>
           <div style={{ fontSize: '10.5px', textTransform: 'uppercase', letterSpacing: 1, color: '#666', fontWeight: 700, marginBottom: 6 }}>Pay using UPI</div>
           {qrUrl
-            ? <img src={qrUrl} style={{ width: 120, height: 120, marginTop: 4, borderRadius: 4 }} alt="QR" />
+            ? <img src={qrUrl} crossOrigin="anonymous" style={{ width: 120, height: 120, marginTop: 4, borderRadius: 4 }} alt="QR" />
             : <div style={{ width: 120, height: 120, border: '1px solid #ccc', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#999', fontWeight: 600, marginTop: 4, background: '#fafbfc' }}>QR CODE</div>
           }
         </div>
@@ -855,7 +848,7 @@ function ClassicLayout({ inv, items, org, invNum, isPaid, placeOfSupply, invoice
         <div style={{ padding: '16px 20px', borderRight: B, fontSize: 13, color: '#000' }}>
           <h4 style={{ margin: '0 0 8px', fontWeight: 800, color: '#000' }}>Pay using UPI:</h4>
           {qrUrl
-            ? <img src={qrUrl} style={{ width: 130, height: 130, marginTop: 6 }} alt="QR" />
+            ? <img src={qrUrl} crossOrigin="anonymous" style={{ width: 130, height: 130, marginTop: 6 }} alt="QR" />
             : <div style={{ width: 130, height: 130, border: '1px solid #333', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#000', fontWeight: 700, marginTop: 6 }}>QR CODE</div>
           }
         </div>
