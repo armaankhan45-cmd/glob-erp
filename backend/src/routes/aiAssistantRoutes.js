@@ -76,12 +76,26 @@ You have access to TOOLS that let you:
 ## Your Rules
 1. Always explain what you're doing before taking action
 2. For destructive operations (DROP, DELETE, UPDATE), ALWAYS confirm with the user first
-3. When writing code, show the full code with proper formatting
-4. When fixing errors, explain the root cause and the fix
-5. If you're not sure about something, say so — don't guess
-6. Use the tools available to you — don't just guess at answers
-7. Be concise but thorough
-8. Format your responses with markdown: **bold** for emphasis, \`\`\`code blocks\`\`\` for code, lists for steps
+3. NEVER guess at code you haven't read. Before editing or explaining any file, call \`read_file\` on it first — don't rely on memory of what a file "probably" looks like, even if you edited it earlier in this conversation. Files change outside this chat too.
+4. When writing code, output the COMPLETE file content (or complete function, if the file is huge), not a diff or a fragment the user has to merge by hand. Partial snippets are a common source of the user breaking their own file by pasting them in wrong — don't create that risk.
+5. When fixing a bug, briefly state the root cause before the fix — one or two sentences, not a full essay.
+6. If you're not sure about something, say so — don't guess. Use \`run_sql\`, \`get_table_structure\`, or \`list_files\` to check the real state of the system instead of assuming.
+7. Be concise but thorough. Skip preamble like "Great question!" — just answer.
+8. Format responses with markdown: **bold** for emphasis, \`\`\`code blocks\`\`\` for code, lists for steps.
+
+## Patterns To Follow (and bugs to never reintroduce)
+This codebase has had real bugs from these exact patterns — don't repeat them:
+- **Every query must be scoped by \`organization_id\`.** This is a multi-tenant app on one shared database. A query that reads or writes a row by \`id\` alone (without also filtering \`organization_id: req.user.organization_id\`) is a cross-tenant data leak, even if the row "happens" to belong to the right org today. Check this specifically whenever a route uses an ID that came from the request body (e.g. \`data.invoice_id\`), not just \`req.params.id\`.
+- **Never call \`.update(req.body)\` or \`.insert(req.body)\` directly.** Build an explicit whitelist of allowed columns first, the way \`purchaseRoutes.js\` does it. Passing the raw body through lets a client overwrite \`organization_id\`, \`id\`, or \`created_at\`.
+- **Never interpolate a variable into \`db.raw()\` or \`whereRaw()\`.** Use \`?\` placeholders and pass values in the parameter array, even for things that feel "internal" like a table name from a tool call.
+- **Money is stored in \`total_amount\`, not \`total\`.** Empty date strings must become \`null\`, not \`''\`, before hitting Postgres — the global sanitize middleware handles this for normal routes, but raw queries you write yourself won't get that protection automatically.
+
+## Working Style
+Work the way a careful senior engineer reviewing a live production app would:
+- Read the actual file before claiming what it contains or how to fix it.
+- After changing a file with \`write_file\`, say plainly that the change is live on the running server but NOT saved to GitHub — the user still needs to copy it into their repo and push, or it's lost on the next Render deploy.
+- When a fix touches more than one file (e.g. a backend route + the frontend page that calls it), say so explicitly and give both files, don't silently fix only the one you were asked about.
+- Prefer showing the user *why* something broke (the specific line, the specific mismatched value) over a vague "there was an issue with the code."
 
 ## Important Notes
 - When you modify server files, changes take effect immediately but are lost on next deploy (Render pulls from GitHub)
@@ -680,7 +694,9 @@ async function callPollinations(messages, toolDefs) {
       pollMessages.push({ 
         role: 'assistant', 
         content: null,
-        tool_calls: [{ id: `call_${msg.name}_${Date.now()}`, type: 'function', function: { name: msg.name, arguments: JSON.stringify(msg.args || {}) } }]
+        // Must match the tool_call_id below exactly — an OpenAI-compatible API rejects/derails
+        // the conversation the moment these two IDs don't line up (they didn't before this fix).
+        tool_calls: [{ id: `call_${msg.name}`, type: 'function', function: { name: msg.name, arguments: JSON.stringify(msg.args || {}) } }]
       });
     } else if (msg.role === 'tool_result') {
       pollMessages.push({
@@ -768,7 +784,7 @@ async function callDeepSeek(messages, toolDefs, apiKey) {
       dsMessages.push({ 
         role: 'assistant', 
         content: null,
-        tool_calls: [{ id: `call_${msg.name}_${Date.now()}`, type: 'function', function: { name: msg.name, arguments: JSON.stringify(msg.args || {}) } }]
+        tool_calls: [{ id: `call_${msg.name}`, type: 'function', function: { name: msg.name, arguments: JSON.stringify(msg.args || {}) } }]
       });
     } else if (msg.role === 'tool_result') {
       dsMessages.push({
@@ -987,6 +1003,21 @@ async function callGroq(messages, toolDefs, apiKey) {
       groqMessages.push({ role: 'user', content: msg.content });
     } else if (msg.role === 'assistant' || msg.role === 'model') {
       groqMessages.push({ role: 'assistant', content: msg.content });
+    } else if (msg.role === 'tool_call') {
+      // Without this branch, Groq never sees that a tool was called at all — it just gets
+      // an "assistant" turn with no results, so it either hallucinates an answer or repeats
+      // the same tool call until the 5-iteration cap kicks in. This was the #1 provider tried.
+      groqMessages.push({
+        role: 'assistant',
+        content: null,
+        tool_calls: [{ id: `call_${msg.name}`, type: 'function', function: { name: msg.name, arguments: JSON.stringify(msg.args || {}) } }]
+      });
+    } else if (msg.role === 'tool_result') {
+      groqMessages.push({
+        role: 'tool',
+        tool_call_id: `call_${msg.name}`,
+        content: JSON.stringify(msg.result)
+      });
     }
   }
 
@@ -1059,6 +1090,18 @@ async function callCerebras(messages, toolDefs, apiKey) {
       cbrMessages.push({ role: 'user', content: msg.content });
     } else if (msg.role === 'assistant' || msg.role === 'model') {
       cbrMessages.push({ role: 'assistant', content: msg.content });
+    } else if (msg.role === 'tool_call') {
+      cbrMessages.push({
+        role: 'assistant',
+        content: null,
+        tool_calls: [{ id: `call_${msg.name}`, type: 'function', function: { name: msg.name, arguments: JSON.stringify(msg.args || {}) } }]
+      });
+    } else if (msg.role === 'tool_result') {
+      cbrMessages.push({
+        role: 'tool',
+        tool_call_id: `call_${msg.name}`,
+        content: JSON.stringify(msg.result)
+      });
     }
   }
 
@@ -1131,6 +1174,18 @@ async function callOpenRouter(messages, toolDefs, apiKey) {
       orMessages.push({ role: 'user', content: msg.content });
     } else if (msg.role === 'assistant' || msg.role === 'model') {
       orMessages.push({ role: 'assistant', content: msg.content });
+    } else if (msg.role === 'tool_call') {
+      orMessages.push({
+        role: 'assistant',
+        content: null,
+        tool_calls: [{ id: `call_${msg.name}`, type: 'function', function: { name: msg.name, arguments: JSON.stringify(msg.args || {}) } }]
+      });
+    } else if (msg.role === 'tool_result') {
+      orMessages.push({
+        role: 'tool',
+        tool_call_id: `call_${msg.name}`,
+        content: JSON.stringify(msg.result)
+      });
     }
   }
 
