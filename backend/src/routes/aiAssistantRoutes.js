@@ -1944,6 +1944,141 @@ function formatToolResult(name, result) {
 // QUICK ACTION ENDPOINTS
 // ═══════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════
+// STREAMING LAYER — token-by-token responses (SSE)
+// Makes the assistant feel instant & alive instead of a 30s wait.
+// ═══════════════════════════════════════════════════════════════
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function chunkText(text, size = 24) {
+  const out = [];
+  for (let i = 0; i < text.length; i += size) out.push(text.slice(i, i + size));
+  return out;
+}
+
+// OpenAI-compatible SSE streaming (Groq, DeepSeek, Cerebras, OpenRouter, OpenAI, Pollinations)
+async function streamOpenAICompatible({ url, apiKey, model, messages, tools, onDelta, timeoutMs = 120000 }) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const resp = await fetch(url, {
+      method: 'POST', headers,
+      body: JSON.stringify({ model, messages, tools, temperature: 0.7, max_tokens: 2048, stream: true }),
+      signal: controller.signal
+    });
+    if (!resp.ok || !resp.body) { clearTimeout(timer); return false; }
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '', got = false;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        const t = line.trim();
+        if (!t.startsWith('data:')) continue;
+        const payload = t.slice(5).trim();
+        if (!payload || payload === '[DONE]') continue;
+        try {
+          const json = JSON.parse(payload);
+          const delta = json.choices?.[0]?.delta?.content;
+          if (delta) { got = true; onDelta(delta); }
+        } catch (e) { /* skip malformed chunk */ }
+      }
+    }
+    clearTimeout(timer);
+    return got;
+  } catch (e) {
+    clearTimeout(timer);
+    return false;
+  }
+}
+
+// Gemini SSE streaming (non-OpenAI format)
+async function streamGemini({ apiKey, model, messages, onDelta, timeoutMs = 120000 }) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
+  const contents = [];
+  for (const msg of messages) {
+    if (msg.role === 'user') contents.push({ role: 'user', parts: [{ text: msg.content }] });
+    else if (msg.role === 'assistant' || msg.role === 'model') contents.push({ role: 'model', parts: [{ text: msg.content }] });
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents,
+        systemInstruction: { parts: [{ text: systemPromptFor(messages) }] },
+        generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
+      }),
+      signal: controller.signal
+    });
+    if (!resp.ok || !resp.body) { clearTimeout(timer); return false; }
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '', got = false;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        const t = line.trim();
+        if (!t.startsWith('data:')) continue;
+        const payload = t.slice(5).trim();
+        if (!payload) continue;
+        try {
+          const json = JSON.parse(payload);
+          const text = json.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('');
+          if (text) { got = true; onDelta(text); }
+        } catch (e) { /* skip */ }
+      }
+    }
+    clearTimeout(timer);
+    return got;
+  } catch (e) {
+    clearTimeout(timer);
+    return false;
+  }
+}
+
+// Try providers in priority order and stream the FIRST one that works.
+async function streamFinalAnswer(messages, onDelta) {
+  const geminiKey = process.env.GEMINI_API_KEY;
+  const groqKey = process.env.GROQ_API_KEY;
+  const deepseekKey = process.env.DEEPSEEK_API_KEY;
+  const cerebrasKey = process.env.CEREBRAS_API_KEY;
+  const openrouterKey = process.env.OPENROUTER_API_KEY;
+  const openaiKey = process.env.OPENAI_API_KEY;
+
+  const oaiTools = TOOL_DEFINITIONS.map(td => ({
+    type: 'function',
+    function: { name: td.name, description: td.description, parameters: td.parameters || { type: 'object', properties: {} } }
+  }));
+  const oaiMessages = [
+    { role: 'system', content: systemPromptFor(messages) },
+    ...messages.filter(m => m.role === 'user' || m.role === 'assistant' || m.role === 'model')
+      .map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content }))
+  ];
+
+  if (groqKey && await streamOpenAICompatible({ url: 'https://api.groq.com/openai/v1/chat/completions', apiKey: groqKey, model: 'llama-3.3-70b-versatile', messages: oaiMessages, tools: oaiTools, onDelta })) return 'Groq Llama 3.3 70B';
+  if (geminiKey && await streamGemini({ apiKey: geminiKey, model: 'gemini-2.5-flash', messages, onDelta })) return 'Gemini 2.5 Flash';
+  if (deepseekKey && await streamOpenAICompatible({ url: 'https://api.deepseek.com/v1/chat/completions', apiKey: deepseekKey, model: 'deepseek-chat', messages: oaiMessages, tools: oaiTools, onDelta })) return 'DeepSeek V3';
+  if (cerebrasKey && await streamOpenAICompatible({ url: 'https://api.cerebras.ai/v1/chat/completions', apiKey: cerebrasKey, model: 'llama-3.3-70b', messages: oaiMessages, tools: oaiTools, onDelta })) return 'Cerebras';
+  if (openrouterKey && await streamOpenAICompatible({ url: 'https://openrouter.ai/api/v1/chat/completions', apiKey: openrouterKey, model: 'google/gemini-2.5-flash-preview-05-20', messages: oaiMessages, tools: oaiTools, onDelta })) return 'OpenRouter';
+  if (openaiKey && await streamOpenAICompatible({ url: 'https://api.openai.com/v1/chat/completions', apiKey: openaiKey, model: 'gpt-4o', messages: oaiMessages, tools: oaiTools, onDelta })) return 'OpenAI GPT-4o';
+  if (await streamOpenAICompatible({ url: 'https://text.pollinations.ai/openai', apiKey: null, model: 'openai', messages: oaiMessages, tools: oaiTools, onDelta })) return 'Pollinations AI (Free)';
+  return null;
+}
+
 // ── Call a single specific provider by name ──
 async function callSingleProvider(providerName, messages, toolDefs) {
   switch (providerName) {
@@ -2202,6 +2337,156 @@ router.get('/status', auth, async (req, res) => {
     toolsAvailable: 30,
     note: 'AI is always enabled! Pollinations AI works for free without any API key. Add your own keys for higher rate limits.'
   });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// STREAMING CHAT — token-by-token SSE responses.
+// Events: { delta } { tool } { done } { error }
+// ═══════════════════════════════════════════════════════════════
+router.post('/stream', auth, adminOnly, async (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+  const send = (event, data) => { try { res.write(`data: ${JSON.stringify(data)}\n\n`); } catch (e) {} };
+
+  const orgId = req.user.organization_id;
+  const userId = req.user.id;
+  const rawMessage = String(req.body.message || '').trim();
+  const providedHistory = Array.isArray(req.body.messages) ? req.body.messages : [];
+
+  if (!rawMessage) { send('error', { msg: 'Empty message' }); return res.end(); }
+
+  try {
+    // ── 1) INSTANT BUSINESS ANSWERS (live data, never fails) ──
+    const biz = businessIntent(rawMessage.toLowerCase());
+    if (biz) {
+      const result = await executeTool(biz.tool.name, biz.tool.args, orgId);
+      send('tool', { name: biz.tool.name, args: biz.tool.args, result });
+      const full = biz.text + '\n\n' + formatToolResult(biz.tool.name, result);
+      for (const chunk of chunkText(full, 22)) { send('delta', { text: chunk }); await sleep(6); }
+      send('done', { provider: 'instant (live data)' });
+      return res.end();
+    }
+
+    // ── 2) Build history (provided first, else rule of thumb) ──
+    const history = providedHistory
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .map(m => ({ role: m.role === 'user' ? 'user' : 'model', content: m.content }));
+    const working = [...history, { role: 'user', content: rawMessage }];
+
+    // ── 3) TOOL RESOLUTION LOOP (non-streaming; emit tool events live) ──
+    let finalResponse = '';
+    let usedProvider = 'unknown';
+    let current = [...working];
+    let maxIter = 6;
+    while (maxIter-- > 0) {
+      const ai = await callAI(current, TOOL_DEFINITIONS);
+      if (!ai) break;
+      usedProvider = ai.provider || usedProvider;
+      if (ai.toolCalls?.length) {
+        for (const tc of ai.toolCalls) {
+          const result = await executeTool(tc.name, tc.args, orgId);
+          send('tool', { name: tc.name, args: tc.args, result });
+          current.push({ role: 'tool_call', name: tc.name, args: tc.args });
+          current.push({ role: 'tool_result', name: tc.name, result });
+        }
+        if (ai.text) finalResponse = ai.text;
+        continue;
+      }
+      finalResponse = ai.text || finalResponse;
+      break;
+    }
+
+    // ── 4) STREAM the final answer ──
+    if (finalResponse) {
+      // Tool loop already produced the answer — stream it in chunks
+      for (const chunk of chunkText(finalResponse, 22)) { send('delta', { text: chunk }); await sleep(6); }
+    } else {
+      const provider = await streamFinalAnswer(working, delta => send('delta', { text: delta }));
+      if (provider) usedProvider = provider;
+    }
+
+    // ── 5) If everything failed, rule-based fallback ──
+    if (!finalResponse && usedProvider === 'unknown') {
+      const ruleResult = ruleBasedResponse(rawMessage, orgId);
+      if (ruleResult.toolCalls?.length) {
+        const toolResults = [];
+        for (const tc of ruleResult.toolCalls) {
+          const result = await executeTool(tc.name, tc.args, orgId);
+          send('tool', { name: tc.name, args: tc.args, result });
+          toolResults.push({ name: tc.name, args: tc.args, result });
+        }
+        const formatted = toolResults.map(tr => formatToolResult(tr.name, tr.result)).join('');
+        const full = ruleResult.text + '\n\n' + formatted;
+        for (const chunk of chunkText(full, 22)) { send('delta', { text: chunk }); await sleep(6); }
+        usedProvider = 'fallback';
+      } else {
+        for (const chunk of chunkText(ruleResult.text, 22)) { send('delta', { text: chunk }); await sleep(6); }
+        usedProvider = 'fallback';
+      }
+    }
+
+    send('done', { provider: usedProvider });
+    return res.end();
+  } catch (e) {
+    console.error('Stream error:', e.message);
+    send('error', { msg: 'AI stream error: ' + e.message });
+    return res.end();
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// PROACTIVE INSIGHTS — real findings from the live database,
+// shown when the assistant opens. Makes it feel genuinely smart.
+// ═══════════════════════════════════════════════════════════════
+router.get('/insights', auth, async (req, res) => {
+  try {
+    const db = getDb();
+    const orgId = req.user.organization_id;
+    const insights = [];
+    const now = new Date();
+    const year = now.getMonth() < 3 ? now.getFullYear() - 1 : now.getFullYear();
+    const fyStart = `${year}-04-01`, fyEnd = `${year + 1}-03-31`;
+
+    // Unpaid invoices (receivables)
+    const unpaid = await db('invoices').where({ organization_id: orgId }).whereIn('payment_status', ['Unpaid', 'Partial']).count('id as c').sum('total_amount as t').first();
+    if (parseInt(unpaid.c || 0) > 0) {
+      insights.push({ type: 'money', icon: '💰', title: `${unpaid.c} unpaid invoice${unpaid.c == 1 ? '' : 's'}`, detail: `₹${parseFloat(unpaid.t || 0).toLocaleString('en-IN')} waiting to be collected`, question: 'Who owes me money?' });
+    }
+
+    // Low stock
+    const low = await db('inventory').where({ organization_id: orgId }).whereRaw('quantity <= min_quantity').count('id as c').first();
+    if (parseInt(low.c || 0) > 0) {
+      insights.push({ type: 'stock', icon: '📦', title: `${low.c} item${low.c == 1 ? '' : 's'} low on stock`, detail: 'Below minimum quantity', question: 'Am I low on stock?' });
+    }
+
+    // GST payable this FY
+    const outT = await db('invoices').where({ organization_id: orgId }).whereBetween('invoice_date', [fyStart, fyEnd]).sum('cgst_amount as c').sum('sgst_amount as s').sum('igst_amount as i').first();
+    const inT = await db('purchase_bills').where({ organization_id: orgId }).whereBetween('bill_date', [fyStart, fyEnd]).sum('cgst_amount as c').sum('sgst_amount as s').sum('igst_amount as i').first();
+    const outG = parseFloat(outT.c || 0) + parseFloat(outT.s || 0) + parseFloat(outT.i || 0);
+    const inG = parseFloat(inT.c || 0) + parseFloat(inT.s || 0) + parseFloat(inT.i || 0);
+    if (outG > inG) {
+      insights.push({ type: 'gst', icon: '🧾', title: `GST payable ₹${(outG - inG).toLocaleString('en-IN')}`, detail: `FY ${year}-${String(year + 1).slice(2)} (output − input)`, question: 'How much GST do I owe?' });
+    }
+
+    // Unpaid supplier bills (payables)
+    const bills = await db('purchase_bills').where({ organization_id: orgId }).whereIn('payment_status', ['Unpaid', 'Partial']).sum('total_amount as t').first();
+    if (parseFloat(bills.t || 0) > 0) {
+      insights.push({ type: 'bills', icon: '🏦', title: `₹${parseFloat(bills.t).toLocaleString('en-IN')} owed to suppliers`, detail: 'Unpaid purchase bills', question: 'What do I owe suppliers?' });
+    }
+
+    // Revenue this FY
+    const rev = await db('invoices').where({ organization_id: orgId }).whereBetween('invoice_date', [fyStart, fyEnd]).sum('total_amount as t').first();
+    if (parseFloat(rev.t || 0) > 0) {
+      insights.push({ type: 'revenue', icon: '📈', title: `Revenue ₹${parseFloat(rev.t).toLocaleString('en-IN')} this FY`, detail: `FY ${year}-${String(year + 1).slice(2)}`, question: 'How is my business doing?' });
+    }
+
+    res.json({ success: true, insights });
+  } catch (e) {
+    res.json({ success: false, insights: [], msg: e.message });
+  }
 });
 
 module.exports = router;
