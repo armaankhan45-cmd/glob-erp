@@ -1317,9 +1317,15 @@ function ruleBasedResponse(msg, orgId) {
     return { text: `Reading file ${routesPath}...`, toolCalls: [{ name: 'read_file', args: { path: routesPath } }] };
   }
 
-  // Default help
+  // Default help — this branch only runs when every configured AI provider (and the
+  // no-key-needed Pollinations fallback) failed to respond at all, so be honest about that
+  // instead of pretending this canned list is the AI being clever.
   return {
-    text: `I can help you with many things! Try asking me to:
+    text: `⚠️ I couldn't reach any AI provider just now (including the free fallback), so here's a plain menu instead of a real answer.
+
+**This almost always means no API key is configured on Render.** The single biggest fix: add a free \`GEMINI_API_KEY\` (Google AI Studio) or \`GROQ_API_KEY\` (console.groq.com) to your Render environment variables and redeploy — either is free and both support full tool use, unlike the no-key fallback. Ask me to "check AI status" once that's set and I'll confirm which provider is active.
+
+In the meantime I can still run these directly:
 
 🔍 **Diagnose & Fix:**
 - "Check system health"
@@ -1372,7 +1378,7 @@ router.post('/chat', auth, adminOnly, async (req, res) => {
         // Handle tool calls in a loop
         let currentMessages = [...allMessages];
         let finalResponse = singleResult.text || '';
-        let maxIter = 5;
+        let maxIter = 12;
         currentMessages.push({ role: 'model', content: singleResult.text || 'Processing...' });
         
         while (singleResult.toolCalls?.length > 0 && maxIter-- > 0) {
@@ -1403,7 +1409,7 @@ router.post('/chat', auth, adminOnly, async (req, res) => {
       // If selected provider fails, fall through to auto
     }
 
-    let maxIterations = 5;
+    let maxIterations = 12;
     let currentMessages = [...allMessages];
     let finalResponse = '';
     let usedProvider = 'unknown';
