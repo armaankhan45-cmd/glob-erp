@@ -13,6 +13,7 @@ const express = require('express');
 const router = express.Router();
 const getDb = require('../config/db');
 const { auth, adminOnly } = require('../middleware/auth');
+const { searchKnowledge, knowledgeContext } = require('../aiKnowledge');
 const fetch = require('node-fetch');
 const fs = require('fs');
 const path = require('path');
@@ -103,6 +104,27 @@ You have access to TOOLS that let you:
 - You can read any file in the backend/src/ directory
 - You can run SQL queries but destructive ones need confirmation
 - The self-heal engine runs on every server startup and fixes missing tables/columns automatically`;
+
+// ═══════════════════════════════════════════════════════════════
+// Builds the system prompt for a request, injecting relevant
+// business knowledge (products, GST rules, customers) retrieved
+// from the knowledge base so the AI answers accurately.
+// ═══════════════════════════════════════════════════════════════
+function systemPromptFor(messages) {
+  const lastUser = [...(messages || [])].reverse().find(m => m.role === 'user')?.content || '';
+  const ctx = knowledgeContext(lastUser, 4);
+  if (!ctx) return SYSTEM_PROMPT;
+  return `${SYSTEM_PROMPT}
+
+## Your Business Knowledge (retrieved for this question — use it to answer accurately)
+
+${ctx}
+
+## Using Knowledge
+- Use the knowledge above for domain questions about the company, products, materials, GST rules, formats and customers.
+- For live numbers (who owes money, GST payable, stock, top customers), ALWAYS run the corresponding tool — never guess.
+- If pricing is requested, get it from real quotations/invoices in the database, never invent prices.`;
+}
 
 // ═══════════════════════════════════════════════
 // TOOL DEFINITIONS — For Gemini function calling
@@ -383,6 +405,17 @@ const TOOL_DEFINITIONS = [
       properties: {
         limit: { type: "NUMBER", description: "Max recent entries (default 20)" }
       }
+    }
+  },
+  {
+    name: "get_knowledge",
+    description: "Search the company knowledge base (products, materials, GST rules, invoice/quotation formats, company profile). Use for domain questions like 'what products do you make?', 'what materials do you use?', 'how is GST calculated?', 'what are your HSN codes?'.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        query: { type: "STRING", description: "The topic to look up (e.g. 'tanker specs', 'gst rules', 'materials', 'quotation format')" }
+      },
+      required: ["query"]
     }
   }
 ];
@@ -854,6 +887,16 @@ async function executeTool(name, args, orgId) {
       } catch (err) { return { error: err.message }; }
     }
 
+    case 'get_knowledge': {
+      const chunks = searchKnowledge(args.query, 6);
+      if (!chunks.length) return { query: args.query, found: 0, results: [] };
+      return {
+        query: args.query,
+        found: chunks.length,
+        results: chunks.map(c => ({ title: c.title, category: c.category, content: c.content }))
+      };
+    }
+
     default:
       return { error: `Unknown tool: ${name}` };
   }
@@ -931,7 +974,7 @@ async function callPollinations(messages, toolDefs) {
   const url = 'https://text.pollinations.ai/openai';
 
   const pollMessages = [
-    { role: 'system', content: SYSTEM_PROMPT }
+    { role: 'system', content: systemPromptFor(messages) }
   ];
 
   for (const msg of messages) {
@@ -1019,7 +1062,7 @@ async function callDeepSeek(messages, toolDefs, apiKey) {
   const url = 'https://api.deepseek.com/v1/chat/completions';
 
   const dsMessages = [
-    { role: 'system', content: SYSTEM_PROMPT }
+    { role: 'system', content: systemPromptFor(messages) }
   ];
 
   for (const msg of messages) {
@@ -1117,7 +1160,7 @@ async function callGemini(messages, toolDefs, apiKey, model = 'gemini-2.5-pro') 
 
   const body = {
     contents,
-    systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+    systemInstruction: { parts: [{ text: systemPromptFor(messages) }] },
     tools: [{ functionDeclarations: toolDefs }],
     generationConfig: {
       temperature: 0.7,
@@ -1154,7 +1197,7 @@ async function callOpenAI(messages, toolDefs, apiKey) {
 
   // Convert to OpenAI format
   const openaiMessages = [
-    { role: 'system', content: SYSTEM_PROMPT }
+    { role: 'system', content: systemPromptFor(messages) }
   ];
 
   for (const msg of messages) {
@@ -1242,7 +1285,7 @@ async function callGroq(messages, toolDefs, apiKey) {
   const url = 'https://api.groq.com/openai/v1/chat/completions';
 
   const groqMessages = [
-    { role: 'system', content: SYSTEM_PROMPT }
+    { role: 'system', content: systemPromptFor(messages) }
   ];
 
   for (const msg of messages) {
@@ -1314,7 +1357,7 @@ async function callCerebras(messages, toolDefs, apiKey) {
   const url = 'https://api.cerebras.ai/v1/chat/completions';
 
   const cbrMessages = [
-    { role: 'system', content: SYSTEM_PROMPT }
+    { role: 'system', content: systemPromptFor(messages) }
   ];
 
   for (const msg of messages) {
@@ -1386,7 +1429,7 @@ async function callOpenRouter(messages, toolDefs, apiKey) {
   const url = 'https://openrouter.ai/api/v1/chat/completions';
 
   const orMessages = [
-    { role: 'system', content: SYSTEM_PROMPT }
+    { role: 'system', content: systemPromptFor(messages) }
   ];
 
   for (const msg of messages) {
@@ -1886,6 +1929,11 @@ function formatToolResult(name, result) {
     case 'get_expense_summary':
       return `💸 **Total Expenses: ₹${result.totalExpenses?.toLocaleString('en-IN')}**\n\n` +
         (result.byCategory?.length ? `**By category:**\n` + result.byCategory.map(c => `- ${c.category || 'Other'}: ₹${parseFloat(c.t).toLocaleString('en-IN')}`).join('\n') + '\n\n' : '');
+
+    case 'get_knowledge':
+      if (!result.results?.length) return `No knowledge found for "${result.query}".\n\n`;
+      return `📚 **Knowledge (${result.found} result${result.found === 1 ? '' : 's'}):**\n\n` +
+        result.results.map(r => `### ${r.title} (${r.category})\n${r.content}`).join('\n\n') + '\n\n';
 
     default:
       return `📋 **${name}**: ${JSON.stringify(result).substring(0, 1000)}\n\n`;
