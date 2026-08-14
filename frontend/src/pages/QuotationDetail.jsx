@@ -2,8 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../api/client'
 import { ArrowLeft, Printer, Edit, Trash2, Repeat, Share2, MessageCircle, Mail, Download, LayoutTemplate } from 'lucide-react'
-import { numberToWordsCaps } from '../utils'
-import { downloadPdf, printElement } from '../utils/printPdf'
+import { numberToWordsCaps, downloadPdf, printElement } from '../utils'
 
 function fmt(n) {
   return new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0)
