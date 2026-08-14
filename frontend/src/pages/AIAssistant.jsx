@@ -174,7 +174,7 @@ export default function AIAssistant() {
     setMessages([{
       role: 'assistant',
       welcome: true,
-      content: `# 👋 Namaste! I'm your Glob ERP Copilot\n\nI'm plugged into your **live ERP database**, so I can answer real business questions with **real numbers** — no guessing.\n\nTry asking:\n\n📈 **"How is my business doing?"** — revenue, profit, GST at a glance\n💰 **"Who owes me money?"** — unpaid & overdue invoices\n🧾 **"How much GST do I owe?"** — output vs input tax\n📦 **"Am I low on stock?"** — inventory alerts\n\n…or use me as your **system engineer**: diagnose errors, auto-fix issues, read/write code, and check deploys.`,
+      content: `# 👋 Namaste! I'm your Glob ERP Copilot\n\nI'm plugged into your **live ERP database** and I know your **business** — your SS304 tankers, materials, GST rules and formats — so I answer with **real numbers**, no guessing.\n\nTry asking:\n\n📈 **"How is my business doing?"** — revenue, profit, GST at a glance\n💰 **"Who owes me money?"** — unpaid & overdue invoices\n🧾 **"How much GST do I owe?"** — output vs input tax\n🏭 **"What products do you make?"** — from my business knowledge base\n📦 **"Am I low on stock?"** — inventory alerts\n\n…or use me as your **system engineer**: diagnose errors, auto-fix issues, read/write code, and check deploys.`,
       toolCalls: []
     }])
   }, [])
