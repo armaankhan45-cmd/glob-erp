@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import api from '../api/client'
 import { ArrowLeft, Printer, Edit, Trash2, Repeat, Share2, MessageCircle, Mail, Download, LayoutTemplate } from 'lucide-react'
 import { numberToWordsCaps } from '../utils'
+import { downloadPdf, printElement } from '../utils/printPdf'
 
 function fmt(n) {
   return new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0)
@@ -301,26 +302,37 @@ export default function QuotationDetail() {
     return `https://fonts.googleapis.com/css2?family=${family}:wght@300;400;500;600;700;800;900&display=swap`
   }
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
+    // WYSIWYG single-page print — stamp/signature included, fits one A4.
     const printEl = document.querySelector('.print-area')
     if (!printEl) { window.print(); return }
-    const html = printEl.innerHTML
-    const title = quotation?.quotation_number || 'Quotation'
-    const fontUrl = getGoogleFontUrl(selectedFont)
-    const fontLinkTag = fontUrl ? `<link href="${fontUrl}" rel="stylesheet">` : ''
-    const w = window.open('', '_blank', 'width=900,height=600')
-    w.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
-${fontLinkTag}
-<style>
-@page { margin: 12mm 10mm; size: A4; }
-* { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-body { margin:0; padding:0; background:white; color:#000; font-family:'${selectedFont}', 'Segoe UI', Arial, sans-serif; }
-img { max-width:100%; }
-table { border-collapse:collapse; width:100%; }
-th,td { padding:6px 10px; }
-</style></head><body>${html}</body></html>`)
-    w.document.close()
-    setTimeout(() => { w.print(); w.close() }, 500)
+    await printElement(printEl, quotation?.quotation_number || 'Quotation')
+  }
+
+  const handleDownloadPDF = async () => {
+    const printEl = document.querySelector('.print-area')
+    const safeName = (quotation?.quotation_number || `quotation-${id}`).replace(/\//g, '-')
+    try {
+      if (printEl) {
+        await downloadPdf(printEl, `Quotation_${safeName}.pdf`)
+        return
+      }
+    } catch (e) {
+      console.warn('Client-side PDF failed, falling back to server:', e.message)
+    }
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(`${api.defaults.baseURL}/quotations/${id}/pdf?token=${token}`, { headers: { Authorization: `Bearer ${token}` } })
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Quotation_${safeName}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (e) { alert('PDF download failed: ' + e.message) }
   }
   const handleDelete = async () => {
     if (!confirm('Delete this quotation?')) return
@@ -432,8 +444,8 @@ th,td { padding:6px 10px; }
 
         <button onClick={toggleBold} className={`px-3 py-2 rounded-xl font-medium text-sm transition-all ${boldOn ? 'btn-primary' : 'btn-secondary'}`}>Bold {boldOn ? 'ON' : 'OFF'}</button>
         <button onClick={handlePrint} className="btn-secondary flex items-center gap-2 btn-shine"><Printer size={16} /> Print</button>
-        {/* FIX #1: PDF download uses fetch + blob — no token in URL */}
-        <button onClick={async () => { try { const token = localStorage.getItem('token'); const response = await fetch(`${api.defaults.baseURL}/quotations/${id}/pdf?token=${token}`, { headers: { Authorization: `Bearer ${token}` } }); const blob = await response.blob(); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `Quotation_${(quotation.quotation_number || '').replace(/\//g, '-')}.html`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); } catch (e) { alert('PDF download failed: ' + e.message) } }} className="btn-secondary flex items-center gap-2 btn-shine"><Download size={16} /> PDF</button>
+        {/* FIX: real .pdf download (single A4, includes stamp/signature) */}
+        <button onClick={handleDownloadPDF} className="btn-secondary flex items-center gap-2 btn-shine"><Download size={16} /> PDF</button>
 
         <div className="relative">
           <button onClick={() => setShareOpen(!shareOpen)} className="btn-secondary flex items-center gap-2 btn-shine"><Share2 size={16} /> Share</button>
