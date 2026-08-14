@@ -185,3 +185,90 @@ export function formatDate(dateStr) {
   if (isNaN(dt.getTime())) return dateStr;
   return dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
+
+// ═══════════════════════════════════════════════════════════════
+// CLIENT-SIDE PDF + PRINT (html2canvas + jsPDF)
+// Captures the real rendered invoice/quotation (stamp, signature,
+// logo, QR — everything you SEE is exactly what prints/downloads),
+// auto-scales to ONE A4 page, and downloads a genuine .pdf file.
+// Lives here in utils/index.js so NO extra file is required.
+// ═══════════════════════════════════════════════════════════════
+
+const A4_W_MM = 210
+const A4_H_MM = 297
+const A4_W_PX = 794   // ≈210mm @96dpi
+const A4_H_PX = 1123  // ≈297mm @96dpi
+const MARGIN_MM = 6
+
+async function elementToCanvas(el) {
+  const { default: html2canvas } = await import('html2canvas')
+  return await html2canvas(el, {
+    scale: 2,               // crisp print quality
+    useCORS: true,          // allow external images (QR codes, logos)
+    allowTaint: false,
+    backgroundColor: '#ffffff',
+    logging: false,
+  })
+}
+
+/**
+ * Download the element as a REAL single-page A4 PDF.
+ */
+export async function downloadPdf(el, filename) {
+  if (!el) throw new Error('Nothing to export')
+  const canvas = await elementToCanvas(el)
+  const { jsPDF } = await import('jspdf')
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  const maxW = A4_W_MM - MARGIN_MM * 2
+  const maxH = A4_H_MM - MARGIN_MM * 2
+  const scale = Math.min(maxW / canvas.width, maxH / canvas.height)
+  const imgW = canvas.width * scale
+  const imgH = canvas.height * scale
+  const offX = (A4_W_MM - imgW) / 2
+  const offY = (A4_H_MM - imgH) / 2
+  pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', offX, offY, imgW, imgH)
+  pdf.save(filename.endsWith('.pdf') ? filename : `${filename}.pdf`)
+}
+
+/**
+ * Print the element on exactly ONE A4 page.
+ * Uses a hidden iframe (NOT window.open) so it is never blocked by
+ * popup blockers and never breaks the print flow.
+ */
+function printViaIframe(html) {
+  let iframe = document.createElement('iframe')
+  iframe.setAttribute('aria-hidden', 'true')
+  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;'
+  document.body.appendChild(iframe)
+  const win = iframe.contentWindow
+  const doc = win.document
+  doc.open()
+  doc.write(html)
+  doc.close()
+  const img = doc.querySelector('img.print-sheet')
+  const doPrint = () => {
+    try { win.focus(); win.print() } catch (e) { window.print() }
+    setTimeout(() => { try { if (iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe) } catch (e) {} }, 2000)
+  }
+  if (img && !img.complete) { img.onload = () => setTimeout(doPrint, 60) }
+  else { setTimeout(doPrint, 200) }
+}
+
+export async function printElement(el, title = 'Document') {
+  if (!el) { window.print(); return }
+  try {
+    const canvas = await elementToCanvas(el)
+    const scale = Math.min(A4_W_PX / canvas.width, A4_H_PX / canvas.height)
+    const w = Math.round(canvas.width * scale)
+    const h = Math.round(canvas.height * scale)
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.95)
+    const html = `<!DOCTYPE html><html><head><title>${title}</title><style>
+@page { size: A4; margin: 0; }
+html, body { margin: 0; padding: 0; background: #fff; }
+img.print-sheet { width: ${w}px; height: ${h}px; display: block; }
+</style></head><body><img class="print-sheet" src="${dataUrl}" /></body></html>`
+    printViaIframe(html)
+  } catch (e) {
+    window.print()
+  }
+}
