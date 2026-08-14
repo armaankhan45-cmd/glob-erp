@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Download, Trash2, Printer, Edit, AlertCircle, Share2, MessageCircle, Mail, LayoutTemplate } from 'lucide-react'
 import api from '../api/client'
 import BoldToggle from '../components/BoldToggle'
-import { downloadPdf, printElement } from '../utils/printPdf'
+import { downloadPdf, printElement } from '../utils'
 
 function fmt(n) {
   return new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0)
