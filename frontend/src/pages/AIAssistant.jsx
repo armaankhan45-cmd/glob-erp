@@ -7,6 +7,43 @@ import {
 } from 'lucide-react'
 
 // ═══════════════════════════════════════════════════════════════
+// STREAMING CLIENT — reads Server-Sent Events for live token output
+// ═══════════════════════════════════════════════════════════════
+const API_BASE = import.meta.env.VITE_API_URL || '/api'
+
+async function streamChat(message, messages, { onDelta, onTool }) {
+  const token = localStorage.getItem('token')
+  const resp = await fetch(`${API_BASE}/ai/stream`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ message, messages })
+  })
+  if (!resp.ok || !resp.body) throw new Error('Streaming unavailable')
+  const reader = resp.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  const result = { text: '', toolCalls: [], provider: null }
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() || ''
+    for (const line of lines) {
+      const t = line.trim()
+      if (!t.startsWith('data:')) continue
+      let ev
+      try { ev = JSON.parse(t.slice(5).trim()) } catch (e) { continue }
+      if (ev.delta) { result.text += ev.delta; onDelta(ev.delta) }
+      else if (ev.tool) { result.toolCalls.push(ev.tool); onTool(ev.tool) }
+      else if (ev.done) { result.provider = ev.provider }
+      else if (ev.error) { throw new Error(ev.msg) }
+    }
+  }
+  return result
+}
+
+// ═══════════════════════════════════════════════════════════════
 // MARKDOWN RENDERER (kept from original — works well)
 // ═══════════════════════════════════════════════════════════════
 
@@ -158,6 +195,7 @@ export default function AIAssistant() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [aiStatus, setAiStatus] = useState(null)
+  const [insights, setInsights] = useState([])
   const [selectedProvider, setSelectedProvider] = useState('auto')
   const [showProviders, setShowProviders] = useState(false)
   const chatEndRef = useRef(null)
@@ -171,6 +209,7 @@ export default function AIAssistant() {
 
   useEffect(() => {
     api.get('/ai/status').then(res => setAiStatus(res.data)).catch(() => {})
+    api.get('/ai/insights').then(res => setInsights(res.data?.insights || [])).catch(() => {})
     setMessages([{
       role: 'assistant',
       welcome: true,
@@ -186,50 +225,60 @@ export default function AIAssistant() {
     setMessages(prev => [...prev, { role: 'user', content: userMsg }])
     setLoading(true)
 
+    // History for the backend (excludes the welcome message)
+    const history = [...messages, { role: 'user', content: userMsg }]
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .filter(m => m.content)
+      .map(m => ({ role: m.role, content: m.content }))
+    const historyForBackend = history.length > 0 && history[0].role === 'assistant' ? history.slice(1) : history
+
+    // Image generation shortcut (free, no key)
+    const wantsImage = /\b(generate|create|draw|make|design)\b.*\b(image|img|picture|photo|logo|icon|illustration)\b/i.test(userMsg)
+
+    if (wantsImage) {
+      try {
+        const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(userMsg)}?width=1024&height=1024&nologo=true`
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `🖼️ **Image Generated!**\n\n![Generated Image](${imageUrl})\n\n*Prompt: "${userMsg}"*\n\n💡 Right-click the image to save it, or ask me for another.`,
+          toolCalls: [], provider: 'Pollinations Image (Free)'
+        }])
+      } catch (err) {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `❌ Image generation failed: ${err.message}. Try a simpler description.`,
+          toolCalls: [], isError: true
+        }])
+      }
+      setLoading(false)
+      inputRef.current?.focus()
+      return
+    }
+
+    // ── STREAMING path (live token output) ──
+    const msgId = Date.now()
+    setMessages(prev => [...prev, { role: 'assistant', content: '', toolCalls: [], provider: null, _id: msgId, _streaming: true }])
+    const patch = (updater) => setMessages(prev => prev.map(m => m._id === msgId ? updater(m) : m))
+
     try {
-      const allMessages = [...messages, { role: 'user', content: userMsg }]
-        .filter(m => m.role === 'user' || m.role === 'assistant')
-        .map(m => ({ role: m.role, content: m.content }))
-      if (allMessages.length > 0 && allMessages[0].role === 'assistant') allMessages.shift()
-
-      // Image generation shortcut (free, no key)
-      const wantsImage = /\b(generate|create|draw|make|design)\b.*\b(image|img|picture|photo|logo|icon|illustration)\b/i.test(userMsg)
-
-      if (wantsImage) {
-        try {
-          const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(userMsg)}?width=1024&height=1024&nologo=true`
-          setMessages(prev => [...prev, {
-            role: 'assistant',
-            content: `🖼️ **Image Generated!**\n\n![Generated Image](${imageUrl})\n\n*Prompt: "${userMsg}"*\n\n💡 Right-click the image to save it, or ask me for another.`,
-            toolCalls: [],
-            provider: 'Pollinations Image (Free)'
-          }])
-        } catch (err) {
-          setMessages(prev => [...prev, {
-            role: 'assistant',
-            content: `❌ Image generation failed: ${err.message}. Try a simpler description.`,
-            toolCalls: [], isError: true
-          }])
-        }
-      } else {
-        const body = { messages: allMessages }
+      const result = await streamChat(userMsg, historyForBackend, {
+        onDelta: (d) => patch(m => ({ ...m, content: m.content + d })),
+        onTool: (t) => patch(m => ({ ...m, toolCalls: [...m.toolCalls, t] })),
+      })
+      patch(m => ({ ...m, _streaming: false, provider: result.provider || 'AI' }))
+    } catch (streamErr) {
+      // Fall back to non-streaming /ai/chat
+      patch(m => ({ ...m, content: '', _streaming: false }))
+      try {
+        const body = { messages: historyForBackend }
         if (selectedProvider !== 'auto') body.provider = selectedProvider
         const res = await api.post('/ai/chat', body)
         const data = res.data
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: data.message || 'No response',
-          toolCalls: data.toolCalls || [],
-          provider: data.provider
-        }])
+        patch(m => ({ ...m, content: data.message || 'No response', toolCalls: data.toolCalls || [], provider: data.provider }))
+      } catch (chatErr) {
+        const errMsg = chatErr.response?.data?.msg || chatErr.message
+        patch(m => ({ ...m, content: `❌ **Error:** ${errMsg}\n\nThe AI service might be temporarily unavailable. Try again in a moment.`, isError: true }))
       }
-    } catch (err) {
-      const errMsg = err.response?.data?.msg || err.message
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: `❌ **Error:** ${errMsg}\n\nThe AI service might be temporarily unavailable. Try again in a moment.`,
-        toolCalls: [], isError: true
-      }])
     } finally {
       setLoading(false)
       inputRef.current?.focus()
@@ -305,11 +354,37 @@ export default function AIAssistant() {
         </div>
       </div>
 
+      {/* ── Model quality nudge (only when on the free fallback) ── */}
+      {aiStatus && aiStatus.primaryProvider === 'Pollinations AI (Free)' && (
+        <div className="mb-3 rounded-xl px-3.5 py-2.5 text-[11px] flex items-center gap-2 relative z-10"
+          style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.16)', color: '#fbbf24' }}>
+          <Sparkles size={13} className="flex-shrink-0" />
+          <span>Running on <b>free AI</b>. For a faster, smarter Copilot, add a <b>free Gemini API key</b> (ai.google.com) as <code>GEMINI_API_KEY</code> in Render → Environment.</span>
+        </div>
+      )}
+
       {/* ── Chat area ── */}
       <div className="flex-1 overflow-y-auto rounded-2xl mb-3 relative z-10 scroll-smooth" style={{ minHeight: 0, background: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.06)' }}>
         <div className="p-5 space-y-5">
           {showWelcome && (
             <div className="mb-2">
+              {insights.length > 0 && (
+                <div className="mb-3 rounded-xl p-3.5" style={{ background: 'rgba(var(--accent-rgb),0.05)', border: '1px solid rgba(var(--accent-rgb),0.15)' }}>
+                  <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--accent)' }}>✨ What I noticed today</p>
+                  <div className="flex flex-wrap gap-2">
+                    {insights.map((ins, i) => (
+                      <button key={i} onClick={() => sendMessage(ins.question)}
+                        className="text-left rounded-lg px-3 py-2 transition-all hover:-translate-y-0.5"
+                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(var(--accent-rgb),0.4)' }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}>
+                        <p className="text-xs font-semibold text-white/90">{ins.icon} {ins.title}</p>
+                        <p className="text-[10px] text-white/40 mt-0.5">{ins.detail}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {CAPABILITIES.map((c, i) => (
                   <button key={i} onClick={() => sendMessage(c.chip)}
@@ -342,7 +417,17 @@ export default function AIAssistant() {
                       ? { background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)', color: '#f87171' }
                       : { background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(255,255,255,0.06)', color: '#e8eaf0' }
                   }>
-                  {msg.role === 'user' ? <div className="whitespace-pre-wrap">{msg.content}</div> : <MarkdownText text={msg.content} />}
+                  {msg.role === 'user' ? <div className="whitespace-pre-wrap">{msg.content}</div>
+                    : msg._streaming && !msg.content ? (
+                      <div className="flex items-center gap-2 py-0.5">
+                        <div className="flex gap-1">
+                          <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: 'var(--accent)', animationDelay: '0ms' }} />
+                          <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: '#a855f7', animationDelay: '150ms' }} />
+                          <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: '#4f8fff', animationDelay: '300ms' }} />
+                        </div>
+                        <span className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>Thinking…</span>
+                      </div>
+                    ) : <MarkdownText text={msg.content} />}
                 </div>
 
                 {msg.toolCalls?.length > 0 && (
@@ -367,23 +452,6 @@ export default function AIAssistant() {
             </div>
           ))}
 
-          {loading && (
-            <div className="flex justify-start">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mr-3 mt-1" style={{ background: 'linear-gradient(135deg, var(--accent), #a855f7)' }}>
-                <Bot size={16} className="text-white" />
-              </div>
-              <div className="rounded-2xl rounded-bl-md px-4 py-3" style={{ background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                <div className="flex items-center gap-3">
-                  <div className="flex gap-1">
-                    <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: 'var(--accent)', animationDelay: '0ms' }} />
-                    <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: '#a855f7', animationDelay: '150ms' }} />
-                    <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: '#4f8fff', animationDelay: '300ms' }} />
-                  </div>
-                  <span className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>Working…</span>
-                </div>
-              </div>
-            </div>
-          )}
           <div ref={chatEndRef} />
         </div>
       </div>
