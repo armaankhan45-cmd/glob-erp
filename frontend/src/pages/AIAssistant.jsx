@@ -278,6 +278,19 @@ export default function AIAssistant() {
         </div>
       </div>
 
+      {/* Weak-provider warning — shown when running on the free no-key fallback, since that's
+          the most common reason the AI feels unreliable or gives shallow answers */}
+      {aiStatus?.primaryProvider === 'Pollinations AI (Free)' && (
+        <div className="mb-4 px-4 py-3 rounded-xl text-xs flex items-start gap-2 relative z-10"
+          style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', color: '#fbbf24' }}>
+          <span>⚠️</span>
+          <span>
+            Running on the free no-key model (Pollinations) — it's noticeably weaker than Gemini or Groq.
+            For much better answers, add a free <code className="px-1 rounded" style={{ background: 'rgba(0,0,0,0.2)' }}>GEMINI_API_KEY</code> (Google AI Studio) or <code className="px-1 rounded" style={{ background: 'rgba(0,0,0,0.2)' }}>GROQ_API_KEY</code> (console.groq.com) to your Render environment variables and redeploy.
+          </span>
+        </div>
+      )}
+
       {/* Chat Area */}
       <div className="flex-1 overflow-y-auto rounded-2xl mb-4 relative z-10" style={{ minHeight: 0, background: 'rgba(14,18,36,0.5)', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(10px)' }}>
         <div className="p-5 space-y-5">
