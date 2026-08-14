@@ -80,8 +80,11 @@ export async function printElement(el, title = 'Document') {
 <style>
   @page { size: A4; margin: 0; }
   html, body { margin: 0; padding: 0; background: #fff; }
-  img.print-sheet { width: 100%; height: auto; display: block; }
-  @media print { img.print-sheet { width: ${Math.round(imgW)}px; height: ${Math.round(imgH)}px; } }
+  img.print-sheet { width: 100%; height: auto; display: block; margin: 0 auto; }
+  /* FIX: fixed-size print image was left-aligned by default (no auto margins),
+     which shifted the header/footer left on the printed page for both
+     Pro and Classic layouts. Centering it horizontally fixes that. */
+  @media print { img.print-sheet { width: ${Math.round(imgW)}px; height: ${Math.round(imgH)}px; margin: 0 auto; display: block; } }
 </style></head><body><img class="print-sheet" src="${dataUrl}" onload="setTimeout(()=>window.print(), 120)" /></body></html>`)
     w.document.close()
     w.focus()
