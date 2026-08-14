@@ -53,9 +53,13 @@ api.interceptors.response.use(
       error.config._retried = true
       try { return await api.request(error.config) } catch (retryErr) { return Promise.reject(retryErr) }
     }
-    if (!error.response && !error.config._retried) {
-      error.config._retried = true
-      await new Promise(r => setTimeout(r, 3000))
+    // No response at all = likely the Render free-tier server was asleep or mid cold-start.
+    // A single 3s retry isn't enough — cold start takes up to ~30s — so back off and retry
+    // a few times before giving up, instead of surfacing a broken-looking failure.
+    if (!error.response && (error.config._retryCount || 0) < 3) {
+      error.config._retryCount = (error.config._retryCount || 0) + 1
+      const delay = [3000, 8000, 15000][error.config._retryCount - 1]
+      await new Promise(r => setTimeout(r, delay))
       try { return await api.request(error.config) } catch (retryErr) { return Promise.reject(retryErr) }
     }
     return Promise.reject(error)
@@ -87,8 +91,16 @@ let keepAliveStarted = false
 api.startKeepAlive = () => {
   if (keepAliveStarted) return
   keepAliveStarted = true
-  api.get('/ping', { timeout: 5000 }).catch(() => {})
-  keepAliveTimer = setInterval(() => { api.get('/ping', { timeout: 5000 }).catch(() => {}) }, 14 * 60 * 1000)
+  const ping = () => api.get('/ping', { timeout: 8000 }).catch(() => {})
+  ping()
+  // Render's free tier sleeps after ~15 min idle. A 14-minute setInterval alone isn't reliable:
+  // browsers throttle/suspend timers in background tabs, so a long-backgrounded tab can miss
+  // several beats and the server falls asleep mid-session — which is what "stops working after
+  // ~30 min" actually is. Ping on a shorter interval AND immediately whenever the tab regains
+  // focus/visibility, so a gap never grows past the 15-minute sleep threshold.
+  keepAliveTimer = setInterval(ping, 5 * 60 * 1000)
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') ping() })
+  window.addEventListener('focus', ping)
 }
 
 api.stopKeepAlive = () => {
