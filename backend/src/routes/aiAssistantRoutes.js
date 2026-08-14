@@ -1484,8 +1484,60 @@ function extractGeminiResponse(data) {
 // RULE-BASED FALLBACK (when no API key)
 // ═══════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════
+// BUSINESS INTENT DETECTION — answers common business questions
+// directly from the live database, without needing an LLM at all.
+// This makes the assistant instant + reliable even when the free
+// AI provider is slow or down.
+// ═══════════════════════════════════════════════════════════════
+function businessIntent(lower) {
+  // 1) GST / tax (also "how much GST do I owe")
+  if (lower.includes('gst') || (lower.includes('tax') && !lower.includes('taxi'))) {
+    return { text: 'Here is your **GST position** for the current financial year:', tool: { name: 'get_gst_summary', args: {} } };
+  }
+  // 2) Payables to suppliers (BEFORE "owe", so "what do I owe suppliers?" → bills)
+  if (lower.includes('payable') || lower.includes('supplier')) {
+    return { text: 'Here is what you **owe your suppliers**:', tool: { name: 'get_outstanding_bills', args: {} } };
+  }
+  // 3) Receivables — who owes the business
+  if (lower.includes('owe') || lower.includes('outstanding') || lower.includes('unpaid') || lower.includes('receivable') || lower.includes('overdue') || lower.includes('pending payment') || lower.includes('who has not paid')) {
+    return { text: 'Here is **who owes you money** (outstanding invoices):', tool: { name: 'get_outstanding_invoices', args: {} } };
+  }
+  // 4) Top customers
+  if (lower.includes('top customer') || lower.includes('biggest customer') || lower.includes('best customer') || lower.includes('largest customer')) {
+    return { text: 'Here are your **top customers** by business:', tool: { name: 'get_top_customers', args: {} } };
+  }
+  // 5) Stock / inventory
+  if (lower.includes('stock') || lower.includes('inventory')) {
+    return { text: 'Here is your **inventory status**:', tool: { name: 'get_inventory_status', args: {} } };
+  }
+  // 6) Payments received
+  if (lower.includes('payment') || lower.includes('paid me') || lower.includes('received')) {
+    return { text: 'Here are your **recent payments**:', tool: { name: 'get_recent_payments', args: {} } };
+  }
+  // 7) Expenses
+  if (lower.includes('expense') || lower.includes('spending') || lower.includes('spent')) {
+    return { text: 'Here is your **expense summary**:', tool: { name: 'get_expense_summary', args: {} } };
+  }
+  // 8) Find / search a customer
+  const findM = lower.match(/(?:find|search)\s*customer\s*(?:named|called)?\s*"?([a-z0-9 .&]+)"?/);
+  if (findM && findM[1].trim()) {
+    const q = findM[1].trim();
+    return { text: `Searching for customer **"${q}"**…`, tool: { name: 'search_customer', args: { query: q } } };
+  }
+  // 9) Business overview / profit / revenue / how is my business doing
+  if (lower.includes('business') || lower.includes('doing') || lower.includes('overview') || lower.includes('profit') || lower.includes('revenue') || lower.includes('earning') || lower.includes('income') || lower.includes('summary') || lower.includes('dashboard')) {
+    return { text: 'Here is your **business overview**:', tool: { name: 'get_business_overview', args: {} } };
+  }
+  return null;
+}
+
 function ruleBasedResponse(msg, orgId) {
   const lower = msg.toLowerCase();
+
+  // ── BUSINESS QUESTIONS — answered from live data ──
+  const biz = businessIntent(lower);
+  if (biz) return { text: biz.text, toolCalls: [biz.tool] };
 
   if (lower.includes('health') || lower.includes('check') || lower.includes('diagnos') || lower.includes('status')) {
     return { text: 'Let me run a full system diagnosis for you...', toolCalls: [{ name: 'diagnose_system', args: {} }] };
@@ -1529,6 +1581,16 @@ function ruleBasedResponse(msg, orgId) {
   return {
     text: `I can help you with many things! Try asking me to:
 
+📈 **Business Questions** (answered instantly from your live data):
+- "How much GST do I owe?"
+- "Who owes me money?"
+- "What do I owe suppliers?"
+- "How is my business doing?"
+- "Am I low on stock?"
+- "Who is my top customer?"
+- "What payments came in recently?"
+- "What are my expenses?"
+
 🔍 **Diagnose & Fix:**
 - "Check system health"
 - "Show recent errors"
@@ -1548,11 +1610,7 @@ function ruleBasedResponse(msg, orgId) {
 - "Show settings"
 - "Update settings"
 
-💡 **Or just describe your problem** and I'll figure out how to help!
-
----
-
-🆓 **This AI is 100% FREE** — powered by Pollinations AI. No API key, no signup, no credit card needed!`
+💡 **Or just describe your problem** and I'll figure out how to help!`
   };
 }
 
@@ -1565,6 +1623,22 @@ router.post('/chat', auth, adminOnly, async (req, res) => {
     const { messages = [], provider: requestedProvider } = req.body;
     const orgId = req.user.organization_id;
     const userMessage = messages[messages.length - 1]?.content || '';
+
+    // ═══ INSTANT BUSINESS ANSWERS ═══
+    // Clear business questions ("How much GST do I owe?") are answered DIRECTLY
+    // from the live database — no LLM round-trip, so they're instant and never
+    // fail even if the free AI provider is slow or down.
+    const bizIntent = businessIntent(userMessage.toLowerCase());
+    if (bizIntent) {
+      const result = await executeTool(bizIntent.tool.name, bizIntent.tool.args, orgId);
+      const formatted = formatToolResult(bizIntent.tool.name, result);
+      return res.json({
+        success: true,
+        message: bizIntent.text + '\n\n' + formatted,
+        toolCalls: [{ name: bizIntent.tool.name, args: bizIntent.tool.args, result }],
+        provider: 'instant (live data)'
+      });
+    }
     
     // ── ALWAYS USE AI FLOW ──
     // Pollinations AI is FREE and needs NO API key, so AI is ALWAYS available!
@@ -1626,12 +1700,14 @@ router.post('/chat', auth, adminOnly, async (req, res) => {
           const toolResults = [];
           for (const tc of ruleResult.toolCalls) {
             const result = await executeTool(tc.name, tc.args, orgId);
-            toolResults.push({ name: tc.name, result });
+            toolResults.push({ name: tc.name, args: tc.args, result });
           }
+          // Format the tool results into a readable answer (not raw JSON)
+          const formatted = toolResults.map(tr => formatToolResult(tr.name, tr.result)).join('');
           return res.json({
             success: true,
-            message: ruleResult.text,
-            toolCalls: ruleResult.toolCalls.map((tc, i) => ({ name: tc.name, args: tc.args, result: toolResults[i].result })),
+            message: ruleResult.text + '\n\n' + formatted,
+            toolCalls: toolResults,
             provider: 'fallback'
           });
         }
