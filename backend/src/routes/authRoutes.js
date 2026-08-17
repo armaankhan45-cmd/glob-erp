@@ -191,7 +191,9 @@ router.post('/forgot-password', async (req, res) => {
       return res.json({ success: true, msg: 'If email exists, OTP has been sent' });
     }
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    // crypto.randomInt is cryptographically secure — Math.random() isn't meant for
+    // anything security-sensitive, even a short-lived, rate-limited OTP.
+    const otp = crypto.randomInt(100000, 1000000).toString();
     const expires = Date.now() + 10 * 60 * 1000; // 10 min
 
     await db('users').where({ id: user.id }).update({
