@@ -13,10 +13,20 @@ const express = require('express');
 const router = express.Router();
 const getDb = require('../config/db');
 const { auth, adminOnly } = require('../middleware/auth');
-const { searchKnowledge, knowledgeContext } = require('../aiKnowledge');
 const fetch = require('node-fetch');
 const fs = require('fs');
 const path = require('path');
+
+// Blocks raw SQL fragments (used for the AI's ad-hoc `columns`/`where` tool args) that
+// contain a second statement, a comment sequence, or a mutating keyword. This tool is meant
+// to be read-only — the AI has separate, more restricted tools for actually changing data.
+const SQL_DANGER_PATTERN = /;|--|\/\*|\*\/|\bDROP\b|\bDELETE\b|\bINSERT\b|\bUPDATE\b|\bALTER\b|\bTRUNCATE\b|\bEXEC\b|\bUNION\b|\bGRANT\b|\bREVOKE\b|\bCREATE\b/i;
+function assertSafeSqlFragment(fragment, label) {
+  if (typeof fragment !== 'string') return;
+  if (SQL_DANGER_PATTERN.test(fragment)) {
+    throw new Error(`Unsafe SQL detected in "${label}" — request blocked for safety.`);
+  }
+}
 
 // ═══════════════════════════════════════════════
 // SYSTEM PROMPT — Full ERP context for the AI
@@ -63,40 +73,40 @@ organizations, users, customers, invoices, invoice_items, quotations, quotation_
 
 ## Your Capabilities
 You have access to TOOLS that let you:
-1. **Answer business questions** — revenue, profit, GST payable, who owes money, unpaid supplier bills, top customers, low stock, recent payments, expenses (use get_business_overview, get_dashboard_stats, get_gst_summary, get_outstanding_invoices, get_outstanding_bills, get_top_customers, search_customer, get_inventory_status, get_recent_payments, get_expense_summary)
-2. **Diagnose** the system (check tables, routes, errors)
-3. **Fix** problems (auto-create missing tables/columns, run repairs)
-4. **Query** the database (run SELECT queries safely)
-5. **Modify** data (update records, settings)
-6. **Read** source code files on the server
-7. **Write** source code files on the server (immediate effect, persists until next deploy)
-8. **Generate** code suggestions and show them to the user
-9. **Deploy** to Render, check GitHub status, check Vercel status
+1. **Diagnose** the system (check tables, routes, errors)
+2. **Fix** problems (auto-create missing tables/columns, run repairs)
+3. **Query** the database (run SELECT queries safely)
+4. **Modify** data (update records, settings)
+5. **Read** source code files on the server
+6. **Write** source code files on the server (immediate effect, persists until next deploy)
+7. **Generate** code suggestions and show them to the user
+8. **Deploy** to Render, check GitHub status, check Vercel status
+9. **Restart** the server (requires admin confirmation)
 10. **Check** environment variables and server info
-
-## Answering Business Questions
-- For "how is my business doing / summary / overview" → use get_business_overview
-- For "revenue / profit / dashboard" → use get_dashboard_stats
-- For "GST payable / GST owed / output input tax" → use get_gst_summary
-- For "who owes me / outstanding / unpaid / overdue" → use get_outstanding_invoices
-- For "what do I owe suppliers / unpaid bills" → use get_outstanding_bills
-- For "top customer / biggest customer" → use get_top_customers
-- For "find customer / search" → use search_customer
-- For "stock / inventory / low stock" → use get_inventory_status
-- For "payments received / who paid" → use get_recent_payments
-- For "expenses / spending" → use get_expense_summary
-- ALWAYS run these tools and report REAL numbers — never invent figures.
-- Format money in Indian ₹ with commas (e.g. ₹12,50,000).
 
 ## Your Rules
 1. Always explain what you're doing before taking action
 2. For destructive operations (DROP, DELETE, UPDATE), ALWAYS confirm with the user first
-3. When writing code, show the full code with proper formatting
-4. When fixing errors, explain the root cause and the fix
-5. If you're not sure about something, say so — don't guess
-6. Use the tools available to you — don't just guess at answers
-7. Be concise but thorough
-8. Format your responses with markdown: **bold** for emphasis, \`\`\`code blocks\`\`\` for code, lists for steps
+3. NEVER guess at code you haven't read. Before editing or explaining any file, call \`read_file\` on it first — don't rely on memory of what a file "probably" looks like, even if you edited it earlier in this conversation. Files change outside this chat too.
+4. When writing code, output the COMPLETE file content (or complete function, if the file is huge), not a diff or a fragment the user has to merge by hand. Partial snippets are a common source of the user breaking their own file by pasting them in wrong — don't create that risk.
+5. When fixing a bug, briefly state the root cause before the fix — one or two sentences, not a full essay.
+6. If you're not sure about something, say so — don't guess. Use \`run_sql\`, \`get_table_structure\`, or \`list_files\` to check the real state of the system instead of assuming.
+7. Be concise but thorough. Skip preamble like "Great question!" — just answer.
+8. Format responses with markdown: **bold** for emphasis, \`\`\`code blocks\`\`\` for code, lists for steps.
+
+## Patterns To Follow (and bugs to never reintroduce)
+This codebase has had real bugs from these exact patterns — don't repeat them:
+- **Every query must be scoped by \`organization_id\`.** This is a multi-tenant app on one shared database. A query that reads or writes a row by \`id\` alone (without also filtering \`organization_id: req.user.organization_id\`) is a cross-tenant data leak, even if the row "happens" to belong to the right org today. Check this specifically whenever a route uses an ID that came from the request body (e.g. \`data.invoice_id\`), not just \`req.params.id\`.
+- **Never call \`.update(req.body)\` or \`.insert(req.body)\` directly.** Build an explicit whitelist of allowed columns first, the way \`purchaseRoutes.js\` does it. Passing the raw body through lets a client overwrite \`organization_id\`, \`id\`, or \`created_at\`.
+- **Never interpolate a variable into \`db.raw()\` or \`whereRaw()\`.** Use \`?\` placeholders and pass values in the parameter array, even for things that feel "internal" like a table name from a tool call.
+- **Money is stored in \`total_amount\`, not \`total\`.** Empty date strings must become \`null\`, not \`''\`, before hitting Postgres — the global sanitize middleware handles this for normal routes, but raw queries you write yourself won't get that protection automatically.
+
+## Working Style
+Work the way a careful senior engineer reviewing a live production app would:
+- Read the actual file before claiming what it contains or how to fix it.
+- After changing a file with \`write_file\`, say plainly that the change is live on the running server but NOT saved to GitHub — the user still needs to copy it into their repo and push, or it's lost on the next Render deploy.
+- When a fix touches more than one file (e.g. a backend route + the frontend page that calls it), say so explicitly and give both files, don't silently fix only the one you were asked about.
+- Prefer showing the user *why* something broke (the specific line, the specific mismatched value) over a vague "there was an issue with the code."
 
 ## Important Notes
 - When you modify server files, changes take effect immediately but are lost on next deploy (Render pulls from GitHub)
@@ -104,27 +114,6 @@ You have access to TOOLS that let you:
 - You can read any file in the backend/src/ directory
 - You can run SQL queries but destructive ones need confirmation
 - The self-heal engine runs on every server startup and fixes missing tables/columns automatically`;
-
-// ═══════════════════════════════════════════════════════════════
-// Builds the system prompt for a request, injecting relevant
-// business knowledge (products, GST rules, customers) retrieved
-// from the knowledge base so the AI answers accurately.
-// ═══════════════════════════════════════════════════════════════
-function systemPromptFor(messages) {
-  const lastUser = [...(messages || [])].reverse().find(m => m.role === 'user')?.content || '';
-  const ctx = knowledgeContext(lastUser, 4);
-  if (!ctx) return SYSTEM_PROMPT;
-  return `${SYSTEM_PROMPT}
-
-## Your Business Knowledge (retrieved for this question — use it to answer accurately)
-
-${ctx}
-
-## Using Knowledge
-- Use the knowledge above for domain questions about the company, products, materials, GST rules, formats and customers.
-- For live numbers (who owes money, GST payable, stock, top customers), ALWAYS run the corresponding tool — never guess.
-- If pricing is requested, get it from real quotations/invoices in the database, never invent prices.`;
-}
 
 // ═══════════════════════════════════════════════
 // TOOL DEFINITIONS — For Gemini function calling
@@ -312,111 +301,6 @@ const TOOL_DEFINITIONS = [
     name: "get_server_info",
     description: "Get server information — Node.js version, uptime, memory usage, CPU info, and platform details.",
     parameters: { type: "OBJECT", properties: {} }
-  },
-  // ═══════════════════════════════════════════════════
-  // BUSINESS TOOLS — answer real ERP questions from the database
-  // ═══════════════════════════════════════════════════
-  {
-    name: "get_business_overview",
-    description: "Get a one-shot business snapshot: revenue, paid/pending amounts, receivables, payables, GST output/input/net, customer count, and record counts across all modules. Best first call for questions like 'how is my business doing?'.",
-    parameters: { type: "OBJECT", properties: {} }
-  },
-  {
-    name: "get_dashboard_stats",
-    description: "Get full dashboard metrics: total/paid/pending revenue, overdue buckets (30/60/90 days), expenses, profit, quotation stats, purchase stats, low-stock items, recent invoices and top customers.",
-    parameters: { type: "OBJECT", properties: {} }
-  },
-  {
-    name: "get_gst_summary",
-    description: "Get GST summary for a financial year: output/input GST (CGST/SGST/IGST), net payable, monthly and quarterly breakdown with carry-forward. Use for 'how much GST do I owe?' questions.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        year: { type: "NUMBER", description: "Financial year start year (e.g. 2026 for FY 2026-27). Default: current year." }
-      }
-    }
-  },
-  {
-    name: "get_outstanding_invoices",
-    description: "Get unpaid invoices and overdue amounts (who owes the business money). Includes ageing: current, 30/60/90+ days overdue, sorted by amount.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        limit: { type: "NUMBER", description: "Max invoices to return (default 25)" }
-      }
-    }
-  },
-  {
-    name: "get_outstanding_bills",
-    description: "Get unpaid purchase bills (what the business owes suppliers). Sorted by amount descending.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        limit: { type: "NUMBER", description: "Max bills to return (default 25)" }
-      }
-    }
-  },
-  {
-    name: "get_top_customers",
-    description: "Get top customers by total invoiced business, with GSTIN, city/state and totals. Use for 'who is my biggest customer?'.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        limit: { type: "NUMBER", description: "Max customers (default 5)" }
-      }
-    }
-  },
-  {
-    name: "search_customer",
-    description: "Search customers by name, phone, or GSTIN. Returns matching customers with contact and business details.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        query: { type: "STRING", description: "Search text — name, phone, or GSTIN fragment" }
-      },
-      required: ["query"]
-    }
-  },
-  {
-    name: "get_inventory_status",
-    description: "Get inventory items and low-stock alerts (items at or below minimum quantity). Use for 'am I low on stock?' questions.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        limit: { type: "NUMBER", description: "Max items (default 25)" }
-      }
-    }
-  },
-  {
-    name: "get_recent_payments",
-    description: "Get recent payments received from customers, with mode, reference and linked invoice. Use for 'what payments came in?' questions.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        limit: { type: "NUMBER", description: "Max payments (default 20)" }
-      }
-    }
-  },
-  {
-    name: "get_expense_summary",
-    description: "Get total expenses and recent expense entries by category. Use for 'what are my expenses?' questions.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        limit: { type: "NUMBER", description: "Max recent entries (default 20)" }
-      }
-    }
-  },
-  {
-    name: "get_knowledge",
-    description: "Search the company knowledge base (products, materials, GST rules, invoice/quotation formats, company profile). Use for domain questions like 'what products do you make?', 'what materials do you use?', 'how is GST calculated?', 'what are your HSN codes?'.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        query: { type: "STRING", description: "The topic to look up (e.g. 'tanker specs', 'gst rules', 'materials', 'quotation format')" }
-      },
-      required: ["query"]
-    }
   }
 ];
 
@@ -479,14 +363,13 @@ async function executeTool(name, args, orgId) {
       try {
         const exists = await db.schema.hasTable(args.table);
         if (!exists) return { error: `Table "${args.table}" does not exist` };
-        // Parameterized query — never interpolate the table name into SQL
-        const cols = await db.raw(
-          `SELECT column_name, data_type, is_nullable, column_default
-           FROM information_schema.columns
-           WHERE table_name = ?
-           ORDER BY ordinal_position`,
-          [args.table]
-        );
+        // Parameter-bound instead of string-interpolated — closes a SQL injection path.
+        const cols = await db.raw(`
+          SELECT column_name, data_type, is_nullable, column_default
+          FROM information_schema.columns
+          WHERE table_name = ?
+          ORDER BY ordinal_position
+        `, [args.table]);
         const count = await db(args.table).count('* as count').first();
         return { table: args.table, exists: true, columns: cols.rows, rowCount: parseInt(count.count) };
       } catch (err) {
@@ -499,6 +382,11 @@ async function executeTool(name, args, orgId) {
         const { table, limit = 20, where, columns = '*' } = args;
         const exists = await db.schema.hasTable(table);
         if (!exists) return { error: `Table "${table}" does not exist` };
+        // `columns` and `where` still have to be raw SQL fragments to support arbitrary
+        // AI-driven queries, so they can't be fully parameterized — instead, block anything
+        // that looks like a second statement or a mutation, since this tool is read-only.
+        assertSafeSqlFragment(columns, 'columns');
+        assertSafeSqlFragment(where, 'where');
         let query = db(table).select(db.raw(columns)).limit(Math.min(limit, 100));
         if (where) query = query.whereRaw(where);
         // Filter by org_id for org-scoped tables
@@ -516,8 +404,18 @@ async function executeTool(name, args, orgId) {
         const { table, id, data } = args;
         const exists = await db.schema.hasTable(table);
         if (!exists) return { error: `Table "${table}" does not exist` };
-        await db(table).where({ id }).update(data);
-        const updated = await db(table).where({ id }).first();
+        // Sensitive tables are off-limits to this tool entirely — password hashes, roles,
+        // and org billing details shouldn't be editable via an AI chat, even by an admin.
+        const BLOCKED_TABLES = ['users', 'organizations'];
+        if (BLOCKED_TABLES.includes(table)) {
+          return { error: `Editing "${table}" via the AI assistant isn't allowed — use the app's own settings/user management screens.` };
+        }
+        const orgScoped = ['invoices','quotations','purchase_bills','customers','suppliers','expenses','payments','inventory','workers','machines','production','credit_notes'];
+        const whereClause = orgScoped.includes(table) && orgId ? { id, organization_id: orgId } : { id };
+        const existing = await db(table).where(whereClause).first();
+        if (!existing) return { error: `No row with id ${id} in "${table}" for this organization` };
+        await db(table).where(whereClause).update(data);
+        const updated = await db(table).where(whereClause).first();
         return { success: true, table, id, updated };
       } catch (err) {
         return { error: err.message };
@@ -734,169 +632,6 @@ async function executeTool(name, args, orgId) {
       };
     }
 
-    // ═══════════════════════════════════════════════════
-    // BUSINESS TOOL EXECUTORS — always org-scoped
-    // ═══════════════════════════════════════════════════
-    case 'get_business_overview': {
-      try {
-        const rev = await db('invoices').where({ organization_id: orgId }).sum('total_amount as t').first();
-        const paid = await db('invoices').where({ organization_id: orgId, payment_status: 'Paid' }).sum('total_amount as t').first();
-        const pending = await db('invoices').where({ organization_id: orgId }).whereIn('payment_status', ['Unpaid', 'Partial']).sum('total_amount as t').first();
-        const outGST = await db('invoices').where({ organization_id: orgId }).sum('cgst_amount as c').sum('sgst_amount as s').sum('igst_amount as i').first();
-        const inGST = await db('purchase_bills').where({ organization_id: orgId }).sum('cgst_amount as c').sum('sgst_amount as s').sum('igst_amount as i').first();
-        const cust = await db('customers').where({ organization_id: orgId }).count('id as c').first();
-        const inv = await db('invoices').where({ organization_id: orgId }).count('id as c').first();
-        const quotes = await db('quotations').where({ organization_id: orgId }).count('id as c').first();
-        const bills = await db('purchase_bills').where({ organization_id: orgId }).count('id as c').first();
-        const pendingBills = await db('purchase_bills').where({ organization_id: orgId, payment_status: 'Unpaid' }).sum('total_amount as t').first();
-        const exp = await db('expenses').where({ organization_id: orgId }).sum('amount as t').first();
-        const o = { c: parseFloat(outGST.c || 0), s: parseFloat(outGST.s || 0), i: parseFloat(outGST.i || 0) };
-        const inp = { c: parseFloat(inGST.c || 0), s: parseFloat(inGST.s || 0), i: parseFloat(inGST.i || 0) };
-        return {
-          revenue: parseFloat(rev.t || 0),
-          paid: parseFloat(paid.t || 0),
-          pendingReceivables: parseFloat(pending.t || 0),
-          payables: parseFloat(pendingBills.t || 0),
-          totalExpenses: parseFloat(exp.t || 0),
-          estimatedProfit: parseFloat(rev.t || 0) - parseFloat(exp.t || 0),
-          outputGST: o, inputGST: inp,
-          netGSTPayable: Math.max(0, (o.c - inp.c) + (o.s - inp.s) + (o.i - inp.i)),
-          counts: {
-            customers: parseInt(cust.c || 0), invoices: parseInt(inv.c || 0),
-            quotations: parseInt(quotes.c || 0), purchaseBills: parseInt(bills.c || 0)
-          }
-        };
-      } catch (err) { return { error: err.message }; }
-    }
-
-    case 'get_dashboard_stats': {
-      try {
-        const revenue = await db('invoices').where({ organization_id: orgId }).sum('total_amount as t').first();
-        const paidRevenue = await db('invoices').where({ organization_id: orgId, payment_status: 'Paid' }).sum('total_amount as t').first();
-        const pending = await db('invoices').where({ organization_id: orgId, payment_status: 'Unpaid' }).count('id as c').sum('total_amount as t').first();
-        const exp = await db('expenses').where({ organization_id: orgId }).sum('amount as t').first();
-        const cust = await db('customers').where({ organization_id: orgId }).count('id as c').first();
-        const lowStock = await db('inventory').where({ organization_id: orgId }).whereRaw('quantity <= min_quantity').select('item_name', 'quantity', 'min_quantity', 'unit');
-        const recent = await db('invoices').where({ 'invoices.organization_id': orgId }).leftJoin('customers', 'invoices.customer_id', 'customers.id').select('invoices.invoice_number', 'invoices.total_amount', 'invoices.payment_status', 'invoices.invoice_date', 'customers.name as customer_name').orderBy('invoices.created_at', 'desc').limit(8);
-        return {
-          totalRevenue: parseFloat(revenue.t || 0),
-          paidRevenue: parseFloat(paidRevenue.t || 0),
-          pendingCount: parseInt(pending.c || 0),
-          pendingAmount: parseFloat(pending.t || 0),
-          totalExpenses: parseFloat(exp.t || 0),
-          netProfit: parseFloat(revenue.t || 0) - parseFloat(exp.t || 0),
-          customerCount: parseInt(cust.c || 0),
-          lowStockItems: lowStock,
-          recentInvoices: recent
-        };
-      } catch (err) { return { error: err.message }; }
-    }
-
-    case 'get_gst_summary': {
-      try {
-        const year = parseInt(args.year, 10) || new Date().getFullYear();
-        const fyStart = `${year}-04-01`, fyEnd = `${year + 1}-03-31`;
-        const outT = await db('invoices').where({ organization_id: orgId }).whereBetween('invoice_date', [fyStart, fyEnd]).sum('cgst_amount as c').sum('sgst_amount as s').sum('igst_amount as i').sum('subtotal as taxable').first();
-        const inT = await db('purchase_bills').where({ organization_id: orgId }).whereBetween('bill_date', [fyStart, fyEnd]).sum('cgst_amount as c').sum('sgst_amount as s').sum('igst_amount as i').sum('subtotal as taxable').first();
-        const o = { c: parseFloat(outT.c || 0), s: parseFloat(outT.s || 0), i: parseFloat(outT.i || 0) };
-        const inp = { c: parseFloat(inT.c || 0), s: parseFloat(inT.s || 0), i: parseFloat(inT.i || 0) };
-        return {
-          financialYear: `${year}-${String(year + 1).slice(2)}`,
-          outputGST: o, inputGST: inp,
-          outputTotal: o.c + o.s + o.i, inputTotal: inp.c + inp.s + inp.i,
-          netPayable: { cgst: Math.max(0, o.c - inp.c), sgst: Math.max(0, o.s - inp.s), igst: Math.max(0, o.i - inp.i) },
-          totalNetPayable: Math.max(0, (o.c - inp.c) + (o.s - inp.s) + (o.i - inp.i)),
-          taxableSales: parseFloat(outT.taxable || 0), taxablePurchases: parseFloat(inT.taxable || 0)
-        };
-      } catch (err) { return { error: err.message }; }
-    }
-
-    case 'get_outstanding_invoices': {
-      try {
-        const limit = Math.min(args.limit || 25, 100);
-        const unpaid = await db('invoices').where({ 'invoices.organization_id': orgId }).whereIn('invoices.payment_status', ['Unpaid', 'Partial']).leftJoin('customers', 'invoices.customer_id', 'customers.id').select('invoices.id', 'invoices.invoice_number', 'invoices.invoice_date', 'invoices.due_date', 'invoices.total_amount', 'invoices.payment_status', 'customers.name as customer_name', 'customers.phone').orderBy('invoices.total_amount', 'desc').limit(limit);
-        const now = new Date();
-        const days = d => Math.floor((now - new Date(d)) / 86400000);
-        let totalUnpaid = 0, overdueTotal = 0, overdueCount = 0;
-        const rows = unpaid.map(inv => {
-          const amount = parseFloat(inv.total_amount || 0);
-          totalUnpaid += amount;
-          const overdueDays = inv.due_date ? days(inv.due_date) : (inv.invoice_date ? days(inv.invoice_date) : 0);
-          const isOverdue = overdueDays > 0;
-          if (isOverdue) { overdueTotal += amount; overdueCount++; }
-          return { ...inv, overdueDays: isOverdue ? overdueDays : 0, isOverdue };
-        });
-        return { totalUnpaid, overdueCount, overdueAmount: overdueTotal, invoices: rows };
-      } catch (err) { return { error: err.message }; }
-    }
-
-    case 'get_outstanding_bills': {
-      try {
-        const limit = Math.min(args.limit || 25, 100);
-        const bills = await db('purchase_bills').where({ organization_id: orgId }).whereIn('payment_status', ['Unpaid', 'Partial']).select('id', 'bill_number', 'bill_date', 'supplier_name', 'total_amount', 'payment_status').orderBy('total_amount', 'desc').limit(limit);
-        const totalUnpaid = bills.reduce((s, b) => s + parseFloat(b.total_amount || 0), 0);
-        return { totalPayables: totalUnpaid, billCount: bills.length, bills };
-      } catch (err) { return { error: err.message }; }
-    }
-
-    case 'get_top_customers': {
-      try {
-        const limit = Math.min(args.limit || 5, 20);
-        const top = await db('invoices').where({ 'invoices.organization_id': orgId }).leftJoin('customers', 'invoices.customer_id', 'customers.id').select('customers.id', 'customers.name', 'customers.gstin', 'customers.city', 'customers.state', 'customers.phone').sum('invoices.total_amount as totalBusiness').groupBy('customers.id', 'customers.name', 'customers.gstin', 'customers.city', 'customers.state', 'customers.phone').orderBy('totalBusiness', 'desc').limit(limit);
-        return { customers: top };
-      } catch (err) { return { error: err.message }; }
-    }
-
-    case 'search_customer': {
-      try {
-        const q = String(args.query || '').trim();
-        if (!q) return { error: 'Provide a search query' };
-        const customers = await db('customers').where({ organization_id: orgId }).where(function () {
-          this.where('name', 'ilike', `%${q}%`).orWhere('phone', 'ilike', `%${q}%`).orWhere('gstin', 'ilike', `%${q}%`).orWhere('trade_name', 'ilike', `%${q}%`);
-        }).limit(10);
-        return { count: customers.length, customers };
-      } catch (err) { return { error: err.message }; }
-    }
-
-    case 'get_inventory_status': {
-      try {
-        const limit = Math.min(args.limit || 25, 100);
-        const low = await db('inventory').where({ organization_id: orgId }).whereRaw('quantity <= min_quantity').select('item_name', 'item_code', 'quantity', 'min_quantity', 'unit', 'category').limit(20);
-        const total = await db('inventory').where({ organization_id: orgId }).count('id as c').first();
-        const items = await db('inventory').where({ organization_id: orgId }).orderBy('quantity', 'asc').limit(limit);
-        return { totalItems: parseInt(total.c || 0), lowStockCount: low.length, lowStockItems: low, items };
-      } catch (err) { return { error: err.message }; }
-    }
-
-    case 'get_recent_payments': {
-      try {
-        const limit = Math.min(args.limit || 20, 100);
-        const payments = await db('payments').where({ 'payments.organization_id': orgId }).leftJoin('customers', 'payments.customer_id', 'customers.id').leftJoin('invoices', 'payments.invoice_id', 'invoices.id').select('payments.id', 'payments.payment_number', 'payments.payment_date', 'payments.amount', 'payments.payment_mode', 'payments.type', 'payments.reference', 'customers.name as customer_name', 'invoices.invoice_number').orderBy('payments.payment_date', 'desc').limit(limit);
-        const total = await db('payments').where({ organization_id: orgId }).sum('amount as t').first();
-        return { totalReceived: parseFloat(total.t || 0), payments };
-      } catch (err) { return { error: err.message }; }
-    }
-
-    case 'get_expense_summary': {
-      try {
-        const limit = Math.min(args.limit || 20, 100);
-        const total = await db('expenses').where({ organization_id: orgId }).sum('amount as t').first();
-        const byCategory = await db('expenses').where({ organization_id: orgId }).select('category').sum('amount as t').groupBy('category').orderBy('t', 'desc');
-        const recent = await db('expenses').where({ organization_id: orgId }).orderBy('expense_date', 'desc').limit(limit);
-        return { totalExpenses: parseFloat(total.t || 0), byCategory, recentExpenses: recent };
-      } catch (err) { return { error: err.message }; }
-    }
-
-    case 'get_knowledge': {
-      const chunks = searchKnowledge(args.query, 6);
-      if (!chunks.length) return { query: args.query, found: 0, results: [] };
-      return {
-        query: args.query,
-        found: chunks.length,
-        results: chunks.map(c => ({ title: c.title, category: c.category, content: c.content }))
-      };
-    }
-
     default:
       return { error: `Unknown tool: ${name}` };
   }
@@ -974,7 +709,7 @@ async function callPollinations(messages, toolDefs) {
   const url = 'https://text.pollinations.ai/openai';
 
   const pollMessages = [
-    { role: 'system', content: systemPromptFor(messages) }
+    { role: 'system', content: SYSTEM_PROMPT }
   ];
 
   for (const msg of messages) {
@@ -986,7 +721,9 @@ async function callPollinations(messages, toolDefs) {
       pollMessages.push({ 
         role: 'assistant', 
         content: null,
-        tool_calls: [{ id: `call_${msg.name}_${Date.now()}`, type: 'function', function: { name: msg.name, arguments: JSON.stringify(msg.args || {}) } }]
+        // Must match the tool_call_id below exactly — an OpenAI-compatible API rejects/derails
+        // the conversation the moment these two IDs don't line up (they didn't before this fix).
+        tool_calls: [{ id: `call_${msg.name}`, type: 'function', function: { name: msg.name, arguments: JSON.stringify(msg.args || {}) } }]
       });
     } else if (msg.role === 'tool_result') {
       pollMessages.push({
@@ -1062,7 +799,7 @@ async function callDeepSeek(messages, toolDefs, apiKey) {
   const url = 'https://api.deepseek.com/v1/chat/completions';
 
   const dsMessages = [
-    { role: 'system', content: systemPromptFor(messages) }
+    { role: 'system', content: SYSTEM_PROMPT }
   ];
 
   for (const msg of messages) {
@@ -1074,7 +811,7 @@ async function callDeepSeek(messages, toolDefs, apiKey) {
       dsMessages.push({ 
         role: 'assistant', 
         content: null,
-        tool_calls: [{ id: `call_${msg.name}_${Date.now()}`, type: 'function', function: { name: msg.name, arguments: JSON.stringify(msg.args || {}) } }]
+        tool_calls: [{ id: `call_${msg.name}`, type: 'function', function: { name: msg.name, arguments: JSON.stringify(msg.args || {}) } }]
       });
     } else if (msg.role === 'tool_result') {
       dsMessages.push({
@@ -1160,7 +897,7 @@ async function callGemini(messages, toolDefs, apiKey, model = 'gemini-2.5-pro') 
 
   const body = {
     contents,
-    systemInstruction: { parts: [{ text: systemPromptFor(messages) }] },
+    systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
     tools: [{ functionDeclarations: toolDefs }],
     generationConfig: {
       temperature: 0.7,
@@ -1197,7 +934,7 @@ async function callOpenAI(messages, toolDefs, apiKey) {
 
   // Convert to OpenAI format
   const openaiMessages = [
-    { role: 'system', content: systemPromptFor(messages) }
+    { role: 'system', content: SYSTEM_PROMPT }
   ];
 
   for (const msg of messages) {
@@ -1285,7 +1022,7 @@ async function callGroq(messages, toolDefs, apiKey) {
   const url = 'https://api.groq.com/openai/v1/chat/completions';
 
   const groqMessages = [
-    { role: 'system', content: systemPromptFor(messages) }
+    { role: 'system', content: SYSTEM_PROMPT }
   ];
 
   for (const msg of messages) {
@@ -1293,6 +1030,21 @@ async function callGroq(messages, toolDefs, apiKey) {
       groqMessages.push({ role: 'user', content: msg.content });
     } else if (msg.role === 'assistant' || msg.role === 'model') {
       groqMessages.push({ role: 'assistant', content: msg.content });
+    } else if (msg.role === 'tool_call') {
+      // Without this branch, Groq never sees that a tool was called at all — it just gets
+      // an "assistant" turn with no results, so it either hallucinates an answer or repeats
+      // the same tool call until the 5-iteration cap kicks in. This was the #1 provider tried.
+      groqMessages.push({
+        role: 'assistant',
+        content: null,
+        tool_calls: [{ id: `call_${msg.name}`, type: 'function', function: { name: msg.name, arguments: JSON.stringify(msg.args || {}) } }]
+      });
+    } else if (msg.role === 'tool_result') {
+      groqMessages.push({
+        role: 'tool',
+        tool_call_id: `call_${msg.name}`,
+        content: JSON.stringify(msg.result)
+      });
     }
   }
 
@@ -1357,7 +1109,7 @@ async function callCerebras(messages, toolDefs, apiKey) {
   const url = 'https://api.cerebras.ai/v1/chat/completions';
 
   const cbrMessages = [
-    { role: 'system', content: systemPromptFor(messages) }
+    { role: 'system', content: SYSTEM_PROMPT }
   ];
 
   for (const msg of messages) {
@@ -1365,6 +1117,18 @@ async function callCerebras(messages, toolDefs, apiKey) {
       cbrMessages.push({ role: 'user', content: msg.content });
     } else if (msg.role === 'assistant' || msg.role === 'model') {
       cbrMessages.push({ role: 'assistant', content: msg.content });
+    } else if (msg.role === 'tool_call') {
+      cbrMessages.push({
+        role: 'assistant',
+        content: null,
+        tool_calls: [{ id: `call_${msg.name}`, type: 'function', function: { name: msg.name, arguments: JSON.stringify(msg.args || {}) } }]
+      });
+    } else if (msg.role === 'tool_result') {
+      cbrMessages.push({
+        role: 'tool',
+        tool_call_id: `call_${msg.name}`,
+        content: JSON.stringify(msg.result)
+      });
     }
   }
 
@@ -1429,7 +1193,7 @@ async function callOpenRouter(messages, toolDefs, apiKey) {
   const url = 'https://openrouter.ai/api/v1/chat/completions';
 
   const orMessages = [
-    { role: 'system', content: systemPromptFor(messages) }
+    { role: 'system', content: SYSTEM_PROMPT }
   ];
 
   for (const msg of messages) {
@@ -1437,6 +1201,18 @@ async function callOpenRouter(messages, toolDefs, apiKey) {
       orMessages.push({ role: 'user', content: msg.content });
     } else if (msg.role === 'assistant' || msg.role === 'model') {
       orMessages.push({ role: 'assistant', content: msg.content });
+    } else if (msg.role === 'tool_call') {
+      orMessages.push({
+        role: 'assistant',
+        content: null,
+        tool_calls: [{ id: `call_${msg.name}`, type: 'function', function: { name: msg.name, arguments: JSON.stringify(msg.args || {}) } }]
+      });
+    } else if (msg.role === 'tool_result') {
+      orMessages.push({
+        role: 'tool',
+        tool_call_id: `call_${msg.name}`,
+        content: JSON.stringify(msg.result)
+      });
     }
   }
 
@@ -1527,60 +1303,8 @@ function extractGeminiResponse(data) {
 // RULE-BASED FALLBACK (when no API key)
 // ═══════════════════════════════════════════════
 
-// ═══════════════════════════════════════════════════════════════
-// BUSINESS INTENT DETECTION — answers common business questions
-// directly from the live database, without needing an LLM at all.
-// This makes the assistant instant + reliable even when the free
-// AI provider is slow or down.
-// ═══════════════════════════════════════════════════════════════
-function businessIntent(lower) {
-  // 1) GST / tax (also "how much GST do I owe")
-  if (lower.includes('gst') || (lower.includes('tax') && !lower.includes('taxi'))) {
-    return { text: 'Here is your **GST position** for the current financial year:', tool: { name: 'get_gst_summary', args: {} } };
-  }
-  // 2) Payables to suppliers (BEFORE "owe", so "what do I owe suppliers?" → bills)
-  if (lower.includes('payable') || lower.includes('supplier')) {
-    return { text: 'Here is what you **owe your suppliers**:', tool: { name: 'get_outstanding_bills', args: {} } };
-  }
-  // 3) Receivables — who owes the business
-  if (lower.includes('owe') || lower.includes('outstanding') || lower.includes('unpaid') || lower.includes('receivable') || lower.includes('overdue') || lower.includes('pending payment') || lower.includes('who has not paid')) {
-    return { text: 'Here is **who owes you money** (outstanding invoices):', tool: { name: 'get_outstanding_invoices', args: {} } };
-  }
-  // 4) Top customers
-  if (lower.includes('top customer') || lower.includes('biggest customer') || lower.includes('best customer') || lower.includes('largest customer')) {
-    return { text: 'Here are your **top customers** by business:', tool: { name: 'get_top_customers', args: {} } };
-  }
-  // 5) Stock / inventory
-  if (lower.includes('stock') || lower.includes('inventory')) {
-    return { text: 'Here is your **inventory status**:', tool: { name: 'get_inventory_status', args: {} } };
-  }
-  // 6) Payments received
-  if (lower.includes('payment') || lower.includes('paid me') || lower.includes('received')) {
-    return { text: 'Here are your **recent payments**:', tool: { name: 'get_recent_payments', args: {} } };
-  }
-  // 7) Expenses
-  if (lower.includes('expense') || lower.includes('spending') || lower.includes('spent')) {
-    return { text: 'Here is your **expense summary**:', tool: { name: 'get_expense_summary', args: {} } };
-  }
-  // 8) Find / search a customer
-  const findM = lower.match(/(?:find|search)\s*customer\s*(?:named|called)?\s*"?([a-z0-9 .&]+)"?/);
-  if (findM && findM[1].trim()) {
-    const q = findM[1].trim();
-    return { text: `Searching for customer **"${q}"**…`, tool: { name: 'search_customer', args: { query: q } } };
-  }
-  // 9) Business overview / profit / revenue / how is my business doing
-  if (lower.includes('business') || lower.includes('doing') || lower.includes('overview') || lower.includes('profit') || lower.includes('revenue') || lower.includes('earning') || lower.includes('income') || lower.includes('summary') || lower.includes('dashboard')) {
-    return { text: 'Here is your **business overview**:', tool: { name: 'get_business_overview', args: {} } };
-  }
-  return null;
-}
-
 function ruleBasedResponse(msg, orgId) {
   const lower = msg.toLowerCase();
-
-  // ── BUSINESS QUESTIONS — answered from live data ──
-  const biz = businessIntent(lower);
-  if (biz) return { text: biz.text, toolCalls: [biz.tool] };
 
   if (lower.includes('health') || lower.includes('check') || lower.includes('diagnos') || lower.includes('status')) {
     return { text: 'Let me run a full system diagnosis for you...', toolCalls: [{ name: 'diagnose_system', args: {} }] };
@@ -1620,19 +1344,15 @@ function ruleBasedResponse(msg, orgId) {
     return { text: `Reading file ${routesPath}...`, toolCalls: [{ name: 'read_file', args: { path: routesPath } }] };
   }
 
-  // Default help
+  // Default help — this branch only runs when every configured AI provider (and the
+  // no-key-needed Pollinations fallback) failed to respond at all, so be honest about that
+  // instead of pretending this canned list is the AI being clever.
   return {
-    text: `I can help you with many things! Try asking me to:
+    text: `⚠️ I couldn't reach any AI provider just now (including the free fallback), so here's a plain menu instead of a real answer.
 
-📈 **Business Questions** (answered instantly from your live data):
-- "How much GST do I owe?"
-- "Who owes me money?"
-- "What do I owe suppliers?"
-- "How is my business doing?"
-- "Am I low on stock?"
-- "Who is my top customer?"
-- "What payments came in recently?"
-- "What are my expenses?"
+**This almost always means no API key is configured on Render.** The single biggest fix: add a free \`GEMINI_API_KEY\` (Google AI Studio) or \`GROQ_API_KEY\` (console.groq.com) to your Render environment variables and redeploy — either is free and both support full tool use, unlike the no-key fallback. Ask me to "check AI status" once that's set and I'll confirm which provider is active.
+
+In the meantime I can still run these directly:
 
 🔍 **Diagnose & Fix:**
 - "Check system health"
@@ -1653,7 +1373,11 @@ function ruleBasedResponse(msg, orgId) {
 - "Show settings"
 - "Update settings"
 
-💡 **Or just describe your problem** and I'll figure out how to help!`
+💡 **Or just describe your problem** and I'll figure out how to help!
+
+---
+
+🆓 **This AI is 100% FREE** — powered by Pollinations AI. No API key, no signup, no credit card needed!`
   };
 }
 
@@ -1666,22 +1390,6 @@ router.post('/chat', auth, adminOnly, async (req, res) => {
     const { messages = [], provider: requestedProvider } = req.body;
     const orgId = req.user.organization_id;
     const userMessage = messages[messages.length - 1]?.content || '';
-
-    // ═══ INSTANT BUSINESS ANSWERS ═══
-    // Clear business questions ("How much GST do I owe?") are answered DIRECTLY
-    // from the live database — no LLM round-trip, so they're instant and never
-    // fail even if the free AI provider is slow or down.
-    const bizIntent = businessIntent(userMessage.toLowerCase());
-    if (bizIntent) {
-      const result = await executeTool(bizIntent.tool.name, bizIntent.tool.args, orgId);
-      const formatted = formatToolResult(bizIntent.tool.name, result);
-      return res.json({
-        success: true,
-        message: bizIntent.text + '\n\n' + formatted,
-        toolCalls: [{ name: bizIntent.tool.name, args: bizIntent.tool.args, result }],
-        provider: 'instant (live data)'
-      });
-    }
     
     // ── ALWAYS USE AI FLOW ──
     // Pollinations AI is FREE and needs NO API key, so AI is ALWAYS available!
@@ -1697,7 +1405,7 @@ router.post('/chat', auth, adminOnly, async (req, res) => {
         // Handle tool calls in a loop
         let currentMessages = [...allMessages];
         let finalResponse = singleResult.text || '';
-        let maxIter = 5;
+        let maxIter = 12;
         currentMessages.push({ role: 'model', content: singleResult.text || 'Processing...' });
         
         while (singleResult.toolCalls?.length > 0 && maxIter-- > 0) {
@@ -1728,7 +1436,7 @@ router.post('/chat', auth, adminOnly, async (req, res) => {
       // If selected provider fails, fall through to auto
     }
 
-    let maxIterations = 5;
+    let maxIterations = 12;
     let currentMessages = [...allMessages];
     let finalResponse = '';
     let usedProvider = 'unknown';
@@ -1743,14 +1451,12 @@ router.post('/chat', auth, adminOnly, async (req, res) => {
           const toolResults = [];
           for (const tc of ruleResult.toolCalls) {
             const result = await executeTool(tc.name, tc.args, orgId);
-            toolResults.push({ name: tc.name, args: tc.args, result });
+            toolResults.push({ name: tc.name, result });
           }
-          // Format the tool results into a readable answer (not raw JSON)
-          const formatted = toolResults.map(tr => formatToolResult(tr.name, tr.result)).join('');
           return res.json({
             success: true,
-            message: ruleResult.text + '\n\n' + formatted,
-            toolCalls: toolResults,
+            message: ruleResult.text,
+            toolCalls: ruleResult.toolCalls.map((tc, i) => ({ name: tc.name, args: tc.args, result: toolResults[i].result })),
             provider: 'fallback'
           });
         }
@@ -1874,67 +1580,6 @@ function formatToolResult(name, result) {
     case 'write_file':
       return result.success ? `✅ **File written**: ${result.path}\n📝 ${result.note}\n\n` : `❌ Write failed\n\n`;
 
-    case 'get_business_overview':
-      return `📈 **Business Overview**\n\n` +
-        `💰 Total Revenue: **₹${result.revenue?.toLocaleString('en-IN')}**\n` +
-        `✅ Paid: ₹${result.paid?.toLocaleString('en-IN')} | ⏳ Receivables: ₹${result.pendingReceivables?.toLocaleString('en-IN')}\n` +
-        `🏦 Payables to suppliers: ₹${result.payables?.toLocaleString('en-IN')} | Expenses: ₹${result.totalExpenses?.toLocaleString('en-IN')}\n` +
-        `📊 Estimated Profit: ₹${result.estimatedProfit?.toLocaleString('en-IN')}\n` +
-        `🧾 GST Payable: ₹${result.netGSTPayable?.toLocaleString('en-IN')}\n` +
-        `📦 Customers: ${result.counts?.customers} · Invoices: ${result.counts?.invoices} · Quotations: ${result.counts?.quotations} · Purchase Bills: ${result.counts?.purchaseBills}\n\n`;
-
-    case 'get_dashboard_stats':
-      return `📊 **Dashboard Stats**\n\n` +
-        `💰 Revenue: ₹${result.totalRevenue?.toLocaleString('en-IN')} (Paid: ₹${result.paidRevenue?.toLocaleString('en-IN')})\n` +
-        `⏳ Pending: ${result.pendingCount} invoices · ₹${result.pendingAmount?.toLocaleString('en-IN')}\n` +
-        `💸 Expenses: ₹${result.totalExpenses?.toLocaleString('en-IN')} | Net: ₹${result.netProfit?.toLocaleString('en-IN')}\n` +
-        (result.lowStockItems?.length ? `📦 Low stock: ${result.lowStockItems.map(i => `${i.item_name} (${i.quantity} left)`).join(', ')}\n` : '') +
-        (result.recentInvoices?.length ? `\n**Recent invoices:**\n` + result.recentInvoices.slice(0, 5).map(inv => `- ${inv.invoice_number} — ${inv.customer_name}: ₹${parseFloat(inv.total_amount).toLocaleString('en-IN')} (${inv.payment_status})`).join('\n') : '') + '\n\n';
-
-    case 'get_outstanding_invoices':
-      if (!result.invoices?.length) return '✅ **No unpaid invoices!** Everyone has paid.\n\n';
-      return `⏳ **Outstanding Receivables: ₹${result.totalUnpaid?.toLocaleString('en-IN')}** (${result.invoices.length} unpaid)\n` +
-        `⚠️ Of which overdue: ₹${result.overdueAmount?.toLocaleString('en-IN')} (${result.overdueCount} invoices)\n\n` +
-        result.invoices.slice(0, 15).map(inv => `- **${inv.invoice_number}** — ${inv.customer_name}: ₹${parseFloat(inv.total_amount).toLocaleString('en-IN')}${inv.isOverdue ? ` (${inv.overdueDays}d overdue)` : ''}`).join('\n') + '\n\n';
-
-    case 'get_outstanding_bills':
-      if (!result.bills?.length) return '✅ **No unpaid purchase bills.**\n\n';
-      return `🏦 **Payables to suppliers: ₹${result.totalPayables?.toLocaleString('en-IN')}** (${result.billCount} bills)\n\n` +
-        result.bills.slice(0, 15).map(b => `- **${b.bill_number}** — ${b.supplier_name}: ₹${parseFloat(b.total_amount).toLocaleString('en-IN')}`).join('\n') + '\n\n';
-
-    case 'get_gst_summary':
-      return `🧾 **GST Summary (FY ${result.financialYear})**\n\n` +
-        `Output GST: ₹${result.outputTotal?.toLocaleString('en-IN')} (CGST ${result.outputGST?.c} + SGST ${result.outputGST?.s} + IGST ${result.outputGST?.i})\n` +
-        `Input GST: ₹${result.inputTotal?.toLocaleString('en-IN')} (CGST ${result.inputGST?.c} + SGST ${result.inputGST?.s} + IGST ${result.inputGST?.i})\n` +
-        `**Net Payable: ₹${result.totalNetPayable?.toLocaleString('en-IN')}**\n\n`;
-
-    case 'get_top_customers':
-      if (!result.customers?.length) return 'No customers found.\n\n';
-      return `👑 **Top Customers by Business:**\n\n` +
-        result.customers.map((c, i) => `${i + 1}. **${c.name}** — ₹${parseFloat(c.totalBusiness).toLocaleString('en-IN')} (${c.city || ''}${c.gstin ? ', GSTIN ' + c.gstin : ''})`).join('\n') + '\n\n';
-
-    case 'search_customer':
-      if (!result.customers?.length) return 'No matching customers found.\n\n';
-      return `🔎 **Found ${result.count} customer(s):**\n\n` +
-        result.customers.map(c => `- **${c.name}**${c.trade_name ? ' (' + c.trade_name + ')' : ''} — 📞 ${c.phone || 'N/A'}, GSTIN: ${c.gstin || 'N/A'}, ${c.city || ''}`).join('\n') + '\n\n';
-
-    case 'get_inventory_status':
-      return `📦 **Inventory: ${result.totalItems} items** — ${result.lowStockCount} low-stock alerts\n\n` +
-        (result.lowStockItems?.length ? `⚠️ **Low stock:**\n` + result.lowStockItems.map(i => `- ${i.item_name}: ${i.quantity} ${i.unit || ''} left (min ${i.min_quantity})`).join('\n') + '\n\n' : '✅ No low-stock items.\n\n');
-
-    case 'get_recent_payments':
-      return `💵 **Payments received: ₹${result.totalReceived?.toLocaleString('en-IN')}**\n\n` +
-        (result.payments?.slice(0, 10).map(p => `- ${p.payment_date ? String(p.payment_date).slice(0, 10) : ''} — ${p.customer_name || 'N/A'}: ₹${parseFloat(p.amount).toLocaleString('en-IN')} (${p.payment_mode})`).join('\n') || '') + '\n\n';
-
-    case 'get_expense_summary':
-      return `💸 **Total Expenses: ₹${result.totalExpenses?.toLocaleString('en-IN')}**\n\n` +
-        (result.byCategory?.length ? `**By category:**\n` + result.byCategory.map(c => `- ${c.category || 'Other'}: ₹${parseFloat(c.t).toLocaleString('en-IN')}`).join('\n') + '\n\n' : '');
-
-    case 'get_knowledge':
-      if (!result.results?.length) return `No knowledge found for "${result.query}".\n\n`;
-      return `📚 **Knowledge (${result.found} result${result.found === 1 ? '' : 's'}):**\n\n` +
-        result.results.map(r => `### ${r.title} (${r.category})\n${r.content}`).join('\n\n') + '\n\n';
-
     default:
       return `📋 **${name}**: ${JSON.stringify(result).substring(0, 1000)}\n\n`;
   }
@@ -1943,141 +1588,6 @@ function formatToolResult(name, result) {
 // ═══════════════════════════════════════════════
 // QUICK ACTION ENDPOINTS
 // ═══════════════════════════════════════════════
-
-// ═══════════════════════════════════════════════════════════════
-// STREAMING LAYER — token-by-token responses (SSE)
-// Makes the assistant feel instant & alive instead of a 30s wait.
-// ═══════════════════════════════════════════════════════════════
-
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-function chunkText(text, size = 24) {
-  const out = [];
-  for (let i = 0; i < text.length; i += size) out.push(text.slice(i, i + size));
-  return out;
-}
-
-// OpenAI-compatible SSE streaming (Groq, DeepSeek, Cerebras, OpenRouter, OpenAI, Pollinations)
-async function streamOpenAICompatible({ url, apiKey, model, messages, tools, onDelta, timeoutMs = 120000 }) {
-  const headers = { 'Content-Type': 'application/json' };
-  if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const resp = await fetch(url, {
-      method: 'POST', headers,
-      body: JSON.stringify({ model, messages, tools, temperature: 0.7, max_tokens: 2048, stream: true }),
-      signal: controller.signal
-    });
-    if (!resp.ok || !resp.body) { clearTimeout(timer); return false; }
-    const reader = resp.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '', got = false;
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-      for (const line of lines) {
-        const t = line.trim();
-        if (!t.startsWith('data:')) continue;
-        const payload = t.slice(5).trim();
-        if (!payload || payload === '[DONE]') continue;
-        try {
-          const json = JSON.parse(payload);
-          const delta = json.choices?.[0]?.delta?.content;
-          if (delta) { got = true; onDelta(delta); }
-        } catch (e) { /* skip malformed chunk */ }
-      }
-    }
-    clearTimeout(timer);
-    return got;
-  } catch (e) {
-    clearTimeout(timer);
-    return false;
-  }
-}
-
-// Gemini SSE streaming (non-OpenAI format)
-async function streamGemini({ apiKey, model, messages, onDelta, timeoutMs = 120000 }) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
-  const contents = [];
-  for (const msg of messages) {
-    if (msg.role === 'user') contents.push({ role: 'user', parts: [{ text: msg.content }] });
-    else if (msg.role === 'assistant' || msg.role === 'model') contents.push({ role: 'model', parts: [{ text: msg.content }] });
-  }
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents,
-        systemInstruction: { parts: [{ text: systemPromptFor(messages) }] },
-        generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
-      }),
-      signal: controller.signal
-    });
-    if (!resp.ok || !resp.body) { clearTimeout(timer); return false; }
-    const reader = resp.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '', got = false;
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-      for (const line of lines) {
-        const t = line.trim();
-        if (!t.startsWith('data:')) continue;
-        const payload = t.slice(5).trim();
-        if (!payload) continue;
-        try {
-          const json = JSON.parse(payload);
-          const text = json.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('');
-          if (text) { got = true; onDelta(text); }
-        } catch (e) { /* skip */ }
-      }
-    }
-    clearTimeout(timer);
-    return got;
-  } catch (e) {
-    clearTimeout(timer);
-    return false;
-  }
-}
-
-// Try providers in priority order and stream the FIRST one that works.
-async function streamFinalAnswer(messages, onDelta) {
-  const geminiKey = process.env.GEMINI_API_KEY;
-  const groqKey = process.env.GROQ_API_KEY;
-  const deepseekKey = process.env.DEEPSEEK_API_KEY;
-  const cerebrasKey = process.env.CEREBRAS_API_KEY;
-  const openrouterKey = process.env.OPENROUTER_API_KEY;
-  const openaiKey = process.env.OPENAI_API_KEY;
-
-  const oaiTools = TOOL_DEFINITIONS.map(td => ({
-    type: 'function',
-    function: { name: td.name, description: td.description, parameters: td.parameters || { type: 'object', properties: {} } }
-  }));
-  const oaiMessages = [
-    { role: 'system', content: systemPromptFor(messages) },
-    ...messages.filter(m => m.role === 'user' || m.role === 'assistant' || m.role === 'model')
-      .map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content }))
-  ];
-
-  if (groqKey && await streamOpenAICompatible({ url: 'https://api.groq.com/openai/v1/chat/completions', apiKey: groqKey, model: 'llama-3.3-70b-versatile', messages: oaiMessages, tools: oaiTools, onDelta })) return 'Groq Llama 3.3 70B';
-  if (geminiKey && await streamGemini({ apiKey: geminiKey, model: 'gemini-2.5-flash', messages, onDelta })) return 'Gemini 2.5 Flash';
-  if (deepseekKey && await streamOpenAICompatible({ url: 'https://api.deepseek.com/v1/chat/completions', apiKey: deepseekKey, model: 'deepseek-chat', messages: oaiMessages, tools: oaiTools, onDelta })) return 'DeepSeek V3';
-  if (cerebrasKey && await streamOpenAICompatible({ url: 'https://api.cerebras.ai/v1/chat/completions', apiKey: cerebrasKey, model: 'llama-3.3-70b', messages: oaiMessages, tools: oaiTools, onDelta })) return 'Cerebras';
-  if (openrouterKey && await streamOpenAICompatible({ url: 'https://openrouter.ai/api/v1/chat/completions', apiKey: openrouterKey, model: 'google/gemini-2.5-flash-preview-05-20', messages: oaiMessages, tools: oaiTools, onDelta })) return 'OpenRouter';
-  if (openaiKey && await streamOpenAICompatible({ url: 'https://api.openai.com/v1/chat/completions', apiKey: openaiKey, model: 'gpt-4o', messages: oaiMessages, tools: oaiTools, onDelta })) return 'OpenAI GPT-4o';
-  if (await streamOpenAICompatible({ url: 'https://text.pollinations.ai/openai', apiKey: null, model: 'openai', messages: oaiMessages, tools: oaiTools, onDelta })) return 'Pollinations AI (Free)';
-  return null;
-}
 
 // ── Call a single specific provider by name ──
 async function callSingleProvider(providerName, messages, toolDefs) {
@@ -2334,159 +1844,9 @@ router.get('/status', auth, async (req, res) => {
     aiEnabled: true, // ALWAYS true — Pollinations is free and needs no key!
     providers: active,
     primaryProvider: primary,
-    toolsAvailable: 30,
+    toolsAvailable: 22,
     note: 'AI is always enabled! Pollinations AI works for free without any API key. Add your own keys for higher rate limits.'
   });
-});
-
-// ═══════════════════════════════════════════════════════════════
-// STREAMING CHAT — token-by-token SSE responses.
-// Events: { delta } { tool } { done } { error }
-// ═══════════════════════════════════════════════════════════════
-router.post('/stream', auth, adminOnly, async (req, res) => {
-  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-cache, no-transform');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
-  res.flushHeaders();
-  const send = (event, data) => { try { res.write(`data: ${JSON.stringify(data)}\n\n`); } catch (e) {} };
-
-  const orgId = req.user.organization_id;
-  const userId = req.user.id;
-  const rawMessage = String(req.body.message || '').trim();
-  const providedHistory = Array.isArray(req.body.messages) ? req.body.messages : [];
-
-  if (!rawMessage) { send('error', { msg: 'Empty message' }); return res.end(); }
-
-  try {
-    // ── 1) INSTANT BUSINESS ANSWERS (live data, never fails) ──
-    const biz = businessIntent(rawMessage.toLowerCase());
-    if (biz) {
-      const result = await executeTool(biz.tool.name, biz.tool.args, orgId);
-      send('tool', { name: biz.tool.name, args: biz.tool.args, result });
-      const full = biz.text + '\n\n' + formatToolResult(biz.tool.name, result);
-      for (const chunk of chunkText(full, 22)) { send('delta', { text: chunk }); await sleep(6); }
-      send('done', { provider: 'instant (live data)' });
-      return res.end();
-    }
-
-    // ── 2) Build history (provided first, else rule of thumb) ──
-    const history = providedHistory
-      .filter(m => m.role === 'user' || m.role === 'assistant')
-      .map(m => ({ role: m.role === 'user' ? 'user' : 'model', content: m.content }));
-    const working = [...history, { role: 'user', content: rawMessage }];
-
-    // ── 3) TOOL RESOLUTION LOOP (non-streaming; emit tool events live) ──
-    let finalResponse = '';
-    let usedProvider = 'unknown';
-    let current = [...working];
-    let maxIter = 6;
-    while (maxIter-- > 0) {
-      const ai = await callAI(current, TOOL_DEFINITIONS);
-      if (!ai) break;
-      usedProvider = ai.provider || usedProvider;
-      if (ai.toolCalls?.length) {
-        for (const tc of ai.toolCalls) {
-          const result = await executeTool(tc.name, tc.args, orgId);
-          send('tool', { name: tc.name, args: tc.args, result });
-          current.push({ role: 'tool_call', name: tc.name, args: tc.args });
-          current.push({ role: 'tool_result', name: tc.name, result });
-        }
-        if (ai.text) finalResponse = ai.text;
-        continue;
-      }
-      finalResponse = ai.text || finalResponse;
-      break;
-    }
-
-    // ── 4) STREAM the final answer ──
-    if (finalResponse) {
-      // Tool loop already produced the answer — stream it in chunks
-      for (const chunk of chunkText(finalResponse, 22)) { send('delta', { text: chunk }); await sleep(6); }
-    } else {
-      const provider = await streamFinalAnswer(working, delta => send('delta', { text: delta }));
-      if (provider) usedProvider = provider;
-    }
-
-    // ── 5) If everything failed, rule-based fallback ──
-    if (!finalResponse && usedProvider === 'unknown') {
-      const ruleResult = ruleBasedResponse(rawMessage, orgId);
-      if (ruleResult.toolCalls?.length) {
-        const toolResults = [];
-        for (const tc of ruleResult.toolCalls) {
-          const result = await executeTool(tc.name, tc.args, orgId);
-          send('tool', { name: tc.name, args: tc.args, result });
-          toolResults.push({ name: tc.name, args: tc.args, result });
-        }
-        const formatted = toolResults.map(tr => formatToolResult(tr.name, tr.result)).join('');
-        const full = ruleResult.text + '\n\n' + formatted;
-        for (const chunk of chunkText(full, 22)) { send('delta', { text: chunk }); await sleep(6); }
-        usedProvider = 'fallback';
-      } else {
-        for (const chunk of chunkText(ruleResult.text, 22)) { send('delta', { text: chunk }); await sleep(6); }
-        usedProvider = 'fallback';
-      }
-    }
-
-    send('done', { provider: usedProvider });
-    return res.end();
-  } catch (e) {
-    console.error('Stream error:', e.message);
-    send('error', { msg: 'AI stream error: ' + e.message });
-    return res.end();
-  }
-});
-
-// ═══════════════════════════════════════════════════════════════
-// PROACTIVE INSIGHTS — real findings from the live database,
-// shown when the assistant opens. Makes it feel genuinely smart.
-// ═══════════════════════════════════════════════════════════════
-router.get('/insights', auth, async (req, res) => {
-  try {
-    const db = getDb();
-    const orgId = req.user.organization_id;
-    const insights = [];
-    const now = new Date();
-    const year = now.getMonth() < 3 ? now.getFullYear() - 1 : now.getFullYear();
-    const fyStart = `${year}-04-01`, fyEnd = `${year + 1}-03-31`;
-
-    // Unpaid invoices (receivables)
-    const unpaid = await db('invoices').where({ organization_id: orgId }).whereIn('payment_status', ['Unpaid', 'Partial']).count('id as c').sum('total_amount as t').first();
-    if (parseInt(unpaid.c || 0) > 0) {
-      insights.push({ type: 'money', icon: '💰', title: `${unpaid.c} unpaid invoice${unpaid.c == 1 ? '' : 's'}`, detail: `₹${parseFloat(unpaid.t || 0).toLocaleString('en-IN')} waiting to be collected`, question: 'Who owes me money?' });
-    }
-
-    // Low stock
-    const low = await db('inventory').where({ organization_id: orgId }).whereRaw('quantity <= min_quantity').count('id as c').first();
-    if (parseInt(low.c || 0) > 0) {
-      insights.push({ type: 'stock', icon: '📦', title: `${low.c} item${low.c == 1 ? '' : 's'} low on stock`, detail: 'Below minimum quantity', question: 'Am I low on stock?' });
-    }
-
-    // GST payable this FY
-    const outT = await db('invoices').where({ organization_id: orgId }).whereBetween('invoice_date', [fyStart, fyEnd]).sum('cgst_amount as c').sum('sgst_amount as s').sum('igst_amount as i').first();
-    const inT = await db('purchase_bills').where({ organization_id: orgId }).whereBetween('bill_date', [fyStart, fyEnd]).sum('cgst_amount as c').sum('sgst_amount as s').sum('igst_amount as i').first();
-    const outG = parseFloat(outT.c || 0) + parseFloat(outT.s || 0) + parseFloat(outT.i || 0);
-    const inG = parseFloat(inT.c || 0) + parseFloat(inT.s || 0) + parseFloat(inT.i || 0);
-    if (outG > inG) {
-      insights.push({ type: 'gst', icon: '🧾', title: `GST payable ₹${(outG - inG).toLocaleString('en-IN')}`, detail: `FY ${year}-${String(year + 1).slice(2)} (output − input)`, question: 'How much GST do I owe?' });
-    }
-
-    // Unpaid supplier bills (payables)
-    const bills = await db('purchase_bills').where({ organization_id: orgId }).whereIn('payment_status', ['Unpaid', 'Partial']).sum('total_amount as t').first();
-    if (parseFloat(bills.t || 0) > 0) {
-      insights.push({ type: 'bills', icon: '🏦', title: `₹${parseFloat(bills.t).toLocaleString('en-IN')} owed to suppliers`, detail: 'Unpaid purchase bills', question: 'What do I owe suppliers?' });
-    }
-
-    // Revenue this FY
-    const rev = await db('invoices').where({ organization_id: orgId }).whereBetween('invoice_date', [fyStart, fyEnd]).sum('total_amount as t').first();
-    if (parseFloat(rev.t || 0) > 0) {
-      insights.push({ type: 'revenue', icon: '📈', title: `Revenue ₹${parseFloat(rev.t).toLocaleString('en-IN')} this FY`, detail: `FY ${year}-${String(year + 1).slice(2)}`, question: 'How is my business doing?' });
-    }
-
-    res.json({ success: true, insights });
-  } catch (e) {
-    res.json({ success: false, insights: [], msg: e.message });
-  }
 });
 
 module.exports = router;
