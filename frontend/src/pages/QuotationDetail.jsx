@@ -154,7 +154,7 @@ function ProLayout({ quotation, items, boldOn, customerSize, detailSize, qNum, g
 
         {/* Company stamp + signature — sits just above the footer, right-aligned */}
         <div style={{ textAlign: 'right', padding: '0 14mm 3mm 0', flexShrink: 0 }}>
-          <img src="/letterhead/glob-stamp-sign.png" alt="" style={{ width: '42mm', opacity: 0.92 }} />
+          <img src="/letterhead/glob-stamp%26sign.png" alt="" style={{ width: '42mm', opacity: 0.92 }} />
         </div>
       </div>
 
