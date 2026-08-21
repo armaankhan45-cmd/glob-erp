@@ -549,7 +549,16 @@ function generateQuotationHTML(quotation, items, org, customerName, additionalIn
           </table>
         </div>
       </div>
-      <div class="sign-space"></div>
+      <div class="sign-space" style="display:flex;justify-content:flex-end;align-items:flex-end;padding:0 10mm 6mm">
+        <div style="text-align:center">
+          <div style="font-size:9pt;color:#444;margin-bottom:3px">For ${(org.name || '').toUpperCase()}</div>
+          <div style="width:95px;height:50px;position:relative;margin:0 auto">
+            ${org.stamp_url ? `<img src="${org.stamp_url}" style="position:absolute;max-width:95px;max-height:50px;object-fit:contain;opacity:0.85">` : ''}
+            ${org.signature_url ? `<img src="${org.signature_url}" style="position:relative;z-index:1;max-height:32px;max-width:60px;object-fit:contain;margin-top:6px">` : ''}
+          </div>
+          <div style="border-top:1px solid #000;padding-top:3px;margin-top:4px;font-size:8.5pt;font-weight:bold">Authorized Signatory</div>
+        </div>
+      </div>
     </div>
   </body></html>`;
 }
