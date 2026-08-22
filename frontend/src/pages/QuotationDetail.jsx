@@ -371,10 +371,18 @@ export default function QuotationDetail() {
           ))}
         </div>
 
-        <button onClick={toggleBold} className={`px-3 py-2 rounded-xl font-medium text-sm transition-all ${boldOn ? 'btn-primary' : 'btn-secondary'}`}>Bold {boldOn ? 'ON' : 'OFF'}</button>
         <button onClick={handlePrint} className="btn-secondary flex items-center gap-2 btn-shine"><Printer size={16} /> Print</button>
         {/* FIX: real .pdf download (single A4, includes stamp/signature) */}
         <button onClick={handleDownloadPDF} className="btn-secondary flex items-center gap-2 btn-shine"><Download size={16} /> PDF</button>
+
+        <button
+          onClick={toggleBold}
+          title="Bold item descriptions in the printed quotation"
+          className={`flex items-center gap-2 px-3 py-2 rounded-xl font-medium text-sm transition-all btn-shine ${boldOn ? 'btn-primary' : 'btn-secondary'}`}
+        >
+          <Bold size={16} />
+          Bold {boldOn ? 'ON' : 'OFF'}
+        </button>
 
         <div className="relative">
           <button onClick={() => setShareOpen(!shareOpen)} className="btn-secondary flex items-center gap-2 btn-shine"><Share2 size={16} /> Share</button>
