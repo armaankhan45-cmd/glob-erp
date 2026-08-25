@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../api/client'
-import { ArrowLeft, Printer, Edit, Trash2, Repeat, Share2, MessageCircle, Mail, Download, LayoutTemplate } from 'lucide-react'
-import { numberToWordsCaps } from '../utils'
+import { ArrowLeft, Printer, Edit, Trash2, Repeat, Share2, MessageCircle, Mail, Download, LayoutTemplate, Bold } from 'lucide-react'
+import { numberToWordsCaps, downloadPdf, printElement } from '../utils'
 
 function fmt(n) {
   return new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0)
@@ -28,6 +28,14 @@ function ClassicLayout({ quotation, items, org, boldOn, customerSize, detailSize
       background: 'white', color: '#000'
     }}>
       {letterheadMm > 0 && <div style={{ height: letterheadMm + 'mm', flexShrink: 0 }}></div>}
+      {/* FIX: Classic layout never rendered the quotation date at all. Added
+          it here in the same plain Arial style used on the Pro layout
+          (independent of the customer's chosen quotation font, so it never
+          renders in a decorative/script face). */}
+      <div style={{ margin: '0 10mm', textAlign: 'right', fontFamily: 'Arial, sans-serif', fontSize: '11pt', letterSpacing: '0.2px' }}>
+        <span style={{ fontWeight: 700 }}>Date: </span>
+        <span style={{ fontWeight: 400 }}>{fmtDate(quotation.quotation_date)}</span>
+      </div>
       <div style={{ margin: '0 10mm', textAlign: 'center', padding: '8px 0 6px', fontSize: '18pt', fontWeight: 'bold', letterSpacing: '1px' }}>
         QUOTATION <u>No</u> :- {qNum}
       </div>
@@ -62,7 +70,8 @@ function ClassicLayout({ quotation, items, org, boldOn, customerSize, detailSize
         <div style={{ padding: '0 4px 6px', flexShrink: 0 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10.5pt' }}><tbody>
             {gstRate > 0 && <tr><td style={{ border: '1.5px solid #000', padding: '5px 8px', textAlign: 'left', fontWeight: '700', color: '#000' }}>GST: {gstRate}%</td><td style={{ border: '1.5px solid #000', padding: '5px 8px', textAlign: 'right', fontWeight: 'bold', color: '#000' }}>₹{fmt(totalGST)}</td></tr>}
-            <tr style={{ background: '#f5f5f5' }}><td colSpan={2} style={{ border: '1.5px solid #000', padding: '6px 8px', fontSize: '11pt', fontWeight: 'bold', color: '#000' }}>Total : {amountWords} ONLY</td></tr>
+            {/* FIX: amountWords already ends in "ONLY" (see numberToWordsCaps) — appending it again produced "...ONLY ONLY" */}
+            <tr style={{ background: '#f5f5f5' }}><td colSpan={2} style={{ border: '1.5px solid #000', padding: '6px 8px', fontSize: '11pt', fontWeight: 'bold', color: '#000' }}>Total : {amountWords}</td></tr>
             <tr style={{ background: '#e8e8e8' }}><td style={{ border: '1.5px solid #000', padding: '7px 8px', textAlign: 'left', fontSize: '13pt', fontWeight: 'bold', color: '#000' }}>Total Amount</td><td style={{ border: '1.5px solid #000', padding: '7px 8px', textAlign: 'right', fontSize: '13pt', fontWeight: 'bold', color: '#000' }}>₹{fmt(totalAmount)}</td></tr>
           </tbody></table>
         </div>
@@ -76,160 +85,81 @@ function ClassicLayout({ quotation, items, org, boldOn, customerSize, detailSize
    PRO LAYOUT — With letterhead image header, stamp, signature
    Matches the company's printed letterhead format
    ═══════════════════════════════════════════════════════════════ */
-function ProLayout({ quotation, items, org, boldOn, customerSize, detailSize, qNum, gstRate, totalGST, subtotal, totalAmount, amountWords, selectedFont, selectedFontSize, letterheadMm, footerMm }) {
-  const NAVY = '#1a2744'
-  const bdr = '1px solid #bbb'
-
-  const companyName = (org?.name || 'GLOB FABRICATION AND ENTERPRISES').toUpperCase()
-  const hasLetterhead = !!org?.logo_url
-
+function ProLayout({ quotation, items, boldOn, customerSize, detailSize, qNum, gstRate, totalGST, totalAmount, amountWords }) {
+  const bdr = '1.5px solid #000'
   return (
-    <div className="bg-white shadow-lg mx-auto print-area" style={{
-      fontFamily: selectedFont,
-      fontSize: selectedFontSize,
-      width: '210mm', minHeight: '297mm',
-      background: 'white', color: '#000',
-      WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact',
-      display: 'flex', flexDirection: 'column'
-    }}>
-      {/* Top accent stripe */}
-      <div style={{ height: 4, background: NAVY }}></div>
-      {/* Letterhead top spacer */}
-      {letterheadMm > 0 && <div style={{ height: letterheadMm + 'mm', flexShrink: 0 }}></div>}
+    <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily: 'Arial, sans-serif', width: '210mm', minHeight: '297mm', background: '#fff', color: '#000', display: 'flex', flexDirection: 'column' }}>
+      {/* Real scanned letterhead — logo, GLOB wordmark, tagline, GSTIN, mobile numbers */}
+      <img src="/letterhead/glob-header.png" alt="" style={{ width: '100%', display: 'block' }} />
 
-      {hasLetterhead ? (
-        <div style={{ padding: '10px 14px 8px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: `2px solid ${NAVY}` }}>
-          <div style={{ width: 70, height: 70, flexShrink: 0, borderRadius: 4, overflow: 'hidden', border: `2px solid ${NAVY}`, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <img src={org.logo_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} alt="Logo" />
-          </div>
-          <div style={{ flex: 1, textAlign: 'center' }}>
-            <div style={{ fontSize: '17pt', fontWeight: 900, color: '#1a1a2e', letterSpacing: 2, textTransform: 'uppercase', lineHeight: 1.2 }}>{companyName}</div>
-            <div style={{ fontSize: '9pt', color: '#333', marginTop: 3, fontWeight: 600, lineHeight: 1.5 }}>
-              {[org?.address, org?.city, org?.state, org?.pincode].filter(Boolean).join(', ')}
-            </div>
-            <div style={{ fontSize: '9pt', color: '#333', fontWeight: 600 }}>
-              {org?.phone ? `Ph: ${org.phone}` : ''}{org?.email ? `  |  ${org.email}` : ''}
-            </div>
-            {org?.gstin && (
-              <span style={{ display: 'inline-block', background: NAVY, color: '#fff', padding: '1px 10px', borderRadius: 3, fontSize: '8.5pt', fontWeight: 700, marginTop: 3, letterSpacing: 0.5 }}>GSTIN: {org.gstin}</span>
-            )}
-          </div>
-          <div style={{ width: 70, flexShrink: 0 }}></div>
-        </div>
-      ) : (
-        <div style={{ padding: '12px 14px 8px', textAlign: 'center', borderBottom: `2px solid ${NAVY}` }}>
-          <div style={{ fontSize: '18pt', fontWeight: 900, color: '#1a1a2e', letterSpacing: 2.5, textTransform: 'uppercase' }}>{companyName}</div>
-          <div style={{ fontSize: '9pt', color: '#333', marginTop: 2, fontWeight: 600 }}>{[org?.address, org?.city, org?.state, org?.pincode].filter(Boolean).join(', ')}</div>
-          <div style={{ fontSize: '9pt', color: '#333', fontWeight: 600 }}>{org?.phone ? `Ph: ${org.phone}` : ''}{org?.email ? `  |  ${org.email}` : ''}</div>
-          {org?.gstin && <span style={{ display: 'inline-block', background: NAVY, color: '#fff', padding: '1px 10px', borderRadius: 3, fontSize: '8.5pt', fontWeight: 700, marginTop: 3 }}>GSTIN: {org.gstin}</span>}
-        </div>
-      )}
-
-      {/* Thin accent line under header */}
-      <div style={{ height: 2, background: `linear-gradient(90deg, ${NAVY}, #06b6d4, ${NAVY})` }}></div>
-
-      {/* QUOTATION TITLE BAR */}
-      <div style={{ display: 'flex', background: '#f5f7fa', borderBottom: `1.5px solid ${NAVY}`, padding: '6px 14px', alignItems: 'center' }}>
-        <div style={{ flex: 1 }}>
-          <span style={{ fontSize: '14pt', fontWeight: 900, color: NAVY, letterSpacing: 3 }}>QUOTATION</span>
-        </div>
-        <div style={{ textAlign: 'right', fontSize: '9pt', fontWeight: 700, color: '#666' }}>
-          <div>No: <span style={{ color: NAVY, fontSize: '11pt' }}>{qNum}</span></div>
-          {quotation.quotation_date && <div>Date: {fmtDate(quotation.quotation_date)}</div>}
-        </div>
+      {/* FIX: bumped size/weight and used a plain label+value split (both
+          Arial, no italics) — the old 10pt/600 line read as thin and cramped
+          next to the bold letterhead above it. */}
+      <div style={{ textAlign: 'right', padding: '4px 10mm 0', fontSize: '11pt', letterSpacing: '0.2px' }}>
+        <span style={{ fontWeight: 700 }}>Date: </span>
+        <span style={{ fontWeight: 400 }}>{fmtDate(quotation.quotation_date)}</span>
       </div>
 
-      {/* CUSTOMER INFO BAR */}
-      <div style={{ display: 'flex', border: `1.5px solid ${NAVY}`, borderTop: 'none' }}>
-        <div style={{ flex: 1, padding: '8px 14px', borderRight: `1px solid #ccc` }}>
-          <div style={{ fontSize: '8pt', textTransform: 'uppercase', letterSpacing: 1, color: '#666', fontWeight: 700, marginBottom: 2 }}>Quotation To</div>
-          <div style={{ fontSize: `${customerSize}pt`, fontWeight: 800, color: '#1a1a2e', textTransform: 'uppercase', lineHeight: 1.2 }}>{(quotation.customer_name || '').toUpperCase()}</div>
-          {quotation.additional_info && <div style={{ fontSize: `${detailSize}pt`, color: '#000', fontWeight: 800, marginTop: 2 }}>{quotation.additional_info}</div>}
-        </div>
-        <div style={{ width: '200px', padding: '8px 14px', fontSize: '9pt', color: '#666', fontWeight: 600 }}>
-          {quotation.customer_gstin && <div><span style={{ color: '#666' }}>GSTIN:</span> {quotation.customer_gstin}</div>}
-          {quotation.customer_state && <div><span style={{ color: '#666' }}>State:</span> {quotation.customer_state}</div>}
-        </div>
+      <div style={{ textAlign: 'center', padding: '10px 0 8px', fontSize: '17pt', fontWeight: 700, letterSpacing: 0.5 }}>
+        QUOTATION <u>No</u> :- {qNum}
       </div>
 
-      {/* ITEMS TABLE */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10pt', border: `1.5px solid ${NAVY}`, borderTop: 'none' }}>
-        <colgroup><col style={{ width: '5%' }} /><col style={{ width: '53%' }} /><col style={{ width: '7%' }} /><col style={{ width: '7%' }} /><col style={{ width: '14%' }} /><col style={{ width: '14%' }} /></colgroup>
-        <thead><tr style={{ background: '#d5dae0' }}>
-          <th style={{ padding: '7px 5px', border: bdr, fontWeight: 800, fontSize: '9pt', color: '#1a1a2e', textAlign: 'center' }}>#</th>
-          <th style={{ padding: '7px 5px', border: bdr, fontWeight: 800, fontSize: '9pt', color: '#1a1a2e', textAlign: 'left' }}>DESCRIPTION</th>
-          <th style={{ padding: '7px 5px', border: bdr, fontWeight: 800, fontSize: '9pt', color: '#1a1a2e', textAlign: 'center' }}>QTY</th>
-          <th style={{ padding: '7px 5px', border: bdr, fontWeight: 800, fontSize: '9pt', color: '#1a1a2e', textAlign: 'center' }}>UNIT</th>
-          <th style={{ padding: '7px 5px', border: bdr, fontWeight: 800, fontSize: '9pt', color: '#1a1a2e', textAlign: 'right' }}>RATE</th>
-          <th style={{ padding: '7px 5px', border: bdr, fontWeight: 800, fontSize: '9pt', color: '#1a1a2e', textAlign: 'right' }}>AMOUNT</th>
-        </tr></thead>
-        <tbody>
-          {items.map((item, i) => {
-            const rowBg = i % 2 === 1 ? '#fafbfc' : '#fff'
-            return (
-              <tr key={i} style={{ background: rowBg }}>
-                <td style={{ padding: '6px 5px', border: bdr, textAlign: 'center', fontWeight: 700, color: '#000' }}>{i + 1}</td>
-                <td style={{ padding: '6px 5px', border: bdr, fontWeight: boldOn ? 700 : 500, color: '#000', lineHeight: 1.3, whiteSpace: 'pre-line' }}>{item.description || ''}</td>
-                <td style={{ padding: '6px 5px', border: bdr, textAlign: 'center', fontWeight: 700, color: '#000' }}>{item.quantity}</td>
-                <td style={{ padding: '6px 5px', border: bdr, textAlign: 'center', fontWeight: 600, color: '#000' }}>{item.unit || 'NOS'}</td>
-                <td style={{ padding: '6px 5px', border: bdr, textAlign: 'right', fontWeight: 700, color: '#000' }}>₹{fmt(item.rate)}</td>
-                <td style={{ padding: '6px 5px', border: bdr, textAlign: 'right', fontWeight: 700, color: '#000' }}>₹{fmt(item.amount)}</td>
+      {/* Boxed body — grows to fill page, leaves room for stamp + footer.
+          FIX: stamp used to be position:absolute + bottom:2mm measured from
+          this whole flex area, so on quotations with a tall items table
+          (little leftover white space) the stamp's height (~42mm) reached
+          up past the 20mm box margin and overlapped the totals row.
+          Using a flex spacer instead means the stamp always sits directly
+          below the box in normal flow — it can float down to hug the
+          footer when there's room, but it will never overlap the table. */}
+      <div style={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ border: '2px solid #000', margin: '0 10mm 6mm', overflow: 'hidden' }}>
+          <div style={{ padding: '8px 10px 6px', borderBottom: bdr }}>
+            <div style={{ fontSize: `${customerSize}pt`, fontWeight: 800, textTransform: 'uppercase', lineHeight: 1.2 }}>{(quotation.customer_name || '').toUpperCase()}</div>
+            {quotation.additional_info && <div style={{ fontSize: `${detailSize}pt`, fontWeight: 700, marginTop: 3 }}>{quotation.additional_info}</div>}
+          </div>
+
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10pt', tableLayout: 'fixed' }}>
+            <colgroup><col style={{ width: '6%' }} /><col style={{ width: '56%' }} /><col style={{ width: '10%' }} /><col style={{ width: '14%' }} /><col style={{ width: '14%' }} /></colgroup>
+            <thead><tr>
+              <th style={{ border: bdr, padding: '6px 4px' }}>SR<br />No.</th>
+              <th style={{ border: bdr, padding: '6px 4px', textAlign: 'left' }}>Particulars</th>
+              <th style={{ border: bdr, padding: '6px 4px' }}>Qty</th>
+              <th style={{ border: bdr, padding: '6px 4px' }}>Rate</th>
+              <th style={{ border: bdr, padding: '6px 4px' }}>Amount</th>
+            </tr></thead>
+            <tbody>{items.map((it, i) => (
+              <tr key={i}>
+                <td style={{ border: bdr, padding: '5px 4px', textAlign: 'center', fontWeight: 700 }}>{i + 1}</td>
+                <td style={{ border: bdr, padding: '5px 4px', fontWeight: boldOn ? 700 : 400, whiteSpace: 'pre-line', lineHeight: 1.3 }}>{it.description || ''}</td>
+                <td style={{ border: bdr, padding: '5px 4px', textAlign: 'center', fontWeight: 700 }}>{it.quantity}{it.unit && it.unit !== 'Unit' ? ` ${it.unit}` : ''}</td>
+                <td style={{ border: bdr, padding: '5px 4px', textAlign: 'right', fontWeight: 700 }}>₹{fmt(it.rate)}</td>
+                <td style={{ border: bdr, padding: '5px 4px', textAlign: 'right', fontWeight: 700 }}>₹{fmt(it.amount)}</td>
               </tr>
-            )
-          })}
-        </tbody>
-      </table>
+            ))}</tbody>
+          </table>
 
-      {/* TOTALS — Subtotal REMOVED */}
-      <div style={{ border: `1.5px solid ${NAVY}`, borderTop: 'none' }}>
-        {gstRate > 0 && (
-          <div style={{ display: 'flex', borderBottom: bdr }}>
-            <div style={{ flex: 1, padding: '5px 12px', fontSize: '10pt', fontWeight: 700, color: '#1565c0' }}>GST: {gstRate}%</div>
-            <div style={{ width: '180px', padding: '5px 12px', textAlign: 'right', fontSize: '10pt', fontWeight: 700, color: '#1565c0' }}>₹{fmt(totalGST)}</div>
-          </div>
-        )}
-        <div style={{ background: '#f5f7fa', padding: '6px 12px', borderBottom: bdr }}>
-          <div style={{ fontSize: '10pt', fontWeight: 700, color: '#000' }}>Amount in Words: <span style={{ fontWeight: 800 }}>{amountWords} ONLY</span></div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10.5pt' }}><tbody>
+            <tr><td style={{ border: bdr, padding: '5px 8px', fontWeight: 700 }}>GST: {gstRate}%</td><td style={{ border: bdr, padding: '5px 8px', textAlign: 'right', fontWeight: 700 }}>₹{fmt(totalGST)}</td></tr>
+            {/* FIX: amountWords already ends in "ONLY" — appending it again produced "...ONLY ONLY" */}
+            <tr><td colSpan={2} style={{ border: bdr, padding: '6px 8px', fontSize: '11pt', fontWeight: 700 }}>Total : {amountWords}</td></tr>
+            <tr><td style={{ border: bdr, padding: '7px 8px', fontSize: '13pt', fontWeight: 800 }}>Total Amount</td><td style={{ border: bdr, padding: '7px 8px', textAlign: 'right', fontSize: '13pt', fontWeight: 800 }}>₹{fmt(totalAmount)}</td></tr>
+          </tbody></table>
         </div>
-        <div style={{ display: 'flex', background: '#d5dae0' }}>
-          <div style={{ flex: 1, padding: '8px 12px', fontSize: '13pt', fontWeight: 900, color: '#1a1a2e' }}>Total Amount</div>
-          <div style={{ width: '180px', padding: '8px 12px', textAlign: 'right', fontSize: '13pt', fontWeight: 900, color: '#1a1a2e' }}>₹{fmt(totalAmount)}</div>
+
+        {/* Spacer — absorbs leftover page height so the stamp hugs the
+            footer on short quotations, and shrinks to 0 on long ones so
+            the stamp is simply pushed down in normal flow (never overlaps). */}
+        <div style={{ flex: 1, minHeight: 0 }}></div>
+
+        {/* Company stamp + signature — sits just above the footer, right-aligned */}
+        <div style={{ textAlign: 'right', padding: '0 14mm 3mm 0', flexShrink: 0 }}>
+          <img src="/letterhead/glob-stamp%26sign.png" alt="" style={{ width: '28mm', opacity: 0.92 }} />
         </div>
       </div>
 
-      {/* TERMS + BANK + SIGNATURE ROW */}
-      <div style={{ display: 'flex', border: `1.5px solid ${NAVY}`, borderTop: 'none' }}>
-        <div style={{ flex: 1, padding: '8px 14px', borderRight: `1px solid #ccc`, fontSize: '9pt', lineHeight: 1.6, color: '#333', fontWeight: 600 }}>
-          <div style={{ fontSize: '9pt', fontWeight: 800, color: '#1a1a2e', marginBottom: 3, textTransform: 'uppercase', letterSpacing: 0.5 }}>Terms & Conditions</div>
-          <ol style={{ paddingLeft: 14, margin: 0 }}>
-            <li>Goods once sold cannot be taken back or exchanged.</li>
-            <li>Interest @18% p.a. on uncleared bills beyond 15 days.</li>
-            <li>Subject to Maharashtra jurisdiction only.</li>
-          </ol>
-        </div>
-        {(org?.bank_name || org?.account_no) && (
-          <div style={{ width: '200px', padding: '8px 14px', borderRight: `1px solid #ccc`, fontSize: '8.5pt', lineHeight: 1.6, color: '#333', fontWeight: 600 }}>
-            <div style={{ fontWeight: 800, color: '#1a1a2e', marginBottom: 3, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '9pt' }}>Bank Details</div>
-            {org?.bank_name && <div>Bank: <b>{org.bank_name}</b></div>}
-            {org?.account_no && <div>A/C: <b>{org.account_no}</b></div>}
-            {org?.ifsc && <div>IFSC: <b>{org.ifsc}</b></div>}
-          </div>
-        )}
-        <div style={{ flex: 1, padding: '8px 14px', textAlign: 'right', fontSize: '9pt', color: '#000' }}>
-          <div style={{ fontSize: '9pt', fontWeight: 800, color: '#1a1a2e', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>For {companyName}</div>
-          <div style={{ width: 130, height: 65, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', position: 'relative', marginTop: 4 }}>
-            {org?.stamp_url && <img src={org.stamp_url} style={{ position: 'absolute', width: 130, height: 65, objectFit: 'contain', opacity: 0.85 }} alt="Stamp" />}
-            {org?.signature_url && <img src={org.signature_url} style={{ position: 'relative', zIndex: 1, maxHeight: 32, maxWidth: 70, objectFit: 'contain' }} alt="Sign" />}
-          </div>
-          <div style={{ borderTop: '1.5px solid #000', display: 'inline-block', paddingTop: 3, fontWeight: 800, fontSize: '9pt', marginTop: 4, color: '#000' }}>Authorised Signatory</div>
-        </div>
-      </div>
-
-      {footerMm > 0 && <div style={{ height: footerMm + 'mm', flexShrink: 0 }}></div>}
-      <div style={{ height: 3, background: `linear-gradient(90deg, ${NAVY}, #06b6d4, ${NAVY})` }}></div>
-      <div style={{ textAlign: 'center', padding: '6px 0', fontSize: '8pt', color: '#999', fontWeight: 600, letterSpacing: 0.5 }}>
-        This is a computer generated quotation. • E & O.E
-      </div>
+      {/* Real scanned footer — address + email bar */}
+      <img src="/letterhead/glob-footer.png" alt="" style={{ width: '100%', display: 'block' }} />
     </div>
   )
 }
@@ -301,26 +231,37 @@ export default function QuotationDetail() {
     return `https://fonts.googleapis.com/css2?family=${family}:wght@300;400;500;600;700;800;900&display=swap`
   }
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
+    // WYSIWYG single-page print — stamp/signature included, fits one A4.
     const printEl = document.querySelector('.print-area')
     if (!printEl) { window.print(); return }
-    const html = printEl.innerHTML
-    const title = quotation?.quotation_number || 'Quotation'
-    const fontUrl = getGoogleFontUrl(selectedFont)
-    const fontLinkTag = fontUrl ? `<link href="${fontUrl}" rel="stylesheet">` : ''
-    const w = window.open('', '_blank', 'width=900,height=600')
-    w.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
-${fontLinkTag}
-<style>
-@page { margin: 12mm 10mm; size: A4; }
-* { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-body { margin:0; padding:0; background:white; color:#000; font-family:'${selectedFont}', 'Segoe UI', Arial, sans-serif; }
-img { max-width:100%; }
-table { border-collapse:collapse; width:100%; }
-th,td { padding:6px 10px; }
-</style></head><body>${html}</body></html>`)
-    w.document.close()
-    setTimeout(() => { w.print(); w.close() }, 500)
+    await printElement(printEl, quotation?.quotation_number || 'Quotation')
+  }
+
+  const handleDownloadPDF = async () => {
+    const printEl = document.querySelector('.print-area')
+    const safeName = (quotation?.quotation_number || `quotation-${id}`).replace(/\//g, '-')
+    try {
+      if (printEl) {
+        await downloadPdf(printEl, `Quotation_${safeName}.pdf`)
+        return
+      }
+    } catch (e) {
+      console.warn('Client-side PDF failed, falling back to server:', e.message)
+    }
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(`${api.defaults.baseURL}/quotations/${id}/pdf?token=${token}`, { headers: { Authorization: `Bearer ${token}` } })
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Quotation_${safeName}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (e) { alert('PDF download failed: ' + e.message) }
   }
   const handleDelete = async () => {
     if (!confirm('Delete this quotation?')) return
@@ -430,10 +371,9 @@ th,td { padding:6px 10px; }
           ))}
         </div>
 
-        <button onClick={toggleBold} className={`px-3 py-2 rounded-xl font-medium text-sm transition-all ${boldOn ? 'btn-primary' : 'btn-secondary'}`}>Bold {boldOn ? 'ON' : 'OFF'}</button>
         <button onClick={handlePrint} className="btn-secondary flex items-center gap-2 btn-shine"><Printer size={16} /> Print</button>
-        {/* FIX #1: PDF download uses fetch + blob — no token in URL */}
-        <button onClick={async () => { try { const token = localStorage.getItem('token'); const response = await fetch(`${api.defaults.baseURL}/quotations/${id}/pdf?token=${token}`, { headers: { Authorization: `Bearer ${token}` } }); const blob = await response.blob(); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `Quotation_${(quotation.quotation_number || '').replace(/\//g, '-')}.html`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); } catch (e) { alert('PDF download failed: ' + e.message) } }} className="btn-secondary flex items-center gap-2 btn-shine"><Download size={16} /> PDF</button>
+        {/* FIX: real .pdf download (single A4, includes stamp/signature) */}
+        <button onClick={handleDownloadPDF} className="btn-secondary flex items-center gap-2 btn-shine"><Download size={16} /> PDF</button>
 
         <div className="relative">
           <button onClick={() => setShareOpen(!shareOpen)} className="btn-secondary flex items-center gap-2 btn-shine"><Share2 size={16} /> Share</button>
@@ -448,6 +388,16 @@ th,td { padding:6px 10px; }
         <button onClick={() => navigate(`/app/quotations/${id}/edit`)} className="btn-primary flex items-center gap-2 btn-shine"><Edit size={16} /> Edit</button>
         <button onClick={handleConvert} className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-medium hover:bg-emerald-700 flex items-center gap-2 btn-shine transition-colors"><Repeat size={16} /> Convert to Invoice</button>
         <button onClick={handleDelete} className="btn-danger flex items-center gap-2"><Trash2 size={16} /> Delete</button>
+
+        {/* Rightmost — the actual end of the toolbar, not just "after Print" */}
+        <button
+          onClick={toggleBold}
+          title="Bold item descriptions in the printed quotation"
+          className={`flex items-center gap-2 px-3 py-2 rounded-xl font-medium text-sm transition-all btn-shine ${boldOn ? 'btn-primary' : 'btn-secondary'}`}
+        >
+          <Bold size={16} />
+          Bold {boldOn ? 'ON' : 'OFF'}
+        </button>
       </div>
 
       {/* ═══ LAYOUT SWITCH ═══ */}
