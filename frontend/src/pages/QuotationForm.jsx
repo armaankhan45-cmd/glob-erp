@@ -35,6 +35,8 @@ export default function QuotationForm() {
     igst_rate: 18,
     quotation_number: '',
   })
+  const [customerId, setCustomerId] = useState(null)
+  const [selectedCust, setSelectedCust] = useState(null)
   const [customers, setCustomers] = useState([])
   const [items, setItems] = useState([{ description: '', quantity: 1, unit: 'Unit', rate: 0, igst_rate: 18, amount: 0 }])
   const [calculated, setCalculated] = useState({ subtotal: 0, igst_amount: 0, total_amount: 0 })
@@ -57,6 +59,15 @@ export default function QuotationForm() {
       setCustomers(r.data.customers || [])
     } catch (e) {}
   }
+
+  useEffect(() => {
+    if (customerId && customers.length) {
+      const c = customers.find(x => String(x.id) === String(customerId))
+      setSelectedCust(c || null)
+    } else {
+      setSelectedCust(null)
+    }
+  }, [customerId, customers])
 
   const fetchNextQuotationNo = async () => {
     try {
@@ -105,6 +116,7 @@ export default function QuotationForm() {
         igst_rate: parseFloat(res.data.items?.[0]?.igst_rate || 18),
         quotation_number: qNum,
       }))
+      setCustomerId(q.customer_id || null)
       setItems(res.data.items?.length > 0 ? res.data.items : [{ description: '', quantity: 1, unit: 'Unit', rate: 0, igst_rate: 18, amount: 0 }])
       setCalculated({ subtotal: parseFloat(q.subtotal) || 0, igst_amount: parseFloat(q.igst_amount) || 0, total_amount: parseFloat(q.total_amount) || 0 })
     } catch {
@@ -142,7 +154,7 @@ export default function QuotationForm() {
     setSaving(true)
     try {
       const data = {
-        customer_id: null,
+        customer_id: customerId || null,
         quotation_date: new Date().toISOString().split('T')[0],
         validity_date: null,
         quotation_number: form.quotation_number,
@@ -181,6 +193,7 @@ export default function QuotationForm() {
   const selectQuotationCustomer = (id) => {
     const c = customers.find(x => String(x.id) === String(id))
     if (c) {
+      setCustomerId(c.id)
       setForm({ ...form, customer_name: c.name })
     }
   }
@@ -245,7 +258,15 @@ export default function QuotationForm() {
               {customers.map(c => <option key={c.id} value={c.id}>{c.name} {c.gstin ? `(${c.gstin})` : ''}</option>)}
             </select>
           )}
-          <input value={form.customer_name} onChange={e => setForm({...form, customer_name: e.target.value})} className="input-field" placeholder="Type customer name or select above" />
+          <input value={form.customer_name} onChange={e => { setForm({...form, customer_name: e.target.value}); setCustomerId(null); }} className="input-field" placeholder="Type customer name or select above" />
+          {selectedCust && (
+            <div className="mt-2 p-2.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white/55 space-y-0.5">
+              {selectedCust.gstin && <div>GSTIN: <span className="text-white/75 font-medium">{selectedCust.gstin}</span></div>}
+              {selectedCust.address && <div>Address: <span className="text-white/75">{selectedCust.address}</span></div>}
+              <div>State: {selectedCust.state_code || '27'} — {selectedCust.state || 'Maharashtra'}</div>
+              {selectedCust.phone && <div>Phone: <span className="text-white/75">{selectedCust.phone}</span></div>}
+            </div>
+          )}
         </div>
 
         {/* GSTIN Auto-fetch */}
