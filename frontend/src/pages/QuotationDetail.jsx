@@ -217,9 +217,9 @@ function ProLayout({ quotation, items, org, boldOn, customerSize, detailSize, qN
         )}
         <div style={{ flex: 1, padding: '8px 14px', textAlign: 'right', fontSize: '9pt', color: '#000' }}>
           <div style={{ fontSize: '9pt', fontWeight: 800, color: '#1a1a2e', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>For {companyName}</div>
-          <div style={{ width: 110, height: 55, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', position: 'relative', marginTop: 4 }}>
-            {org?.stamp_url && <img src={org.stamp_url} style={{ position: 'absolute', top: 0, left: 0, width: 110, height: 55, objectFit: 'contain', opacity: 0.85 }} alt="Stamp" />}
-            {org?.signature_url && <img src={org.signature_url} style={{ position: 'relative', zIndex: 1, maxHeight: 30, maxWidth: 65, objectFit: 'contain' }} alt="Sign" />}
+          <div style={{ width: 130, height: 65, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', position: 'relative', marginTop: 4 }}>
+            {org?.stamp_url && <img src={org.stamp_url} style={{ position: 'absolute', width: 130, height: 65, objectFit: 'contain', opacity: 0.85 }} alt="Stamp" />}
+            {org?.signature_url && <img src={org.signature_url} style={{ position: 'relative', zIndex: 1, maxHeight: 32, maxWidth: 70, objectFit: 'contain' }} alt="Sign" />}
           </div>
           <div style={{ borderTop: '1.5px solid #000', display: 'inline-block', paddingTop: 3, fontWeight: 800, fontSize: '9pt', marginTop: 4, color: '#000' }}>Authorised Signatory</div>
         </div>
