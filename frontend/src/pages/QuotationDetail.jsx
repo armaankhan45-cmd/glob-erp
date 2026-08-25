@@ -375,15 +375,6 @@ export default function QuotationDetail() {
         {/* FIX: real .pdf download (single A4, includes stamp/signature) */}
         <button onClick={handleDownloadPDF} className="btn-secondary flex items-center gap-2 btn-shine"><Download size={16} /> PDF</button>
 
-        <button
-          onClick={toggleBold}
-          title="Bold item descriptions in the printed quotation"
-          className={`flex items-center gap-2 px-3 py-2 rounded-xl font-medium text-sm transition-all btn-shine ${boldOn ? 'btn-primary' : 'btn-secondary'}`}
-        >
-          <Bold size={16} />
-          Bold {boldOn ? 'ON' : 'OFF'}
-        </button>
-
         <div className="relative">
           <button onClick={() => setShareOpen(!shareOpen)} className="btn-secondary flex items-center gap-2 btn-shine"><Share2 size={16} /> Share</button>
           {shareOpen && (
@@ -397,6 +388,16 @@ export default function QuotationDetail() {
         <button onClick={() => navigate(`/app/quotations/${id}/edit`)} className="btn-primary flex items-center gap-2 btn-shine"><Edit size={16} /> Edit</button>
         <button onClick={handleConvert} className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-medium hover:bg-emerald-700 flex items-center gap-2 btn-shine transition-colors"><Repeat size={16} /> Convert to Invoice</button>
         <button onClick={handleDelete} className="btn-danger flex items-center gap-2"><Trash2 size={16} /> Delete</button>
+
+        {/* Rightmost — the actual end of the toolbar, not just "after Print" */}
+        <button
+          onClick={toggleBold}
+          title="Bold item descriptions in the printed quotation"
+          className={`flex items-center gap-2 px-3 py-2 rounded-xl font-medium text-sm transition-all btn-shine ${boldOn ? 'btn-primary' : 'btn-secondary'}`}
+        >
+          <Bold size={16} />
+          Bold {boldOn ? 'ON' : 'OFF'}
+        </button>
       </div>
 
       {/* ═══ LAYOUT SWITCH ═══ */}
