@@ -152,9 +152,15 @@ function ProLayout({ quotation, items, boldOn, customerSize, detailSize, qNum, g
             the stamp is simply pushed down in normal flow (never overlaps). */}
         <div style={{ flex: 1, minHeight: 0 }}></div>
 
-        {/* Company stamp + signature — sits just above the footer, right-aligned */}
-        <div style={{ textAlign: 'right', padding: '0 14mm 3mm 0', flexShrink: 0 }}>
-          <img src="/letterhead/glob-stamp%26sign.png" alt="" style={{ width: '28mm', opacity: 0.92 }} />
+        {/* Company stamp + signature — sits just above the footer.
+            NOTE: alignment is done via margin-left:auto on the image itself,
+            not text-align on the container. The PDF export was rendering
+            this flush-left despite text-align:'right' here — a known
+            html2canvas-style quirk with text-align inside a flex column.
+            display:block + marginLeft:auto is honored much more reliably
+            by canvas/PDF capture. */}
+        <div style={{ padding: '0 14mm 3mm 0', flexShrink: 0 }}>
+          <img src="/letterhead/glob-stamp%26sign.png" alt="" style={{ width: '28mm', opacity: 0.92, display: 'block', marginLeft: 'auto', marginRight: 0 }} />
         </div>
       </div>
 
