@@ -178,6 +178,31 @@
 .light-mode [style*="borderLeft: 1px solid rgba(255,255,255"] { border-left-color: var(--border) !important; }
 .light-mode [style*="borderRight: 1px solid rgba(255,255,255"] { border-right-color: var(--border) !important; }
 
+/* ═══════════════════════════════════════════════════
+   THEME FIX: unmapped plain Tailwind gray/white utilities
+   A number of pages (LandingPage, AIAssistant, ForgotPassword,
+   PurchaseEdit, Reports, PurchaseNew, PurchaseDetail,
+   ErrorBoundary, InvoiceDetail, QuotationDetail, ExportData, etc.)
+   use plain Tailwind classes like bg-gray-50, text-gray-500, or a
+   bare bg-white that were never wired into the theme system at
+   all — in EITHER mode. So instead of following the day/night
+   toggle, they always render as a fixed light block, which is
+   what looks like "day/night not working" on those specific pages.
+   These rules aren't nested under .light-mode / .dark-mode because
+   the CSS variables themselves already update per-mode (set on
+   :root in ThemeContext) — one rule set here tracks whichever
+   mode is currently active automatically.
+   ═══════════════════════════════════════════════════ */
+.bg-gray-50, .bg-gray-100 { background: var(--bg-card) !important; }
+.bg-gray-200 { background: var(--bg-glass-strong) !important; }
+.bg-gray-800, .bg-gray-900 { background: var(--bg-input) !important; }
+.text-gray-300, .text-gray-400 { color: var(--text-muted) !important; }
+.text-gray-500, .text-gray-600 { color: var(--text-secondary) !important; }
+.text-gray-700, .text-gray-800, .text-gray-900 { color: var(--text-primary) !important; }
+.border-gray-100, .border-gray-200 { border-color: var(--border) !important; }
+.border-gray-300 { border-color: var(--border-strong) !important; }
+.bg-white:not(.card):not([class*="bg-white/"]) { background: var(--bg-card) !important; }
+
 /* ─── LIGHT MODE: Fix scrollbar ─── */
 .light-mode ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); }
 .light-mode ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.25); }
