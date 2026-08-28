@@ -32,7 +32,7 @@ function ClassicLayout({ quotation, items, org, boldOn, customerSize, detailSize
           it here in the same plain Arial style used on the Pro layout
           (independent of the customer's chosen quotation font, so it never
           renders in a decorative/script face). */}
-      <div style={{ margin: '0 10mm', textAlign: 'right', fontFamily: 'Arial, sans-serif', fontSize: '11pt', letterSpacing: '0.2px' }}>
+      <div style={{ margin: '0 10mm', textAlign: 'right', fontFamily: "'Calibri','Segoe UI','Helvetica Neue',Arial,sans-serif", fontSize: '11pt', letterSpacing: '0.2px' }}>
         <span style={{ fontWeight: 700 }}>Date: </span>
         <span style={{ fontWeight: 400 }}>{fmtDate(quotation.quotation_date)}</span>
       </div>
@@ -88,7 +88,7 @@ function ClassicLayout({ quotation, items, org, boldOn, customerSize, detailSize
 function ProLayout({ quotation, items, boldOn, customerSize, detailSize, qNum, gstRate, totalGST, totalAmount, amountWords }) {
   const bdr = '1.5px solid #000'
   return (
-    <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily: 'Arial, sans-serif', width: '210mm', minHeight: '297mm', background: '#fff', color: '#000', display: 'flex', flexDirection: 'column' }}>
+    <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily: "'Calibri','Segoe UI','Helvetica Neue',Arial,sans-serif", width: '210mm', minHeight: '297mm', background: '#fff', color: '#000', display: 'flex', flexDirection: 'column' }}>
       {/* Real scanned letterhead — logo, GLOB wordmark, tagline, GSTIN, mobile numbers */}
       <img src="/letterhead/glob-header.png" alt="" style={{ width: '100%', display: 'block' }} />
 
