@@ -1,8 +1,31 @@
 const express = require('express');
 const router = express.Router();
-const ExcelJS = require('exceljs');
 const getDb = require('../config/db');
 const { auth } = require('../middleware/auth');
+
+// Self-healing require: if exceljs isn't installed yet on this server
+// (e.g. package.json was updated but `npm install` hasn't run there),
+// don't hard-crash every export — fall back to a dependency-free CSV
+// so the feature keeps working. The moment exceljs actually becomes
+// available (after npm install + restart), this automatically upgrades
+// back to the full styled Excel version with no code change needed.
+let ExcelJS = null;
+try {
+  ExcelJS = require('exceljs');
+} catch (e) {
+  console.warn('[export] exceljs not installed — falling back to plain CSV exports until `npm install` is run on this server.');
+}
+
+function toCsv(columns, rows) {
+  const esc = (v) => {
+    if (v === null || v === undefined) return '';
+    const s = String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const header = columns.map(c => esc(c.header)).join(',');
+  const body = rows.map(r => columns.map(c => esc(r[c.key])).join(',')).join('\n');
+  return header + '\n' + body;
+}
 
 // ─── Shared styling ───────────────────────────────────────────────
 const BRAND = 'FF1E3A5F';      // header fill
@@ -245,6 +268,14 @@ router.get('/:key.xlsx', auth, async (req, res) => {
   try {
     const db = getDb();
     const rows = await exp.fetch(db, req.user.organization_id);
+
+    if (!ExcelJS) {
+      // Fallback path — no styling, but never a hard failure
+      const csv = toCsv(exp.columns, rows);
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="${req.params.key}.csv"`);
+      return res.send(csv);
+    }
 
     const wb = new ExcelJS.Workbook();
     wb.creator = 'Glob ERP';
