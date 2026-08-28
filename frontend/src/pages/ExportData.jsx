@@ -52,8 +52,8 @@ export default function ExportData() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Export Excel</h1>
-        <p className="text-gray-500">Preview your data right here, or download a fully formatted .xlsx</p>
+        <h1 className="text-2xl font-bold text-white/90">Export Excel</h1>
+        <p className="text-white/40">Preview your data right here, or download a fully formatted .xlsx</p>
       </div>
 
       <div className="space-y-4">
@@ -64,10 +64,10 @@ export default function ExportData() {
             <div key={exp.key} className="card overflow-hidden">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <FileSpreadsheet size={24} className="text-green-600" />
+                  <FileSpreadsheet size={24} className="text-[var(--accent)]" />
                   <div>
-                    <p className="font-medium">{exp.label}</p>
-                    <p className="text-sm text-gray-500">{exp.key}.xlsx</p>
+                    <p className="font-medium text-white/90">{exp.label}</p>
+                    <p className="text-sm text-white/35">{exp.key}.xlsx</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -83,57 +83,59 @@ export default function ExportData() {
               </div>
 
               {isOpen && (
-                <div className="mt-4 border-t border-gray-200 pt-4">
-                  {loadingPreview === exp.key && <p className="text-sm text-gray-500">Loading preview…</p>}
+                <div className="mt-4 border-t border-white/10 pt-4">
+                  {loadingPreview === exp.key && <p className="text-sm text-white/35">Loading preview…</p>}
 
-                  {data?.error && <p className="text-sm text-red-500">Couldn't load preview.</p>}
+                  {data?.error && <p className="text-sm text-red-400">Couldn't load preview.</p>}
 
                   {data && !data.error && (
                     <>
                       {/* Insights row */}
                       <div className="grid grid-cols-3 gap-3 mb-4">
-                        <div className="rounded-lg bg-gray-50 p-3 flex items-center gap-2">
-                          <Hash size={16} className="text-gray-400" />
+                        <div className="rounded-lg bg-white/5 border border-white/10 p-3 flex items-center gap-2">
+                          <Hash size={16} className="text-white/30" />
                           <div>
-                            <p className="text-xs text-gray-500">Records</p>
-                            <p className="font-semibold">{data.insights.count}</p>
+                            <p className="text-xs text-white/35">Records</p>
+                            <p className="font-semibold text-white/90">{data.insights.count}</p>
                           </div>
                         </div>
                         {data.insights.total != null && (
-                          <div className="rounded-lg bg-gray-50 p-3 flex items-center gap-2">
-                            <IndianRupee size={16} className="text-gray-400" />
+                          <div className="rounded-lg bg-white/5 border border-white/10 p-3 flex items-center gap-2">
+                            <IndianRupee size={16} className="text-white/30" />
                             <div>
-                              <p className="text-xs text-gray-500">Total Value</p>
-                              <p className="font-semibold">{money(data.insights.total)}</p>
+                              <p className="text-xs text-white/35">Total Value</p>
+                              <p className="font-semibold text-white/90">{money(data.insights.total)}</p>
                             </div>
                           </div>
                         )}
                         {data.insights.average != null && (
-                          <div className="rounded-lg bg-gray-50 p-3 flex items-center gap-2">
-                            <TrendingUp size={16} className="text-gray-400" />
+                          <div className="rounded-lg bg-white/5 border border-white/10 p-3 flex items-center gap-2">
+                            <TrendingUp size={16} className="text-white/30" />
                             <div>
-                              <p className="text-xs text-gray-500">Average</p>
-                              <p className="font-semibold">{money(data.insights.average)}</p>
+                              <p className="text-xs text-white/35">Average</p>
+                              <p className="font-semibold text-white/90">{money(data.insights.average)}</p>
                             </div>
                           </div>
                         )}
                       </div>
 
-                      {/* Table preview (first 50 rows, styled to resemble the exported sheet) */}
-                      <div className="overflow-x-auto rounded-lg border border-gray-200">
-                        <table className="min-w-full text-sm">
+                      {/* Table preview (first 50 rows) — reuses the app's existing
+                          theme-aware .nebula-table class, so it follows dark/light
+                          mode automatically instead of a hardcoded background */}
+                      <div className="overflow-x-auto rounded-lg border border-white/10">
+                        <table className="nebula-table min-w-full text-sm text-white/70">
                           <thead>
-                            <tr className="bg-[#1E3A5F] text-white">
+                            <tr>
                               {data.columns.map(col => (
-                                <th key={col.key} className="px-3 py-2 text-left font-semibold whitespace-nowrap">{col.header}</th>
+                                <th key={col.key} className="whitespace-nowrap text-white/40">{col.header}</th>
                               ))}
                             </tr>
                           </thead>
                           <tbody>
                             {data.rows.slice(0, 50).map((row, i) => (
-                              <tr key={i} className={i % 2 === 0 ? 'bg-[#F4F7FB]' : 'bg-white'}>
+                              <tr key={i}>
                                 {data.columns.map(col => (
-                                  <td key={col.key} className="px-3 py-1.5 whitespace-nowrap border-t border-gray-100">
+                                  <td key={col.key} className="whitespace-nowrap">
                                     {col.key.match(/amount|subtotal|_gst_|cgst|sgst|igst/) && typeof row[col.key] === 'number'
                                       ? money(row[col.key])
                                       : (row[col.key] ?? '—')}
@@ -145,10 +147,10 @@ export default function ExportData() {
                         </table>
                       </div>
                       {data.rows.length > 50 && (
-                        <p className="text-xs text-gray-400 mt-2">Showing first 50 of {data.rows.length} rows — download the file for the full set.</p>
+                        <p className="text-xs text-white/30 mt-2">Showing first 50 of {data.rows.length} rows — download the file for the full set.</p>
                       )}
                       {data.rows.length === 0 && (
-                        <p className="text-sm text-gray-400 py-6 text-center">No {exp.label.toLowerCase()} yet.</p>
+                        <p className="text-sm text-white/30 py-6 text-center">No {exp.label.toLowerCase()} yet.</p>
                       )}
                     </>
                   )}
