@@ -78,7 +78,7 @@ export default function Sidebar({ isOpen, onClose }) {
     <>
       {isOpen && <div className="fixed inset-0 bg-black/60 z-40 lg:hidden backdrop-blur-sm" onClick={onClose} />}
       <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-[280px] flex flex-col transition-transform duration-400 ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
-        style={{ background: 'rgba(4,6,16,0.96)', backdropFilter: 'blur(40px)', borderRight: `1px solid rgba(${hexToRgb(accentColor)}, 0.08)`, transitionTimingFunction: 'cubic-bezier(0.16,1,0.3,1)' }}>
+        style={{ background: 'var(--bg-primary)', backdropFilter: 'blur(40px)', borderRight: `1px solid rgba(${hexToRgb(accentColor)}, 0.08)`, transitionTimingFunction: 'cubic-bezier(0.16,1,0.3,1)' }}>
 
         {/* Logo with spinning glow */}
         <div className="p-5 flex items-center gap-3" style={{ borderBottom: `1px solid rgba(${hexToRgb(accentColor)}, 0.08)` }}>
@@ -145,7 +145,7 @@ export default function Sidebar({ isOpen, onClose }) {
             </button>
             {showColors && (
               <div className="absolute bottom-full left-0 right-0 mb-2 rounded-xl p-2 space-y-1 z-50"
-                style={{ background: 'rgba(4,6,16,0.98)', border: `1px solid rgba(${hexToRgb(accentColor)}, 0.15)`, backdropFilter: 'blur(20px)', boxShadow: `0 0 30px rgba(${hexToRgb(accentColor)}, 0.08)`, animation: 'slideUp 0.2s cubic-bezier(0.16,1,0.3,1)' }}>
+                style={{ background: 'var(--bg-primary)', border: `1px solid rgba(${hexToRgb(accentColor)}, 0.15)`, backdropFilter: 'blur(20px)', boxShadow: `0 0 30px rgba(${hexToRgb(accentColor)}, 0.08)`, animation: 'slideUp 0.2s cubic-bezier(0.16,1,0.3,1)' }}>
                 {Object.entries(themes).map(([key, t]) => (
                   <button key={key} onClick={() => { setThemeKey(key); setShowColors(false) }}
                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200"
