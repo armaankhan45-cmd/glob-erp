@@ -54,34 +54,52 @@ api.interceptors.response.use(
       try { return await api.request(error.config) } catch (retryErr) { return Promise.reject(retryErr) }
     }
     // No response at all = likely the Render free-tier server was asleep or mid cold-start.
-    // A single 3s retry isn't enough — cold start takes up to ~30s — so back off and retry
-    // a few times before giving up, instead of surfacing a broken-looking failure.
-    if (!error.response && (error.config._retryCount || 0) < 3) {
+    // Don't retry here with long backoff — that's what made login feel frozen for minutes.
+    // The wake-up flow (api.wakeServer) uses raw fetch and handles cold start properly.
+    if (!error.response && !error.config._noRetry && (error.config._retryCount || 0) < 1) {
       error.config._retryCount = (error.config._retryCount || 0) + 1
-      const delay = [3000, 8000, 15000][error.config._retryCount - 1]
-      await new Promise(r => setTimeout(r, delay))
+      await new Promise(r => setTimeout(r, 2000))
       try { return await api.request(error.config) } catch (retryErr) { return Promise.reject(retryErr) }
     }
     return Promise.reject(error)
   }
 )
 
+// ═══════════════════════════════════════════════════════════════
+// RAW FETCH PING — deliberately NOT axios, so it bypasses the
+// response interceptor's retry backoff entirely. This is what makes
+// "Waking server…" fast and accurate instead of minutes-long.
+// ═══════════════════════════════════════════════════════════════
+function rawPing(timeoutMs) {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs)
+  return fetch(`${API_URL}/ping`, { method: 'GET', cache: 'no-store', signal: ctrl.signal })
+    .then(async (r) => {
+      clearTimeout(timer)
+      if (!r.ok) return false
+      try { const j = await r.json(); return !!(j && j.ok === true) } catch { return false }
+    })
+    .catch(() => { clearTimeout(timer); return false })
+}
+
+api.pingServer = (timeoutMs = 5000) => rawPing(timeoutMs)
+
 api.wakeServer = async function (onStatus) {
-  const ping = (timeout) => api.get('/ping', { timeout }).then(() => true).catch(() => false)
-  if (onStatus) onStatus('Checking server...')
-  if (await ping(3000)) { if (onStatus) onStatus('Server is awake'); return { awake: true } }
-  const attempts = [
-    { delay: 2000, timeout: 8000, label: 'Waking server…' },
-    { delay: 3000, timeout: 15000, label: 'Still waking…' },
-    { delay: 5000, timeout: 30000, label: 'Almost ready…' },
-    { delay: 8000, timeout: 45000, label: 'One more try…' },
-  ]
-  for (const attempt of attempts) {
-    if (onStatus) onStatus(attempt.label)
-    await new Promise(r => setTimeout(r, attempt.delay))
-    if (await ping(attempt.timeout)) { if (onStatus) onStatus('Server is awake!'); return { awake: true } }
+  if (onStatus) onStatus('Checking server…')
+  if (await rawPing(3500)) { if (onStatus) onStatus('Server is awake'); return { awake: true } }
+
+  // Server is asleep — Render free-tier cold start takes ~30–60s.
+  // Poll tightly (every 4s) so we catch it the instant it comes up.
+  const startedAt = Date.now()
+  const MAX_WAIT = 90000
+  for (;;) {
+    const elapsed = Math.round((Date.now() - startedAt) / 1000)
+    if (onStatus) onStatus(`Waking server… ${elapsed}s (free tier cold start)`)
+    if (elapsed >= MAX_WAIT) break
+    await new Promise(r => setTimeout(r, 4000))
+    if (await rawPing(4000)) { if (onStatus) onStatus('Server is awake!'); return { awake: true } }
   }
-  if (onStatus) onStatus('Server may still be starting — try logging in')
+  if (onStatus) onStatus('Server is slow to start — please try again in a minute')
   return { awake: false }
 }
 
@@ -91,13 +109,11 @@ let keepAliveStarted = false
 api.startKeepAlive = () => {
   if (keepAliveStarted) return
   keepAliveStarted = true
-  const ping = () => api.get('/ping', { timeout: 8000 }).catch(() => {})
+  const ping = () => rawPing(8000)
   ping()
-  // Render's free tier sleeps after ~15 min idle. A 14-minute setInterval alone isn't reliable:
-  // browsers throttle/suspend timers in background tabs, so a long-backgrounded tab can miss
-  // several beats and the server falls asleep mid-session — which is what "stops working after
-  // ~30 min" actually is. Ping on a shorter interval AND immediately whenever the tab regains
-  // focus/visibility, so a gap never grows past the 15-minute sleep threshold.
+  // Render's free tier sleeps after ~15 min idle. Ping every 5 min AND
+  // immediately whenever the tab regains focus/visibility, so the gap
+  // never grows past the sleep threshold mid-session.
   keepAliveTimer = setInterval(ping, 5 * 60 * 1000)
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') ping() })
   window.addEventListener('focus', ping)
