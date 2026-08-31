@@ -99,53 +99,34 @@ function LoginPage() {
     if (!password.trim()) { setError('Please enter your password'); return }
     setLoading(true)
 
-    // ═══ SMART LOGIN WITH AUTO-WAKE ═══
-    const start = Date.now()
-    const result = await login(email, password)
-    const took = Date.now() - start
+    // ═══ WAKE FIRST, THEN LOGIN ═══
+    // Fast fetch-based wake check (returns in ~1-4s when the server is awake,
+    // ≤90s when the free-tier server is cold-starting). Firing the login
+    // request into a sleeping server is what used to hang for minutes — so we
+    // make sure it's awake BEFORE sending credentials.
+    setRetrying(true)
+    const wake = await api.wakeServer((msg) => setServerStatus(msg))
+    setRetrying(false)
+    if (wake.awake) setServerStatus('')
 
+    let result = await login(email, password)
     if (result.success) {
-      setLoading(false)
+      setServerStatus(''); setLoading(false)
       navigate('/app/dashboard')
       return
     }
 
-    // Login failed — if it took >5s, server was probably sleeping
-    if (took > 5000) {
-      setLoading(false)
-      setRetrying(true)
-      setError('')
-      setServerStatus('Server is waking up — this takes ~30s on free tier…')
-
-      const wakeResult = await api.wakeServer((msg) => setServerStatus(msg))
-
-      if (wakeResult.awake) {
-        setServerStatus('Server is awake! Logging in…')
-        const retry = await login(email, password)
-        setRetrying(false)
-        setServerStatus('')
-        if (retry.success) {
-          navigate('/app/dashboard')
-        } else {
-          setError(retry.msg || 'Invalid email or password')
-        }
-      } else {
-        setServerStatus('Trying to login…')
-        const retry = await login(email, password)
-        setRetrying(false)
-        setServerStatus('')
-        if (retry.success) {
-          navigate('/app/dashboard')
-        } else {
-          setError('Server is taking too long to start. Please wait 1–2 minutes and try again.')
-        }
-      }
-      return
+    // One fast retry — covers the rare case where the server came up
+    // mid-login but the database connection wasn't ready yet.
+    const wake2 = await api.wakeServer((msg) => setServerStatus(msg))
+    if (wake2.awake) {
+      setServerStatus('')
+      result = await login(email, password)
     }
 
-    // Login failed quickly — wrong credentials
-    setLoading(false)
-    setError(result.msg || 'Invalid email or password')
+    setServerStatus(''); setLoading(false)
+    if (result.success) navigate('/app/dashboard')
+    else setError(result.msg || 'Invalid email or password')
   }
 
   return (
