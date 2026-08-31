@@ -31,11 +31,12 @@ try {
 // ═══════════════════════════════════════════════════════════════
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: config.AUTH_RATE_LIMIT || 20,
+  max: config.AUTH_RATE_LIMIT || 60,
   standardHeaders: true,
   legacyHeaders: false,
+  skipSuccessfulRequests: true, // only FAILED login attempts count against the limit
   handler: (req, res) => {
-    res.status(429).json({ success: false, msg: 'Too many requests. Try again in 15 minutes.' });
+    res.status(429).json({ success: false, msg: 'Too many login attempts. Please wait a few minutes and try again.' });
   }
 });
 
@@ -49,21 +50,12 @@ const apiLimiter = rateLimit({
   }
 });
 
-app.use('/api/auth/login', authLimiter);
-app.use('/api/auth/register', authLimiter);
-app.use('/api/auth/forgot-password', authLimiter);
-app.use('/api/auth/verify-otp', authLimiter);
-app.use('/api/auth/reset-password', authLimiter);
-
 // ═══════════════════════════════════════════════════════════════
-// INSTANT PING — no DB, no auth, no rate limit
-// Used by frontend keep-alive + cold-start wake-up
+// CORS + SECURITY — registered BEFORE /api/ping so the ping route
+// also gets CORS headers. Otherwise the browser blocks reading the
+// ping response (CORS error) and the frontend's wake-up loop thinks
+// the server is asleep forever → "Waking server… 138s" stuck page.
 // ═══════════════════════════════════════════════════════════════
-app.get('/api/ping', (req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
-  res.json({ ok: true, ts: Date.now() });
-});
-
 const ALLOWED_ORIGINS = config.CORS_ORIGIN
   ? config.CORS_ORIGIN.split(',').map(o => o.trim())
   : ['https://glob-erp.pages.dev', 'https://glob-erp.vercel.app', 'http://localhost:5173'];
@@ -88,6 +80,22 @@ app.use(helmet({
 }));
 
 app.use(cors({ origin: ALLOWED_ORIGINS, credentials: true }));
+
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
+app.use('/api/auth/verify-otp', authLimiter);
+app.use('/api/auth/reset-password', authLimiter);
+
+// ═══════════════════════════════════════════════════════════════
+// INSTANT PING — no DB, no auth, no rate limit
+// Used by frontend keep-alive + cold-start wake-up
+// ═══════════════════════════════════════════════════════════════
+app.get('/api/ping', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ ok: true, ts: Date.now() });
+});
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
