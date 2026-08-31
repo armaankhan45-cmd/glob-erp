@@ -14,7 +14,7 @@ export default function TopBar() {
 
   return (
     <header className="h-14 flex items-center justify-between px-5"
-      style={{ background: 'rgba(12,16,32,0.7)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+      style={{ background: 'var(--bg-primary)', backdropFilter: 'blur(20px)', borderBottom: '1px solid var(--border)' }}>
       <div className="flex items-center gap-3">
         <div>
           <h2 className="text-sm font-bold tracking-tight text-white">
