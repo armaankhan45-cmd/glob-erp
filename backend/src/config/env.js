@@ -1,36 +1,111 @@
-try { require('dotenv').config(); } catch(e) { /* use system env vars */ }
+import { createContext, useContext, useState, useEffect } from 'react'
 
-const NODE_ENV = process.env.NODE_ENV || 'development';
+// ══════════════════════════════════════════════════════════
+// GLOB ERP — Theme System
+// Background stays NEUTRAL (does NOT change with theme)
+// Only accent color (buttons, links, highlights) changes
+// ══════════════════════════════════════════════════════════
 
-// FIX #3: Force a real JWT_SECRET in production — refuse to boot with weak/default secret
-const JWT_SECRET = process.env.JWT_SECRET;
-if (NODE_ENV === 'production') {
-  if (!JWT_SECRET || JWT_SECRET.length < 32) {
-    console.error('❌ FATAL: JWT_SECRET must be set and at least 32 characters in production.');
-    console.error('   Set it in your Render/Railway env vars and redeploy.');
-    process.exit(1);
-  }
+const THEMES = {
+  cyan:   { name: 'Cyan Nebula',   icon: '💎', color: '#22d3ee' },
+  blue:   { name: 'Blue Galaxy',   icon: '🌊', color: '#6ea8fe' },
+  purple: { name: 'Purple Haze',   icon: '🔮', color: '#c084fc' },
+  orange: { name: 'Orange Forge',  icon: '🔥', color: '#fb923c' },
+  green:  { name: 'Green Circuit', icon: '⚡', color: '#4ade80' },
+  gold:   { name: 'Gold Precision',icon: '✨', color: '#fbbf24' },
 }
-// In development, generate a random secret per boot (tokens don't persist across restarts)
-const FALLBACK_SECRET = require('crypto').randomBytes(48).toString('hex');
 
-module.exports = {
-  PORT: process.env.PORT || 5000,
-  NODE_ENV,
-  DATABASE_URL: process.env.DATABASE_URL,
-  JWT_SECRET: JWT_SECRET || FALLBACK_SECRET,
-  JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '24h',
-  CORS_ORIGIN: process.env.CORS_ORIGIN || 'http://localhost:5173',
-  SETUP_SECRET: process.env.SETUP_SECRET || '', // FIX #2: secret required to run /api/setup
-  SMTP: {
-    host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT) || 587,
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-    from: process.env.SMTP_FROM
-  },
-  UPLOAD_DIR: process.env.UPLOAD_DIR || './uploads',
-  MAX_FILE_SIZE: parseInt(process.env.MAX_FILE_SIZE) || 2097152,
-  AUTH_RATE_LIMIT: parseInt(process.env.AUTH_RATE_LIMIT) || 5,
-  API_RATE_LIMIT: parseInt(process.env.API_RATE_LIMIT) || 100
-};
+const ThemeContext = createContext()
+
+export function ThemeProvider({ children }) {
+  const [themeKey, setThemeKey] = useState(() => localStorage.getItem('glob-theme-key') || 'cyan')
+  const [mode, setMode] = useState(() => localStorage.getItem('glob-mode') || 'dark')
+
+  const toggleMode = () => {
+    const next = mode === 'dark' ? 'light' : 'dark'
+    setMode(next)
+    localStorage.setItem('glob-mode', next)
+  }
+
+  useEffect(() => { localStorage.setItem('glob-theme-key', themeKey) }, [themeKey])
+
+  useEffect(() => {
+    const accent = THEMES[themeKey]?.color || '#22d3ee'
+    const r = parseInt(accent.slice(1,3), 16)
+    const g = parseInt(accent.slice(3,5), 16)
+    const b = parseInt(accent.slice(5,7), 16)
+    const root = document.documentElement
+
+    // Accent vars — these change with theme
+    root.style.setProperty('--accent', accent)
+    root.style.setProperty('--accent-rgb', `${r},${g},${b}`)
+    root.style.setProperty('--accent-dark', `${accent}cc`)
+    root.style.setProperty('--accent-light', `${accent}44`)
+
+    // ═══ ALL CSS vars used across the entire app ═══
+    if (mode === 'light') {
+      root.style.setProperty('--bg-primary', '#ffffff')
+      root.style.setProperty('--bg-page', '#ffffff')
+      root.style.setProperty('--bg-card', '#ffffff')
+      root.style.setProperty('--bg-sidebar', '#ffffff')
+      root.style.setProperty('--bg-topbar', '#ffffff')
+      root.style.setProperty('--bg-input', '#ffffff')
+      root.style.setProperty('--bg-glass', '#ffffff')
+      root.style.setProperty('--bg-glass-md', '#ffffff')
+      root.style.setProperty('--bg-glass-strong', '#ffffff')
+      root.style.setProperty('--surface-glass', '#ffffff')
+      root.style.setProperty('--border', 'rgba(0,0,0,0.10)')
+      root.style.setProperty('--border-md', 'rgba(0,0,0,0.06)')
+      root.style.setProperty('--border-strong', 'rgba(0,0,0,0.14)')
+      root.style.setProperty('--border-input', 'rgba(0,0,0,0.12)')
+      root.style.setProperty('--border-glass-md', 'rgba(0,0,0,0.06)')
+      root.style.setProperty('--glass-border', 'rgba(0,0,0,0.10)')
+      root.style.setProperty('--text-primary', '#1a1a2e')
+      root.style.setProperty('--text', '#1a1a2e')
+      root.style.setProperty('--text-muted', 'rgba(26,26,46,0.40)')
+      root.style.setProperty('--text-secondary', 'rgba(26,26,46,0.60)')
+      root.style.setProperty('--text-bright', '#0f172a')
+      root.style.setProperty('--text-light', '#475569')
+      root.style.setProperty('--text-faint', 'rgba(26,26,46,0.30)')
+      root.style.setProperty('--navy', '#1a1a2e')
+      root.classList.add('light-mode')
+      root.classList.remove('dark-mode')
+    } else {
+      root.style.setProperty('--bg-primary', '#06080f')
+      root.style.setProperty('--bg-page', '#06080f')
+      root.style.setProperty('--bg-card', '#06080f')
+      root.style.setProperty('--bg-sidebar', '#06080f')
+      root.style.setProperty('--bg-topbar', '#06080f')
+      root.style.setProperty('--bg-input', '#06080f')
+      root.style.setProperty('--bg-glass', '#06080f')
+      root.style.setProperty('--bg-glass-md', '#06080f')
+      root.style.setProperty('--bg-glass-strong', '#06080f')
+      root.style.setProperty('--surface-glass', '#06080f')
+      root.style.setProperty('--border', 'rgba(255,255,255,0.08)')
+      root.style.setProperty('--border-md', 'rgba(255,255,255,0.05)')
+      root.style.setProperty('--border-strong', 'rgba(255,255,255,0.12)')
+      root.style.setProperty('--border-input', 'rgba(255,255,255,0.10)')
+      root.style.setProperty('--border-glass-md', 'rgba(255,255,255,0.05)')
+      root.style.setProperty('--glass-border', 'rgba(255,255,255,0.08)')
+      root.style.setProperty('--text-primary', '#e2e8f0')
+      root.style.setProperty('--text', '#e2e8f0')
+      root.style.setProperty('--text-muted', 'rgba(226,232,240,0.40)')
+      root.style.setProperty('--text-secondary', 'rgba(226,232,240,0.60)')
+      root.style.setProperty('--text-bright', '#f8fafc')
+      root.style.setProperty('--text-light', '#cbd5d1')
+      root.style.setProperty('--text-faint', 'rgba(226,232,240,0.30)')
+      root.style.setProperty('--navy', '#1e293b')
+      root.classList.add('dark-mode')
+      root.classList.remove('light-mode')
+    }
+  }, [themeKey, mode])
+
+  return (
+    <ThemeContext.Provider value={{ themeKey, setThemeKey, themes: THEMES, mode, toggleMode }}>
+      {children}
+    </ThemeContext.Provider>
+  )
+}
+
+export function useTheme() { return useContext(ThemeContext) }
+export { THEMES }
