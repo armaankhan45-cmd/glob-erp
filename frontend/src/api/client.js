@@ -73,12 +73,15 @@ api.interceptors.response.use(
 function rawPing(timeoutMs) {
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), timeoutMs)
-  return fetch(`${API_URL}/ping`, { method: 'GET', cache: 'no-store', signal: ctrl.signal })
-    .then(async (r) => {
-      clearTimeout(timer)
-      if (!r.ok) return false
-      try { const j = await r.json(); return !!(j && j.ok === true) } catch { return false }
-    })
+  // mode: 'no-cors' — the browser sends the request and RESOLVES as soon as
+  // the server responds, WITHOUT requiring an Access-Control-Allow-Origin
+  // header. (The backend's /api/ping route is registered before the CORS
+  // middleware, so its response has no CORS header — a normal fetch would be
+  // blocked by the browser and the page would think the server is asleep
+  // forever, stuck at "Waking server…".) We only need "did it respond?", so
+  // the unreadable "opaque" response is exactly what we want.
+  return fetch(`${API_URL}/ping`, { method: 'GET', cache: 'no-store', mode: 'no-cors', signal: ctrl.signal })
+    .then(() => { clearTimeout(timer); return true })
     .catch(() => { clearTimeout(timer); return false })
 }
 
@@ -89,15 +92,15 @@ api.wakeServer = async function (onStatus) {
   if (await rawPing(3500)) { if (onStatus) onStatus('Server is awake'); return { awake: true } }
 
   // Server is asleep — Render free-tier cold start takes ~30–60s.
-  // Poll tightly (every 4s) so we catch it the instant it comes up.
+  // Poll every 3s so we catch it the instant it comes up.
   const startedAt = Date.now()
-  const MAX_WAIT = 90000
+  const MAX_WAIT = 75000
   for (;;) {
     const elapsed = Math.round((Date.now() - startedAt) / 1000)
     if (onStatus) onStatus(`Waking server… ${elapsed}s (free tier cold start)`)
     if (elapsed >= MAX_WAIT) break
-    await new Promise(r => setTimeout(r, 4000))
-    if (await rawPing(4000)) { if (onStatus) onStatus('Server is awake!'); return { awake: true } }
+    await new Promise(r => setTimeout(r, 3000))
+    if (await rawPing(3000)) { if (onStatus) onStatus('Server is awake!'); return { awake: true } }
   }
   if (onStatus) onStatus('Server is slow to start — please try again in a minute')
   return { awake: false }
