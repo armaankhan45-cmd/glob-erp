@@ -38,6 +38,7 @@ export default function QuotationForm() {
   const [customerId, setCustomerId] = useState(null)
   const [selectedCust, setSelectedCust] = useState(null)
   const [customers, setCustomers] = useState([])
+  const [pastQuotationNames, setPastQuotationNames] = useState([])
   const [items, setItems] = useState([{ description: '', quantity: 1, unit: 'Unit', rate: 0, igst_rate: 18, amount: 0 }])
   const [calculated, setCalculated] = useState({ subtotal: 0, igst_amount: 0, total_amount: 0 })
   const [saving, setSaving] = useState(false)
@@ -51,6 +52,7 @@ export default function QuotationForm() {
     if (isEdit) loadQuotation()
     else { loadTemplate(); fetchNextQuotationNo(); }
     loadCustomers()
+    loadPastQuotationCustomers()
   }, [])
 
   const loadCustomers = async () => {
@@ -59,6 +61,37 @@ export default function QuotationForm() {
       setCustomers(r.data.customers || [])
     } catch (e) {}
   }
+
+  // Pulls every distinct customer name ever typed into a past quotation — including the
+  // many where no formal Customer record was ever saved, just a free-text name. Without
+  // this, those names are invisible to the picker even though they were used before.
+  const loadPastQuotationCustomers = async () => {
+    try {
+      const r = await api.get('/quotations')
+      const quotations = r.data.quotations || []
+      const seen = new Map() // normalized name -> display name (first-seen casing wins)
+      quotations.forEach(q => {
+        const name = (q.customer_name || '').trim()
+        if (!name) return
+        const key = name.toLowerCase()
+        if (!seen.has(key)) seen.set(key, name)
+      })
+      setPastQuotationNames(Array.from(seen.values()))
+    } catch (e) {}
+  }
+
+  // Formal customers (with id + GSTIN/address) merged with free-text names used in past
+  // quotations that never became a saved Customer record — deduped by name either way,
+  // so a repeated customer only ever shows up once in the picker.
+  const customerOptions = (() => {
+    const byName = new Map()
+    customers.forEach(c => byName.set(c.name.trim().toLowerCase(), { key: `c:${c.id}`, id: c.id, name: c.name, gstin: c.gstin }))
+    pastQuotationNames.forEach(name => {
+      const key = name.trim().toLowerCase()
+      if (!byName.has(key)) byName.set(key, { key: `n:${name}`, id: null, name, gstin: null })
+    })
+    return Array.from(byName.values()).sort((a, b) => a.name.localeCompare(b.name))
+  })()
 
   useEffect(() => {
     if (customerId && customers.length) {
@@ -190,12 +223,14 @@ export default function QuotationForm() {
     }
   }
 
-  const selectQuotationCustomer = (id) => {
-    const c = customers.find(x => String(x.id) === String(id))
-    if (c) {
-      setCustomerId(c.id)
-      setForm({ ...form, customer_name: c.name })
-    }
+  const selectQuotationCustomer = (optionKey) => {
+    if (!optionKey) return
+    const opt = customerOptions.find(o => o.key === optionKey)
+    if (!opt) return
+    // Formal customer (has a real id) → link customer_id, unlocks the GSTIN/address panel.
+    // Name-only entry from a past quotation → just fill the name, nothing to link to.
+    setCustomerId(opt.id || null)
+    setForm({ ...form, customer_name: opt.name })
   }
 
   const fetchGstinDetails = async () => {
@@ -252,10 +287,10 @@ export default function QuotationForm() {
         {/* Customer Name — Dropdown + Text */}
         <div>
           <label className="block text-sm font-semibold text-white/80 mb-1">Customer Name *</label>
-          {customers.length > 0 && (
+          {customerOptions.length > 0 && (
             <select onChange={e => selectQuotationCustomer(e.target.value)} className="input-field mb-2" value="">
-              <option value="">— Pick from Customer Database —</option>
-              {customers.map(c => <option key={c.id} value={c.id}>{c.name} {c.gstin ? `(${c.gstin})` : ''}</option>)}
+              <option value="">— Pick a previous customer ({customerOptions.length}) —</option>
+              {customerOptions.map(o => <option key={o.key} value={o.key}>{o.name} {o.gstin ? `(${o.gstin})` : ''}</option>)}
             </select>
           )}
           <input value={form.customer_name} onChange={e => { setForm({...form, customer_name: e.target.value}); setCustomerId(null); }} className="input-field" placeholder="Type customer name or select above" />
