@@ -14,7 +14,7 @@ export default function TopBar() {
 
   return (
     <header className="h-14 flex items-center justify-between px-5"
-      style={{ background: 'var(--bg-primary)', backdropFilter: 'blur(20px)', borderBottom: '1px solid var(--border)' }}>
+      style={{ background: 'var(--bg-card)', backdropFilter: 'blur(20px)', borderBottom: '1px solid var(--border)' }}>
       <div className="flex items-center gap-3">
         <div>
           <h2 className="text-sm font-bold tracking-tight text-white">
@@ -29,8 +29,8 @@ export default function TopBar() {
         {/* Search with glow effect */}
         <div className="hidden md:flex items-center gap-2 rounded-xl px-3 h-9 transition-all duration-300"
           style={{
-            background: searchFocus ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)',
-            border: `1px solid ${searchFocus ? 'rgba(var(--accent-rgb),0.4)' : 'rgba(255,255,255,0.08)'}`,
+            background: searchFocus ? 'var(--bg-glass-strong)' : 'var(--bg-glass)',
+            border: `1px solid ${searchFocus ? 'rgba(var(--accent-rgb),0.4)' : 'var(--border)'}`,
             boxShadow: searchFocus ? '0 0 20px rgba(var(--accent-rgb),0.1)' : 'none',
             width: searchFocus ? '260px' : '200px'
           }}>
@@ -79,13 +79,13 @@ export default function TopBar() {
 
         {/* Notification */}
         <button className="w-9 h-9 rounded-xl flex items-center justify-center relative transition-all duration-200 hover:scale-105 active:scale-95"
-          style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}>
-          <Bell size={15} style={{ color: '#c8cad0' }} />
+          style={{ background: 'var(--bg-glass-strong)', border: '1px solid var(--border)' }}>
+          <Bell size={15} style={{ color: 'var(--text-secondary)' }} />
           <div className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full" style={{ background: 'var(--accent)', animation: 'pulseGlow 2s ease-in-out infinite' }}></div>
         </button>
 
         {/* Avatar */}
-        <div className="flex items-center gap-2.5 pl-3" style={{ borderLeft: '1px solid rgba(255,255,255,0.08)' }}>
+        <div className="flex items-center gap-2.5 pl-3" style={{ borderLeft: '1px solid var(--border)' }}>
           <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-white transition-all duration-200 hover:scale-105"
             style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent-light))', boxShadow: '0 0 12px rgba(var(--accent-rgb), 0.2)', padding: 0, minWidth: 32, height: 32 }}>
             {user?.name?.charAt(0)?.toUpperCase() || 'U'}
