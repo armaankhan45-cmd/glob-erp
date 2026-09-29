@@ -78,7 +78,7 @@ export default function Sidebar({ isOpen, onClose }) {
     <>
       {isOpen && <div className="fixed inset-0 bg-black/60 z-40 lg:hidden backdrop-blur-sm" onClick={onClose} />}
       <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-[280px] flex flex-col transition-transform duration-400 ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
-        style={{ background: 'var(--bg-primary)', backdropFilter: 'blur(40px)', borderRight: `1px solid rgba(${hexToRgb(accentColor)}, 0.08)`, transitionTimingFunction: 'cubic-bezier(0.16,1,0.3,1)' }}>
+        style={{ background: 'var(--bg-sidebar)', backdropFilter: 'blur(40px)', borderRight: `1px solid rgba(${hexToRgb(accentColor)}, 0.08)`, transitionTimingFunction: 'cubic-bezier(0.16,1,0.3,1)' }}>
 
         {/* Logo with spinning glow */}
         <div className="p-5 flex items-center gap-3" style={{ borderBottom: `1px solid rgba(${hexToRgb(accentColor)}, 0.08)` }}>
@@ -145,13 +145,13 @@ export default function Sidebar({ isOpen, onClose }) {
             </button>
             {showColors && (
               <div className="absolute bottom-full left-0 right-0 mb-2 rounded-xl p-2 space-y-1 z-50"
-                style={{ background: 'var(--bg-primary)', border: `1px solid rgba(${hexToRgb(accentColor)}, 0.15)`, backdropFilter: 'blur(20px)', boxShadow: `0 0 30px rgba(${hexToRgb(accentColor)}, 0.08)`, animation: 'slideUp 0.2s cubic-bezier(0.16,1,0.3,1)' }}>
+                style={{ background: 'var(--bg-card)', border: `1px solid rgba(${hexToRgb(accentColor)}, 0.15)`, backdropFilter: 'blur(20px)', boxShadow: `0 0 30px rgba(${hexToRgb(accentColor)}, 0.08)`, animation: 'slideUp 0.2s cubic-bezier(0.16,1,0.3,1)' }}>
                 {Object.entries(themes).map(([key, t]) => (
                   <button key={key} onClick={() => { setThemeKey(key); setShowColors(false) }}
                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200"
                     style={themeKey === key
                       ? { background: `rgba(${hexToRgb(t.color)}, 0.12)`, color: t.color, border: `1px solid rgba(${hexToRgb(t.color)}, 0.25)`, fontWeight: 700 }
-                      : { color: '#c8cad0', border: '1px solid transparent' }
+                      : { color: 'var(--text-secondary)', border: '1px solid transparent' }
                     }>
                     <span className="text-base">{t.icon}</span>
                     <span>{t.name}</span>
@@ -188,7 +188,7 @@ export default function Sidebar({ isOpen, onClose }) {
           <div className="flex gap-2">
             <button onClick={() => window.location.reload()}
               className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-[11px] font-semibold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] btn-shine"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }}>
+              style={{ background: 'var(--bg-glass)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
               <RefreshCw size={12} /> Refresh
             </button>
             <button onClick={handleLogout}
