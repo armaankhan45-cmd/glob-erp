@@ -40,6 +40,8 @@ const Purchases       = lazy(() => import('./pages/Purchases').catch(() => ({ de
 const PurchaseNew     = lazy(() => import('./pages/PurchaseNew').catch(() => ({ default: () => <PageFallback name="New Purchase" /> })))
 const PurchaseDetail  = lazy(() => import('./pages/PurchaseDetail').catch(() => ({ default: () => <PageFallback name="Purchase Detail" /> })))
 const PurchaseEdit    = lazy(() => import('./pages/PurchaseEdit').catch(() => ({ default: () => <PageFallback name="Edit Purchase" /> })))
+const VehiclePapers   = lazy(() => import('./pages/VehiclePapers').catch(() => ({ default: () => <PageFallback name="Vehicle Papers" /> })))
+const VehiclePaperForm = lazy(() => import('./pages/VehiclePaperForm').catch(() => ({ default: () => <PageFallback name="Vehicle Paper" /> })))
 const GSTReports      = lazy(() => import('./pages/GSTReports').catch(() => ({ default: () => <PageFallback name="GST Reports" /> })))
 const Reports         = lazy(() => import('./pages/Reports').catch(() => ({ default: () => <PageFallback name="Reports" /> })))
 const AIAssistant     = lazy(() => import('./pages/AIAssistant').catch(() => ({ default: () => <PageFallback name="AI Assistant" /> })))
@@ -343,6 +345,9 @@ export default function App() {
                 <Route path="purchases/new" element={<PurchaseNew />} />
                 <Route path="purchases/:id" element={<PurchaseDetail />} />
                 <Route path="purchases/:id/edit" element={<PurchaseEdit />} />
+                <Route path="vehicle-papers" element={<VehiclePapers />} />
+                <Route path="vehicle-papers/new/:type" element={<VehiclePaperForm />} />
+                <Route path="vehicle-papers/:id" element={<VehiclePaperForm />} />
                 <Route path="gst" element={<GSTReports />} />
                 <Route path="reports" element={<Reports />} />
                 <Route path="ai-assistant" element={<AIAssistant />} />
