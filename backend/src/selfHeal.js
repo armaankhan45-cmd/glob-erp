@@ -389,6 +389,45 @@ const TABLE_SCHEMAS = {
       'CREATE INDEX IF NOT EXISTS idx_customers_org ON customers(organization_id)',
     ]
   },
+  // ═══════════════════════════════════════════════════════════════
+  // VEHICLE PAPERS — Money Margin Receipt, Form 22-A, Form 17, Vahan
+  // ═══════════════════════════════════════════════════════════════
+  vehicle_papers: {
+    columns: {
+      id: { type: 'increments', primary: true },
+      organization_id: { type: 'integer', references: 'organizations.id' },
+      type: { type: 'text' },              // money_receipt | form_22a | form_17 | vahan
+      paper_no: { type: 'text' },
+      paper_date: { type: 'date' },
+      title: { type: 'text' },
+      customer_id: { type: 'integer' },
+      customer_name: { type: 'text' },
+      customer_address: { type: 'text' },
+      customer_gstin: { type: 'text' },
+      customer_phone: { type: 'text' },
+      vehicle_no: { type: 'text' },
+      chassis_no: { type: 'text' },
+      engine_no: { type: 'text' },
+      model: { type: 'text' },
+      amount: { type: 'decimal', precision: 15, scale: 2, defaultTo: 0 },
+      payment_mode: { type: 'text' },
+      reference: { type: 'text' },
+      bank_name: { type: 'text' },
+      reference_date: { type: 'date' },
+      towards: { type: 'text' },
+      balance_amount: { type: 'decimal', precision: 15, scale: 2, defaultTo: 0 },
+      notes: { type: 'text' },
+      image_data: { type: 'text' },        // downscaled base64 image for Form 17 / Vahan
+      data: { type: 'jsonb' },              // extra options per paper type
+      created_by: { type: 'integer' },
+      created_at: { type: 'timestamp', defaultTo: 'now' },
+      updated_at: { type: 'timestamp', defaultTo: 'now' },
+    },
+    indexes: [
+      'CREATE INDEX IF NOT EXISTS idx_vehicle_papers_org ON vehicle_papers(organization_id)',
+      'CREATE INDEX IF NOT EXISTS idx_vehicle_papers_type ON vehicle_papers(type)',
+    ]
+  },
 };
 
 // ───────────────────────────────────────────────
@@ -549,6 +588,7 @@ async function selfHeal(db) {
     { path: './routes/gstRoutes', mount: '/api/gst' },
     { path: './routes/reportRoutes', mount: '/api/reports' },
     { path: './routes/settingsRoutes', mount: '/api/settings' },
+    { path: './routes/vehiclePaperRoutes', mount: '/api/vehicle-papers' },
     { path: './routes/exportRoutes', mount: '/api/export' },
   ];
 
