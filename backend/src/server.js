@@ -290,6 +290,7 @@ app.use('/api/reports', safe('./routes/reportRoutes'));
 app.use('/api/ai', safe('./routes/aiAssistantRoutes'));
 app.use('/api/settings', safe('./routes/settingsRoutes'));
 app.use('/api/vehicle-papers', safe('./routes/vehiclePaperRoutes'));
+app.use('/api/search', safe('./routes/searchRoutes'));
 app.use('/api/export', safe('./routes/exportRoutes'));
 
 app.use(errorTrackerMiddleware);
