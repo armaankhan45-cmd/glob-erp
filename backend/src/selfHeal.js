@@ -31,6 +31,8 @@ const TABLE_SCHEMAS = {
       phone: { type: 'text' },
       email: { type: 'text' },
       logo_url: { type: 'text' },
+      letterhead_url: { type: 'text' },        // full-width letterhead (top of Money Receipt / Form 22-A)
+      letterhead_footer_url: { type: 'text' }, // letterhead bottom address+email strip image
       bank_name: { type: 'text' },
       account_no: { type: 'text' },
       ifsc: { type: 'text' },
