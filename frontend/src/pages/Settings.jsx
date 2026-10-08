@@ -329,6 +329,16 @@ export default function Settings() {
           <label className="block text-sm font-medium text-white/70 mb-2">Authorized Signature (auto-signs on invoices & quotations)</label>
           <UploadRow label="Signature" field="signature" previewUrl={org.signature_url} />
         </div>
+        <div>
+          <label className="block text-sm font-medium text-white/70 mb-2">Full Letterhead (prints on top of Margin Money Receipt, Form 22-A, Form 17 &amp; Vahan papers)</label>
+          <UploadRow label="Letterhead" field="letterhead" previewUrl={org.letterhead_url} />
+          <p className="text-xs text-white/30 mt-1">Upload the letterhead artwork (width 1568 px or similar wide image). It prints edge-to-edge at the top of the page.</p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-white/70 mb-2">Letterhead Footer Strip (address + e-mail bar at the bottom)</label>
+          <UploadRow label="Letterhead footer" field="letterhead_footer" previewUrl={org.letterhead_footer_url} />
+          <p className="text-xs text-white/30 mt-1">Optional. If not uploaded, the app draws the yellow address bar itself using your Settings address &amp; e-mail.</p>
+        </div>
       </div>
 
       {/* Invoice Font & Text Settings */}
