@@ -37,6 +37,9 @@ export function defaultData(type) {
     // common print options
     heading: type === 'money_receipt' ? 'MARGIN MONEY RECEIPT' : (PAPER_TYPES[type]?.label || 'VEHICLE PAPER').toUpperCase(),
     printHeader: type === 'money_receipt' || type === 'form_22a',
+    useLetterhead: true,        // print the uploaded letterhead artwork (Settings → Letterhead)
+    showFooterStrip: true,      // address + e-mail bar at the bottom
+    footerAddress: '',          // blank = letterhead wording / Settings address
     letterheadMm: 0,
     footerMm: 0,
     showSignature: type === 'form_22a' ? false : true,
@@ -118,21 +121,69 @@ function Toggle({ label, checked, onChange }) {
 
 // ───────────────────────────────────────────────────────────────
 // A4 sheet + shared blocks
+//   • Letterhead artwork (Settings → Letterhead) prints edge-to-edge
+//     at the top when uploaded — otherwise blank space / text header.
+//   • Yellow address + e-mail strip prints at the bottom of the page.
 // ───────────────────────────────────────────────────────────────
+const DEFAULT_FOOTER_ADDRESS = 'Gala No. 4, Shilphata-Panvel Highway, Dhanar Village, Toll Plaza, 1 Km.,Dist-Raigad (Maharashtra)'
+
+function isImg(v) { return typeof v === 'string' && v.startsWith('data:') }
+
+/** Yellow address bar + red/blue stripes + black e-mail box — matches the letterhead strip */
+function AddressStrip({ org, opts }) {
+  const address = (opts.footerAddress || '').trim() || (org?.address ? [org.address, org.city, org.pincode].filter(Boolean).join(', ') : DEFAULT_FOOTER_ADDRESS)
+  const email = org?.email || 'globfabrication@gmail.com'
+  return (
+    <div style={{
+      width: '210mm', height: '9.6mm', display: 'flex', alignItems: 'stretch',
+      border: '1.2px solid #111', boxSizing: 'border-box', overflow: 'hidden', flexShrink: 0,
+    }}>
+      <div style={{ flex: 1, background: '#F2C903', display: 'flex', alignItems: 'center', padding: '0 3mm', overflow: 'hidden' }}>
+        <span style={{ fontSize: '10pt', fontWeight: 800, color: '#111', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{address}</span>
+      </div>
+      <div style={{ width: '1.3mm', background: '#D21100', flexShrink: 0 }} />
+      <div style={{ width: '1.3mm', background: '#1199E6', flexShrink: 0 }} />
+      <div style={{ width: '1.3mm', background: '#F2C903', flexShrink: 0 }} />
+      <div style={{ width: '23.4%', background: '#111', display: 'flex', alignItems: 'center', padding: '0 2.5mm', overflow: 'hidden', flexShrink: 0 }}>
+        <span style={{ fontSize: '9.5pt', fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>E-mail : {email}</span>
+      </div>
+    </div>
+  )
+}
+
 function Sheet({ org, opts, children }) {
   const font = opts.fontFamily || 'Arial'
+  const hasLetterhead = opts.useLetterhead !== false && isImg(org?.letterhead_url)
+  const hasFooterImg = opts.showFooterStrip !== false && isImg(org?.letterhead_footer_url)
+  const blankTopMm = parseInt(opts.letterheadMm) || 0
+
   return (
     <div className="print-area" style={{
       width: '210mm', minHeight: '297mm', background: '#fff', color: '#000',
       fontFamily: `'${font}', Arial, Helvetica, sans-serif`, display: 'flex', flexDirection: 'column',
-      padding: '0 12mm', boxSizing: 'border-box',
-      WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact',
+      boxSizing: 'border-box', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact',
     }}>
-      {(parseInt(opts.letterheadMm) || 0) > 0 && <div style={{ height: (parseInt(opts.letterheadMm) || 0) + 'mm', flexShrink: 0 }} />}
-      {opts.printHeader && <CompanyHeader org={org} />}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+      {/* ── TOP: uploaded letterhead artwork (edge to edge) ── */}
+      {hasLetterhead
+        ? <img src={org.letterhead_url} alt="" style={{ width: '210mm', display: 'block', flexShrink: 0 }} />
+        : (blankTopMm > 0 && <div style={{ height: blankTopMm + 'mm', flexShrink: 0 }} />)
+      }
+      {!hasLetterhead && opts.printHeader && <CompanyHeader org={org} />}
+
+      {/* ── CONTENT ── */}
+      <div style={{
+        flex: 1, display: 'flex', flexDirection: 'column',
+        padding: hasLetterhead ? '5mm 12mm 0' : (blankTopMm > 0 ? '0 12mm' : '4mm 12mm 0'),
+      }}>
         {children}
       </div>
+
+      {/* ── BOTTOM: letterhead address / e-mail strip ── */}
+      {opts.showFooterStrip !== false && (
+        hasFooterImg
+          ? <img src={org.letterhead_footer_url} alt="" style={{ width: '210mm', display: 'block', flexShrink: 0 }} />
+          : <AddressStrip org={org} opts={opts} />
+      )}
       {(parseInt(opts.footerMm) || 0) > 0 && <div style={{ height: (parseInt(opts.footerMm) || 0) + 'mm', flexShrink: 0 }} />}
     </div>
   )
@@ -142,7 +193,7 @@ function CompanyHeader({ org }) {
   const name = (org?.name || 'GLOB FABRICATION AND ENTERPRISES').toUpperCase()
   const addr = [org?.address, org?.city, org?.state, org?.pincode].filter(Boolean).join(', ')
   return (
-    <div style={{ textAlign: 'center', padding: '3mm 0', borderBottom: '2.5px solid #000', fontFamily: 'inherit' }}>
+    <div style={{ textAlign: 'center', padding: '3mm 12mm', borderBottom: '2.5px solid #000', fontFamily: 'inherit', flexShrink: 0 }}>
       {org?.logo_url && <img src={org.logo_url} alt="" style={{ height: '15mm', objectFit: 'contain', marginBottom: '1mm' }} />}
       <div style={{ fontSize: '18pt', fontWeight: 900, letterSpacing: '0.5px' }}>{name}</div>
       {addr && <div style={{ fontSize: '9.5pt' }}>{addr}</div>}
@@ -153,17 +204,23 @@ function CompanyHeader({ org }) {
   )
 }
 
-/** Stamp + signature block — used for Form 17 / Vahan (and optionally 22-A) */
-function SignBlock({ org, show = true, minHeight = '24mm' }) {
+/** Stamp + signature block — used on Form 17 / Vahan (showSignature) */
+function SignBlock({ org, show = true, minHeight = '34mm' }) {
   if (!show) return null
   return (
-    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8mm' }}>
-      <div style={{ position: 'relative', width: '68mm', minHeight, textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6mm' }}>
+      <div style={{ position: 'relative', width: '72mm', minHeight, textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
         {org?.stamp_url && (
-          <img src={org.stamp_url} alt="" style={{ position: 'absolute', left: '50%', bottom: '7mm', transform: 'translateX(-50%)', width: '40mm', opacity: 0.9 }} />
+          <img src={org.stamp_url} alt="" style={{
+            position: 'absolute', left: '50%', bottom: '9mm', transform: 'translateX(-50%)',
+            width: '44mm', maxHeight: '32mm', objectFit: 'contain',
+          }} />
         )}
         {org?.signature_url && (
-          <img src={org.signature_url} alt="" style={{ position: 'absolute', left: '55%', bottom: '10mm', transform: 'translateX(-50%)', width: '34mm' }} />
+          <img src={org.signature_url} alt="" style={{
+            position: 'absolute', left: '55%', bottom: '13mm', transform: 'translateX(-50%)',
+            width: '36mm', maxHeight: '20mm', objectFit: 'contain',
+          }} />
         )}
         <div style={{ borderTop: '1.2px solid #000', paddingTop: '1.5mm', fontWeight: 700, fontSize: '10pt' }}>
           For {(org?.name || 'GLOB FABRICATION AND ENTERPRISES').toUpperCase()}
@@ -195,6 +252,7 @@ function PlainSignature() {
 //                                    SIGNATURE :
 // ═══════════════════════════════════════════════════════════════
 export function MoneyReceiptPaper({ rec, org, opts }) {
+  const hasLH = opts.useLetterhead !== false && isImg(org?.letterhead_url)
   const amount = amountText(rec.amount)
   const words = (opts.wordsOverride || '').trim() ||
     (parseFloat(rec.amount) > 0 ? numberToWordsCaps(parseFloat(rec.amount)).replace(' RUPEES', '').replace('RUPEES ', '') : '')
@@ -209,7 +267,7 @@ export function MoneyReceiptPaper({ rec, org, opts }) {
 
   return (
     <Sheet org={org} opts={opts}>
-      <div style={{ paddingTop: (opts.contentTopMm ?? 22) + 'mm' }}>
+      <div style={{ paddingTop: hasLH ? '0mm' : (opts.contentTopMm ?? 22) + 'mm' }}>
         {/* Heading */}
         <div style={{ textAlign: 'center', fontWeight: 800, fontSize: '14pt', letterSpacing: '1.2px', marginBottom: '16mm', textTransform: 'uppercase' }}>
           {opts.heading || 'MARGIN MONEY RECEIPT'}
@@ -261,7 +319,7 @@ export function MoneyReceiptPaper({ rec, org, opts }) {
       <div style={{ flex: 1 }} />
       {opts.showSignature !== false && (
         opts.sigStyle === 'block'
-          ? <SignBlock org={org} show minHeight="22mm" />
+          ? <SignBlock org={org} show />
           : <PlainSignature />
       )}
     </Sheet>
@@ -280,6 +338,7 @@ export function MoneyReceiptPaper({ rec, org, opts }) {
 //   HAS BEEN FABRICATED TANKER BY US AND THE SAME COMPLIES WITH …
 // ═══════════════════════════════════════════════════════════════
 export function Form22APaper({ rec, org, opts }) {
+  const hasLH = opts.useLetterhead !== false && isImg(org?.letterhead_url)
   const body = (opts.bodyType || 'TANKER').toUpperCase()
   const model = (rec.model || '').toUpperCase()
   const chassis = (rec.chassis_no || '').toUpperCase()
@@ -293,7 +352,7 @@ export function Form22APaper({ rec, org, opts }) {
 
   return (
     <Sheet org={org} opts={opts}>
-      <div style={{ paddingTop: (opts.contentTopMm ?? 22) + 'mm' }}>
+      <div style={{ paddingTop: hasLH ? '0mm' : (opts.contentTopMm ?? 22) + 'mm' }}>
         {/* FORM22 (A) — green as in the company's format */}
         <div style={{
           textAlign: 'center', fontWeight: 900, fontSize: '22pt', letterSpacing: '1.5px',
@@ -328,7 +387,7 @@ export function Form22APaper({ rec, org, opts }) {
       </div>
 
       <div style={{ flex: 1 }} />
-      {opts.showSignature && <SignBlock org={org} show minHeight="22mm" />}
+      {opts.showSignature && <SignBlock org={org} show />}
     </Sheet>
   )
 }
@@ -416,7 +475,7 @@ export function ImageSheetPaper({ rec, org, opts }) {
         </div>
       )}
 
-      <SignBlock org={org} show={opts.showSignature !== false} minHeight="20mm" />
+      <SignBlock org={org} show={opts.showSignature !== false} />
     </Sheet>
   )
 }
@@ -617,14 +676,16 @@ export default function VehiclePaperForm() {
       {/* ═══ PRINT SETTINGS STRIP ═══ */}
       <div className="flex flex-wrap items-center gap-3 p-3 rounded-2xl no-print" style={{ background: 'var(--bg-glass)', border: '1px solid var(--border)' }}>
         <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Print</span>
-        <Toggle label="Company header" checked={!!opts.printHeader} onChange={v => setD('printHeader', v)} />
+        <Toggle label="Letterhead (uploaded image)" checked={opts.useLetterhead !== false} onChange={v => setD('useLetterhead', v)} />
+        <Toggle label="Address strip at bottom" checked={opts.showFooterStrip !== false} onChange={v => setD('showFooterStrip', v)} />
+        <Toggle label="Company header text" checked={!!opts.printHeader} onChange={v => setD('printHeader', v)} />
         <div className="flex items-center gap-2">
           <label className="text-xs" style={{ color: 'var(--text-muted)' }}>Letterhead space (mm)</label>
           <input type="number" value={opts.letterheadMm ?? 0} onChange={e => setD('letterheadMm', parseInt(e.target.value) || 0)}
             className="w-20 px-2 py-1.5 rounded-lg text-sm" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-input)', color: 'var(--text-primary)', outline: 'none' }} />
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-xs" style={{ color: 'var(--text-muted)' }}>Top gap (mm)</label>
+          <label className="text-xs" style={{ color: 'var(--text-muted)' }} title="Only used when the letterhead image is switched off (blank / pre-printed paper)">Top gap (blank paper, mm)</label>
           <input type="number" value={opts.contentTopMm ?? 22} onChange={e => setD('contentTopMm', parseInt(e.target.value) || 0)}
             className="w-20 px-2 py-1.5 rounded-lg text-sm" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-input)', color: 'var(--text-primary)', outline: 'none' }} />
         </div>
@@ -636,7 +697,9 @@ export default function VehiclePaperForm() {
             {['Arial', 'Times New Roman', 'Calibri', 'Verdana', 'Tahoma', 'Georgia'].map(f => <option key={f} value={f}>{f}</option>)}
           </select>
         </div>
-        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Keep “Letterhead space 0 + Company header ON” to print on plain paper.</span>
+        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+          Letterhead image comes from <b>Settings → Images &amp; Signatures → Full Letterhead</b>. Switch it off to print on your pre-printed stationery instead.
+        </span>
       </div>
 
       {/* ═══ EDITOR + PREVIEW ═══ */}
@@ -752,6 +815,13 @@ export default function VehiclePaperForm() {
               </div>
               <Field label="Remarks (printed below the numbers)" value={rec.notes} onChange={v => set('notes', v)} />
             </>
+          )}
+
+          {opts.showFooterStrip !== false && (
+            <Field label="Address strip text (bottom bar)"
+              value={opts.footerAddress || ''}
+              onChange={v => setD('footerAddress', v)}
+              placeholder={DEFAULT_FOOTER_ADDRESS} />
           )}
 
           <div className="text-[11px] leading-relaxed px-3 py-2 rounded-xl" style={{ background: 'var(--bg-input)', color: 'var(--text-muted)' }}>
