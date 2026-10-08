@@ -140,6 +140,7 @@ router.post('/', auth, adminOnly, async (req, res) => {
         'name', 'gstin', 'address', 'city', 'state', 'state_code', 'pincode',
         'phone', 'email', 'bank_name', 'account_no', 'ifsc', 'upi_id', 'branch',
         'invoice_prefix', 'quotation_prefix', 'print_letterhead_mm', 'print_footer_mm',
+        'logo_url', 'stamp_url', 'signature_url', 'letterhead_url', 'letterhead_footer_url',
         'invoice_font_family', 'invoice_font_size', 'invoice_desc_size', 'invoice_item_bold',
         'quotation_font_family', 'quotation_font_size', 'app_font_family', 'app_font_size',
         'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass',
@@ -255,10 +256,31 @@ router.post('/upload/signature', auth, adminOnly, upload.single('signature'), as
   } catch (err) { res.status(500).json({ success: false, msg: 'Upload failed' }); }
 });
 
+// ── Letterhead + letterhead footer strip (same data-URI storage as logo/stamp) ──
+router.post('/upload/letterhead', auth, adminOnly, upload.single('letterhead'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, msg: 'No file uploaded' });
+    const db = getDb();
+    const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+    await db('organizations').where({ id: req.user.organization_id }).update({ letterhead_url: dataUri });
+    res.json({ success: true, letterheadUrl: dataUri });
+  } catch (err) { res.status(500).json({ success: false, msg: 'Upload failed: ' + err.message }); }
+});
+
+router.post('/upload/letterhead_footer', auth, adminOnly, upload.single('letterhead_footer'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, msg: 'No file uploaded' });
+    const db = getDb();
+    const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+    await db('organizations').where({ id: req.user.organization_id }).update({ letterhead_footer_url: dataUri });
+    res.json({ success: true, letterhead_footerUrl: dataUri });
+  } catch (err) { res.status(500).json({ success: false, msg: 'Upload failed: ' + err.message }); }
+});
+
 // Delete uploaded image
 router.delete('/upload/:field', auth, adminOnly, async (req, res) => {
   try {
-    const allowed = ['logo', 'stamp', 'signature'];
+    const allowed = ['logo', 'stamp', 'signature', 'letterhead', 'letterhead_footer'];
     const field = req.params.field;
     if (!allowed.includes(field)) return res.status(400).json({ success: false, msg: 'Invalid field' });
     const db = getDb();
