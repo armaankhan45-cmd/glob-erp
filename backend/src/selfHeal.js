@@ -589,6 +589,7 @@ async function selfHeal(db) {
     { path: './routes/reportRoutes', mount: '/api/reports' },
     { path: './routes/settingsRoutes', mount: '/api/settings' },
     { path: './routes/vehiclePaperRoutes', mount: '/api/vehicle-papers' },
+    { path: './routes/searchRoutes', mount: '/api/search' },
     { path: './routes/exportRoutes', mount: '/api/export' },
   ];
 
