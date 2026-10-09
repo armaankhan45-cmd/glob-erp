@@ -436,7 +436,7 @@ const TABLE_SCHEMAS = {
 // KNEX COLUMN BUILDER HELPER
 // ───────────────────────────────────────────────
 
-function addColumn(table, colName, colDef) {
+function addColumn(table, colName, colDef, knex) {
   let col;
   switch (colDef.type) {
     case 'increments': col = table.increments(colName); break;
@@ -455,7 +455,14 @@ function addColumn(table, colName, colDef) {
   if (colDef.unique) col.unique();
   if (colDef.references) col.references(colDef.references);
   if (colDef.onDelete) col.onDelete(colDef.onDelete);
-  if (colDef.defaultTo !== undefined) col.defaultTo(colDef.defaultTo === 'now' ? table.knex.fn.now() : colDef.defaultTo);
+  if (colDef.defaultTo !== undefined) {
+    // FIX: `table.knex` does not exist in Knex 3.x — it threw
+    // "Cannot read properties of undefined (reading 'fn')" and the whole
+    // table creation silently failed (that is why `vehicle_papers` was
+    // never created and inserts failed with 'relation does not exist').
+    const nowFn = knex && knex.fn ? knex.fn.now() : (table.client ? table.client.raw('now()') : new Date().toISOString());
+    col.defaultTo(colDef.defaultTo === 'now' ? nowFn : colDef.defaultTo);
+  }
   return col;
 }
 
@@ -497,7 +504,7 @@ async function selfHeal(db) {
         console.log(`  ❌ Table "${tableName}" MISSING → Creating...`);
         await db.schema.createTable(tableName, table => {
           for (const [colName, colDef] of Object.entries(schema.columns)) {
-            addColumn(table, colName, colDef);
+            addColumn(table, colName, colDef, db);
           }
         });
         console.log(`  ✅ Table "${tableName}" CREATED`);
@@ -525,7 +532,7 @@ async function selfHeal(db) {
         if (!hasCol) {
           console.log(`  ❌ "${tableName}.${colName}" MISSING → Adding...`);
           await db.schema.table(tableName, table => {
-            addColumn(table, colName, colDef);
+            addColumn(table, colName, colDef, db);
           });
           console.log(`  ✅ "${tableName}.${colName}" ADDED`);
           report.fixes.push({ type: 'column_added', table: tableName, column: colName });
