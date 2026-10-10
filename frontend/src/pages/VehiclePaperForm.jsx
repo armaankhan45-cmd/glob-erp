@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../api/client'
-import { ArrowLeft, Printer, Download, Save, Trash2, Upload, X, Check } from 'lucide-react'
+import { ArrowLeft, Printer, Download, Save, Trash2, Upload, X, Check, Eye, Edit } from 'lucide-react'
 import { numberToWordsCaps, printElement } from '../utils'
 import { PAPER_TYPES } from './VehiclePapers'
 import defaultLetterhead from '../assets/vehicle-papers/glob-letterhead.jpg?inline'
@@ -164,7 +164,8 @@ function Sheet({ org, opts, children }) {
   const header = !isScan && opts.useLetterhead !== false
     ? (opts.useCustomLetterhead && isImg(org?.letterhead_url) ? org.letterhead_url : defaultLetterhead)
     : null
-  const footer = opts.showFooterStrip !== false
+  // Address bar only on Margin Money Receipt and Form 22-A — NEVER on scans.
+  const footer = !isScan && opts.showFooterStrip !== false
     ? (opts.useCustomLetterhead && isImg(org?.letterhead_footer_url) ? org.letterhead_footer_url : defaultAddressBar)
     : null
   return (
@@ -203,20 +204,20 @@ function CompanyHeader({ org }) {
 }
 
 /** Company signature/stamp stays OUTSIDE the scanned official document. */
-function SignBlock({ org, show = true }) {
+function SignBlock({ org, show = true, compact = false }) {
   if (!show) return null
   const combined = org?.stamp_url || defaultStamp
   return (
-    <div style={{ alignSelf: 'flex-end', width: '57mm', height: '29mm', flexShrink: 0,
+    <div style={{ alignSelf: 'flex-end', width: compact ? '45mm' : '57mm', height: compact ? '18mm' : '29mm', flexShrink: 0,
       position: 'relative', textAlign: 'center', marginTop: '1mm' }}>
       <img src={combined} alt="Company stamp and signature"
         style={{ position: 'absolute', left: '50%', top: 0, transform: 'translateX(-50%)',
-          width: '47mm', height: '24mm', objectFit: 'contain' }} />
+          width: compact ? '30mm' : '47mm', height: compact ? '14mm' : '24mm', objectFit: 'contain' }} />
       {org?.signature_url && <img src={org.signature_url} alt="Additional signature"
         style={{ position: 'absolute', left: '50%', top: '4mm', transform: 'translateX(-50%)',
-          width: '27mm', height: '13mm', objectFit: 'contain' }} />}
+          width: compact ? '17mm' : '27mm', height: compact ? '8mm' : '13mm', objectFit: 'contain' }} />}
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0,
-        borderTop: '1px solid #222', fontSize: '7.5pt', fontWeight: 700, paddingTop: '1mm' }}>
+        borderTop: '1px solid #222', fontSize: compact ? '6pt' : '7.5pt', fontWeight: 700, paddingTop: '1mm' }}>
         GLOB FABRICATION &amp; ENTERPRISES · Authorised Signatory
       </div>
     </div>
@@ -391,30 +392,30 @@ export function Form22APaper({ rec, org, opts }) {
 export function ImageSheetPaper({ rec, org, opts }) {
   const image = rec.image_data || (rec.type === 'vahan' ? defaultVahan : defaultForm17)
   const ink = { fontFamily: "'Caveat', 'Segoe Print', cursive", fontWeight: 700,
-    fontSize: '18pt', color: '#29203d', letterSpacing: '0.4px' }
+    fontSize: '13pt', color: '#29203d', letterSpacing: '0.4px' }
   return (
     <Sheet org={org} opts={{ ...opts, paperType: rec.type }}>
       {/* Reproduce the supplied official scan. Never redraw or edit the government document. */}
-      <div style={{ height: '205mm', width: '100%', flexShrink: 0,
+      <div style={{ height: '228mm', width: '100%', flexShrink: 0,
         display: 'flex', alignItems: 'flex-start', justifyContent: 'center', overflow: 'hidden' }}>
         <img src={image} alt={rec.type === 'vahan' ? 'Vahan receipt reference' : 'Form 17 reference'}
-          style={{ display: 'block', maxWidth: '100%', maxHeight: '205mm', objectFit: 'contain' }} />
+          style={{ display: 'block', maxWidth: '100%', maxHeight: '228mm', objectFit: 'contain' }} />
       </div>
       {/* Handwritten-looking text is deliberately separate BELOW the scan. */}
-      <div style={{ flexShrink: 0, padding: '1mm 5mm 0', fontSize: '10.5pt', lineHeight: 1.1 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', minHeight: '8mm', gap: '3mm' }}>
-          <b style={{ minWidth: '31mm' }}>Chassis No. :</b>
-          <span style={opts.handwriting !== false ? ink : { fontWeight: 700, fontSize: '12pt' }}>
+      <div style={{ flexShrink: 0, padding: '1mm 5mm 0', fontSize: '9pt', lineHeight: 1.1 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', minHeight: '7mm', gap: '3mm' }}>
+          <b style={{ minWidth: '27mm' }}>Chassis No. :</b>
+          <span style={opts.handwriting !== false ? ink : { fontWeight: 700, fontSize: '10pt' }}>
             {rec.chassis_no || '____________________________'}</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'baseline', minHeight: '8mm', gap: '3mm' }}>
-          <b style={{ minWidth: '31mm' }}>Engine No. :</b>
-          <span style={opts.handwriting !== false ? ink : { fontWeight: 700, fontSize: '12pt' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', minHeight: '7mm', gap: '3mm' }}>
+          <b style={{ minWidth: '27mm' }}>Engine No. :</b>
+          <span style={opts.handwriting !== false ? ink : { fontWeight: 700, fontSize: '10pt' }}>
             {rec.engine_no || '____________________________'}</span>
         </div>
       </div>
       <div style={{ flex: 1, minHeight: 0 }} />
-      <SignBlock org={org} show={opts.showSignature !== false} />
+      <SignBlock org={org} show={opts.showSignature !== false} compact />
     </Sheet>
   )
 }
@@ -444,6 +445,7 @@ export default function VehiclePaperForm() {
   const [recordId, setRecordId] = useState(id || null)
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState('')
+  const [viewMode, setViewMode] = useState('edit')
 
   const meta = PAPER_TYPES[rec.type] || PAPER_TYPES.money_receipt
   const set = (k, v) => setRec(prev => ({ ...prev, [k]: v }))
@@ -597,6 +599,11 @@ export default function VehiclePaperForm() {
           {meta.label}
           {rec.paper_no && <span className="text-sm font-normal ml-2" style={{ color: 'var(--text-muted)' }}>{rec.paper_no}</span>}
         </h1>
+        <button onClick={() => setViewMode(viewMode === 'edit' ? 'preview' : 'edit')}
+          className="btn-secondary flex items-center gap-2">
+          {viewMode === 'edit' ? <Eye size={16} /> : <Edit size={16} />}
+          {viewMode === 'edit' ? 'Preview A4' : 'Edit fields'}
+        </button>
         <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2 btn-shine disabled:opacity-50">
           <Save size={16} /> {saving ? 'Saving…' : recordId ? 'Update' : 'Save'}
         </button>
@@ -614,7 +621,7 @@ export default function VehiclePaperForm() {
       <div className="flex flex-wrap items-center gap-3 p-3 rounded-2xl no-print" style={{ background: 'var(--bg-glass)', border: '1px solid var(--border)' }}>
         <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Print</span>
         {!isImageSheet && <Toggle label="Glob artwork letterhead" checked={opts.useLetterhead !== false} onChange={v => setD('useLetterhead', v)} />}
-        <Toggle label="Address strip at bottom" checked={opts.showFooterStrip !== false} onChange={v => setD('showFooterStrip', v)} />
+        {!isImageSheet && <Toggle label="Address strip at bottom" checked={opts.showFooterStrip !== false} onChange={v => setD('showFooterStrip', v)} />}
         {!isImageSheet && <Toggle label="Company header text (no artwork)" checked={!!opts.printHeader} onChange={v => setD('printHeader', v)} />}
         <Toggle label="Stamp / signature" checked={opts.showSignature !== false} onChange={v => setD('showSignature', v)} />
         <div className="flex items-center gap-2">
@@ -628,10 +635,10 @@ export default function VehiclePaperForm() {
       </div>
 
       {/* ═══ EDITOR + PREVIEW ═══ */}
-      <div className="grid grid-cols-1 xl:grid-cols-[400px_1fr] gap-4 items-start">
+      <div className={viewMode === 'preview' ? 'flex justify-center' : 'grid grid-cols-1 xl:grid-cols-[400px_1fr] gap-4 items-start'}>
 
         {/* ─── LEFT: editor fields ─── */}
-        <div className="rounded-2xl p-4 space-y-4 no-print" style={{ background: 'var(--bg-glass)', border: '1px solid var(--border)' }}>
+        <div className={viewMode === 'preview' ? 'hidden' : 'rounded-2xl p-4 space-y-4 no-print'} style={{ background: 'var(--bg-glass)', border: '1px solid var(--border)' }}>
 
           {!isImageSheet && <>
             <div className="grid grid-cols-2 gap-3">
