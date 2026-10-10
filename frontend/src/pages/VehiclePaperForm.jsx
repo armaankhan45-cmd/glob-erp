@@ -2,8 +2,13 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../api/client'
 import { ArrowLeft, Printer, Download, Save, Trash2, Upload, X, Check } from 'lucide-react'
-import { numberToWordsCaps, downloadPdf, printElement } from '../utils'
+import { numberToWordsCaps, printElement } from '../utils'
 import { PAPER_TYPES } from './VehiclePapers'
+import defaultLetterhead from '../assets/vehicle-papers/glob-letterhead.jpg?inline'
+import defaultAddressBar from '../assets/vehicle-papers/glob-address-bar.jpg?inline'
+import defaultStamp from '../assets/vehicle-papers/glob-stamp.png?inline'
+import defaultForm17 from '../assets/vehicle-papers/form17-reference.jpg?inline'
+import defaultVahan from '../assets/vehicle-papers/vahan-reference.jpg?inline'
 
 // ═══════════════════════════════════════════════════════════════
 // VEHICLE PAPER EDITOR
@@ -35,13 +40,14 @@ export function defaultData(type) {
   const sigBlock = type === 'form_17' || type === 'vahan'
   return {
     // common print options
-    heading: type === 'money_receipt' ? 'MARGIN MONEY RECEIPT' : (PAPER_TYPES[type]?.label || 'VEHICLE PAPER').toUpperCase(),
+    heading: type === 'money_receipt' ? 'MARGIN MONEY RECEIPT' : type === 'form_22a' ? 'FORM22 (A)' : (PAPER_TYPES[type]?.label || 'VEHICLE PAPER').toUpperCase(),
     printHeader: type === 'money_receipt' || type === 'form_22a',
     useLetterhead: true,        // print the uploaded letterhead artwork (Settings → Letterhead)
     showFooterStrip: true,      // address + e-mail bar at the bottom
     footerAddress: '',          // blank = letterhead wording / Settings address
     letterheadMm: 0,
     footerMm: 0,
+    handwriting: true,
     showSignature: type === 'form_22a' ? false : true,
     sigStyle: sigBlock || type === 'form_22a' ? 'block' : 'plain',
     fontFamily: 'Arial',
@@ -65,7 +71,7 @@ export function defaultData(type) {
     // ── Form 17 / Vahan ──
     showTitle: false,
     showDetails: false,
-    imageBorder: true,
+    imageBorder: false,
   }
 }
 
@@ -153,38 +159,30 @@ function AddressStrip({ org, opts }) {
 
 function Sheet({ org, opts, children }) {
   const font = opts.fontFamily || 'Arial'
-  const hasLetterhead = opts.useLetterhead !== false && isImg(org?.letterhead_url)
-  const hasFooterImg = opts.showFooterStrip !== false && isImg(org?.letterhead_footer_url)
-  const blankTopMm = parseInt(opts.letterheadMm) || 0
-
+  const isScan = opts.paperType === 'form_17' || opts.paperType === 'vahan'
+  // The supplied artwork is the DEFAULT, independent of old settings/logo uploads.
+  const header = !isScan && opts.useLetterhead !== false
+    ? (opts.useCustomLetterhead && isImg(org?.letterhead_url) ? org.letterhead_url : defaultLetterhead)
+    : null
+  const footer = opts.showFooterStrip !== false
+    ? (opts.useCustomLetterhead && isImg(org?.letterhead_footer_url) ? org.letterhead_footer_url : defaultAddressBar)
+    : null
   return (
     <div className="print-area" style={{
-      width: '210mm', minHeight: '297mm', background: '#fff', color: '#000',
+      width: '210mm', height: '297mm', minHeight: '297mm', maxHeight: '297mm',
+      overflow: 'hidden', background: '#fff', color: '#000',
       fontFamily: `'${font}', Arial, Helvetica, sans-serif`, display: 'flex', flexDirection: 'column',
       boxSizing: 'border-box', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact',
     }}>
-      {/* ── TOP: uploaded letterhead artwork (edge to edge) ── */}
-      {hasLetterhead
-        ? <img src={org.letterhead_url} alt="" style={{ width: '210mm', display: 'block', flexShrink: 0 }} />
-        : (blankTopMm > 0 && <div style={{ height: blankTopMm + 'mm', flexShrink: 0 }} />)
-      }
-      {!hasLetterhead && opts.printHeader && <CompanyHeader org={org} />}
-
-      {/* ── CONTENT ── */}
-      <div style={{
-        flex: 1, display: 'flex', flexDirection: 'column',
-        padding: hasLetterhead ? '5mm 12mm 0' : (blankTopMm > 0 ? '0 12mm' : '4mm 12mm 0'),
-      }}>
+      {header ? <img src={header} alt="Glob letterhead" style={{ width: '210mm', height: '69mm', display: 'block', flexShrink: 0 }} />
+        : (!isScan && !opts.printHeader && Number(opts.letterheadMm) > 0
+          ? <div style={{ height: Math.min(80, Number(opts.letterheadMm)) + 'mm', flexShrink: 0 }} /> : null)}
+      {!header && !isScan && opts.printHeader && <CompanyHeader org={org} />}
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column',
+        padding: isScan ? '3mm 10mm 2mm' : '4mm 12mm 2mm', boxSizing: 'border-box' }}>
         {children}
       </div>
-
-      {/* ── BOTTOM: letterhead address / e-mail strip ── */}
-      {opts.showFooterStrip !== false && (
-        hasFooterImg
-          ? <img src={org.letterhead_footer_url} alt="" style={{ width: '210mm', display: 'block', flexShrink: 0 }} />
-          : <AddressStrip org={org} opts={opts} />
-      )}
-      {(parseInt(opts.footerMm) || 0) > 0 && <div style={{ height: (parseInt(opts.footerMm) || 0) + 'mm', flexShrink: 0 }} />}
+      {footer && <img src={footer} alt="Glob address and email" style={{ width: '210mm', height: '10mm', display: 'block', flexShrink: 0 }} />}
     </div>
   )
 }
@@ -204,28 +202,22 @@ function CompanyHeader({ org }) {
   )
 }
 
-/** Stamp + signature block — used on Form 17 / Vahan (showSignature) */
-function SignBlock({ org, show = true, minHeight = '34mm' }) {
+/** Company signature/stamp stays OUTSIDE the scanned official document. */
+function SignBlock({ org, show = true }) {
   if (!show) return null
+  const combined = org?.stamp_url || defaultStamp
   return (
-    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6mm' }}>
-      <div style={{ position: 'relative', width: '72mm', minHeight, textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-        {org?.stamp_url && (
-          <img src={org.stamp_url} alt="" style={{
-            position: 'absolute', left: '50%', bottom: '9mm', transform: 'translateX(-50%)',
-            width: '44mm', maxHeight: '32mm', objectFit: 'contain',
-          }} />
-        )}
-        {org?.signature_url && (
-          <img src={org.signature_url} alt="" style={{
-            position: 'absolute', left: '55%', bottom: '13mm', transform: 'translateX(-50%)',
-            width: '36mm', maxHeight: '20mm', objectFit: 'contain',
-          }} />
-        )}
-        <div style={{ borderTop: '1.2px solid #000', paddingTop: '1.5mm', fontWeight: 700, fontSize: '10pt' }}>
-          For {(org?.name || 'GLOB FABRICATION AND ENTERPRISES').toUpperCase()}
-        </div>
-        <div style={{ fontSize: '9pt' }}>Authorised Signatory</div>
+    <div style={{ alignSelf: 'flex-end', width: '57mm', height: '29mm', flexShrink: 0,
+      position: 'relative', textAlign: 'center', marginTop: '1mm' }}>
+      <img src={combined} alt="Company stamp and signature"
+        style={{ position: 'absolute', left: '50%', top: 0, transform: 'translateX(-50%)',
+          width: '47mm', height: '24mm', objectFit: 'contain' }} />
+      {org?.signature_url && <img src={org.signature_url} alt="Additional signature"
+        style={{ position: 'absolute', left: '50%', top: '4mm', transform: 'translateX(-50%)',
+          width: '27mm', height: '13mm', objectFit: 'contain' }} />}
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0,
+        borderTop: '1px solid #222', fontSize: '7.5pt', fontWeight: 700, paddingTop: '1mm' }}>
+        GLOB FABRICATION &amp; ENTERPRISES · Authorised Signatory
       </div>
     </div>
   )
@@ -252,7 +244,7 @@ function PlainSignature() {
 //                                    SIGNATURE :
 // ═══════════════════════════════════════════════════════════════
 export function MoneyReceiptPaper({ rec, org, opts }) {
-  const hasLH = opts.useLetterhead !== false && isImg(org?.letterhead_url)
+  const hasLH = opts.useLetterhead !== false
   const amount = amountText(rec.amount)
   const words = (opts.wordsOverride || '').trim() ||
     (parseFloat(rec.amount) > 0 ? numberToWordsCaps(parseFloat(rec.amount)).replace(' RUPEES', '').replace('RUPEES ', '') : '')
@@ -338,7 +330,7 @@ export function MoneyReceiptPaper({ rec, org, opts }) {
 //   HAS BEEN FABRICATED TANKER BY US AND THE SAME COMPLIES WITH …
 // ═══════════════════════════════════════════════════════════════
 export function Form22APaper({ rec, org, opts }) {
-  const hasLH = opts.useLetterhead !== false && isImg(org?.letterhead_url)
+  const hasLH = opts.useLetterhead !== false
   const body = (opts.bodyType || 'TANKER').toUpperCase()
   const model = (rec.model || '').toUpperCase()
   const chassis = (rec.chassis_no || '').toUpperCase()
@@ -397,84 +389,31 @@ export function Form22APaper({ rec, org, opts }) {
 // Scanned paper image on top  +  CHASSIS NO. / ENGINE NO. below it
 // ═══════════════════════════════════════════════════════════════
 export function ImageSheetPaper({ rec, org, opts }) {
-  const heading = (opts.heading || (rec.type === 'vahan' ? 'VAHAN PAPER' : 'FORM 17')).toUpperCase()
-  const details = [
-    rec.vehicle_no ? { l: 'Vehicle No.', v: rec.vehicle_no } : null,
-    rec.model ? { l: 'Make / Model', v: rec.model } : null,
-    rec.customer_name ? { l: 'Customer', v: rec.customer_name } : null,
-    { l: 'Date', v: fmtDate(rec.paper_date) },
-  ].filter(Boolean)
-
+  const image = rec.image_data || (rec.type === 'vahan' ? defaultVahan : defaultForm17)
+  const ink = { fontFamily: "'Caveat', 'Segoe Print', cursive", fontWeight: 700,
+    fontSize: '18pt', color: '#29203d', letterSpacing: '0.4px' }
   return (
-    <Sheet org={org} opts={opts}>
-      {opts.showTitle && (
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: '3mm' }}>
-          <div style={{ fontSize: '18pt', fontWeight: 900, letterSpacing: '1px', textDecoration: 'underline' }}>{heading}</div>
-          <div style={{ textAlign: 'right', fontSize: '10.5pt', fontWeight: 700 }}>
-            {rec.paper_no ? <div>No. : <b>{rec.paper_no}</b></div> : null}
-            <div>Date : <b>{fmtDate(rec.paper_date)}</b></div>
-          </div>
-        </div>
-      )}
-
-      {opts.showDetails && details.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', border: '1.5px solid #000', marginTop: '3mm' }}>
-          {details.map((row, i) => (
-            <div key={i} style={{ flex: '1 1 30%', padding: '2mm 3mm', borderRight: i < details.length - 1 ? '1px solid #999' : 'none' }}>
-              <div style={{ fontSize: '8pt', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{row.l}</div>
-              <div style={{ fontSize: '10.5pt', fontWeight: 700 }}>{String(row.v).toUpperCase()}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* IMAGE — fills the page, Chassis/Engine print directly under it */}
-      <div style={{
-        border: opts.imageBorder !== false ? '1.5px solid #000' : 'none',
-        marginTop: (opts.showTitle || opts.showDetails) ? '3mm' : '2mm',
-        flex: 1, minHeight: '150mm',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: '#fff',
-      }}>
-        {rec.image_data ? (
-          <img src={rec.image_data} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
-        ) : (
-          <div style={{ textAlign: 'center', border: '2px dashed #999', borderRadius: '2mm', padding: '16mm 20mm', color: '#666' }}>
-            <div style={{ fontSize: '12pt', fontWeight: 700 }}>IMAGE / PHOTO OF THE PAPER</div>
-            <div style={{ fontSize: '9.5pt', marginTop: '1.5mm' }}>Upload the scan from the editor panel — it prints exactly here, with the<br />chassis &amp; engine numbers printed below.</div>
-          </div>
-        )}
+    <Sheet org={org} opts={{ ...opts, paperType: rec.type }}>
+      {/* Reproduce the supplied official scan. Never redraw or edit the government document. */}
+      <div style={{ height: '205mm', width: '100%', flexShrink: 0,
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'center', overflow: 'hidden' }}>
+        <img src={image} alt={rec.type === 'vahan' ? 'Vahan receipt reference' : 'Form 17 reference'}
+          style={{ display: 'block', maxWidth: '100%', maxHeight: '205mm', objectFit: 'contain' }} />
       </div>
-
-      {/* CHASSIS + ENGINE directly below the image */}
-      <div style={{ border: '2px solid #000', borderTop: '2px solid #000', marginTop: '2mm' }}>
-        <div style={{ display: 'flex' }}>
-          <div style={{ width: '42mm', padding: '3mm', borderRight: '1.5px solid #000', background: '#f0f0f0', display: 'flex', alignItems: 'center' }}>
-            <b style={{ fontSize: '11pt' }}>CHASSIS NO.</b>
-          </div>
-          <div style={{ flex: 1, padding: '3mm 4mm', display: 'flex', alignItems: 'center' }}>
-            <span style={{ fontSize: '15pt', fontWeight: 800, letterSpacing: '1.5px' }}>
-              {rec.chassis_no ? rec.chassis_no.toUpperCase() : <span style={{ display: 'inline-block', width: '110mm', borderBottom: '1.5px dotted #333' }}>&nbsp;</span>}
-            </span>
-          </div>
+      {/* Handwritten-looking text is deliberately separate BELOW the scan. */}
+      <div style={{ flexShrink: 0, padding: '1mm 5mm 0', fontSize: '10.5pt', lineHeight: 1.1 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', minHeight: '8mm', gap: '3mm' }}>
+          <b style={{ minWidth: '31mm' }}>Chassis No. :</b>
+          <span style={opts.handwriting !== false ? ink : { fontWeight: 700, fontSize: '12pt' }}>
+            {rec.chassis_no || '____________________________'}</span>
         </div>
-        <div style={{ display: 'flex', borderTop: '1.5px solid #000' }}>
-          <div style={{ width: '42mm', padding: '3mm', borderRight: '1.5px solid #000', background: '#f0f0f0', display: 'flex', alignItems: 'center' }}>
-            <b style={{ fontSize: '11pt' }}>ENGINE NO.</b>
-          </div>
-          <div style={{ flex: 1, padding: '3mm 4mm', display: 'flex', alignItems: 'center' }}>
-            <span style={{ fontSize: '15pt', fontWeight: 800, letterSpacing: '1.5px' }}>
-              {rec.engine_no ? rec.engine_no.toUpperCase() : <span style={{ display: 'inline-block', width: '110mm', borderBottom: '1.5px dotted #333' }}>&nbsp;</span>}
-            </span>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'baseline', minHeight: '8mm', gap: '3mm' }}>
+          <b style={{ minWidth: '31mm' }}>Engine No. :</b>
+          <span style={opts.handwriting !== false ? ink : { fontWeight: 700, fontSize: '12pt' }}>
+            {rec.engine_no || '____________________________'}</span>
         </div>
       </div>
-
-      {rec.notes && (
-        <div style={{ marginTop: '2.5mm', fontSize: '9.5pt', whiteSpace: 'pre-line' }}>
-          <b>Remarks : </b>{rec.notes}
-        </div>
-      )}
-
+      <div style={{ flex: 1, minHeight: 0 }} />
       <SignBlock org={org} show={opts.showSignature !== false} />
     </Sheet>
   )
@@ -512,23 +451,13 @@ export default function VehiclePaperForm() {
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2500) }
 
   const isImageSheet = rec.type === 'form_17' || rec.type === 'vahan'
-  const isLetterheadPaper = rec.type === 'money_receipt' || rec.type === 'form_22a'
 
   // ── Load org settings + customers ──
   useEffect(() => {
     api.get('/settings').then(res => {
       const o = res.data.organization || {}
       setOrg(o)
-      setRec(prev => ({
-        ...prev,
-        data: {
-          ...prev.data,
-          letterheadMm: id ? (prev.data?.letterheadMm ?? 0)
-            : (isLetterheadPaper ? (parseInt(o.print_letterhead_mm) || 0) : 0),
-          footerMm: id ? (prev.data?.footerMm ?? 0) : (parseInt(o.print_footer_mm) || 0),
-          printHeader: id ? !!prev.data?.printHeader : (isLetterheadPaper && !(parseInt(o.print_letterhead_mm) > 0)),
-        },
-      }))
+
     }).catch(() => {})
     api.get('/customers').then(res => setCustomers(res.data.customers || [])).catch(() => {})
   }, []) // eslint-disable-line
@@ -635,13 +564,21 @@ export default function VehiclePaperForm() {
 
   const handlePrint = async () => {
     const el = document.querySelector('.print-area')
+    await document.fonts.ready
     await printElement(el, rec.paper_no || meta.label)
   }
 
   const handlePdf = async () => {
     const el = document.querySelector('.print-area')
     const name = (rec.paper_no || meta.short).replace(/[\\/]/g, '-')
-    try { await downloadPdf(el, `${meta.short.replace(/\s/g, '')}_${name}.pdf`) }
+    try {
+      await document.fonts.ready
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')])
+      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#fff' })
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.94), 'JPEG', 0, 0, 210, 297)
+      pdf.save(`${meta.short.replace(/\s/g, '')}_${name}.pdf`)
+    }
     catch (e) { alert('PDF failed: ' + e.message) }
   }
 
@@ -676,19 +613,9 @@ export default function VehiclePaperForm() {
       {/* ═══ PRINT SETTINGS STRIP ═══ */}
       <div className="flex flex-wrap items-center gap-3 p-3 rounded-2xl no-print" style={{ background: 'var(--bg-glass)', border: '1px solid var(--border)' }}>
         <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Print</span>
-        <Toggle label="Letterhead (uploaded image)" checked={opts.useLetterhead !== false} onChange={v => setD('useLetterhead', v)} />
+        {!isImageSheet && <Toggle label="Glob artwork letterhead" checked={opts.useLetterhead !== false} onChange={v => setD('useLetterhead', v)} />}
         <Toggle label="Address strip at bottom" checked={opts.showFooterStrip !== false} onChange={v => setD('showFooterStrip', v)} />
-        <Toggle label="Company header text" checked={!!opts.printHeader} onChange={v => setD('printHeader', v)} />
-        <div className="flex items-center gap-2">
-          <label className="text-xs" style={{ color: 'var(--text-muted)' }}>Letterhead space (mm)</label>
-          <input type="number" value={opts.letterheadMm ?? 0} onChange={e => setD('letterheadMm', parseInt(e.target.value) || 0)}
-            className="w-20 px-2 py-1.5 rounded-lg text-sm" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-input)', color: 'var(--text-primary)', outline: 'none' }} />
-        </div>
-        <div className="flex items-center gap-2">
-          <label className="text-xs" style={{ color: 'var(--text-muted)' }} title="Only used when the letterhead image is switched off (blank / pre-printed paper)">Top gap (blank paper, mm)</label>
-          <input type="number" value={opts.contentTopMm ?? 22} onChange={e => setD('contentTopMm', parseInt(e.target.value) || 0)}
-            className="w-20 px-2 py-1.5 rounded-lg text-sm" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-input)', color: 'var(--text-primary)', outline: 'none' }} />
-        </div>
+        {!isImageSheet && <Toggle label="Company header text (no artwork)" checked={!!opts.printHeader} onChange={v => setD('printHeader', v)} />}
         <Toggle label="Stamp / signature" checked={opts.showSignature !== false} onChange={v => setD('showSignature', v)} />
         <div className="flex items-center gap-2">
           <label className="text-xs" style={{ color: 'var(--text-muted)' }}>Font</label>
@@ -697,9 +624,7 @@ export default function VehiclePaperForm() {
             {['Arial', 'Times New Roman', 'Calibri', 'Verdana', 'Tahoma', 'Georgia'].map(f => <option key={f} value={f}>{f}</option>)}
           </select>
         </div>
-        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-          Letterhead image comes from <b>Settings → Images &amp; Signatures → Full Letterhead</b>. Switch it off to print on your pre-printed stationery instead.
-        </span>
+        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Fixed 210 × 297 mm A4 · bundled Glob header/footer · no invoice spacing</span>
       </div>
 
       {/* ═══ EDITOR + PREVIEW ═══ */}
@@ -708,30 +633,24 @@ export default function VehiclePaperForm() {
         {/* ─── LEFT: editor fields ─── */}
         <div className="rounded-2xl p-4 space-y-4 no-print" style={{ background: 'var(--bg-glass)', border: '1px solid var(--border)' }}>
 
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Paper No." value={rec.paper_no} onChange={v => set('paper_no', v)} placeholder="MR-0001/26-27" />
-            <Field label="Date" type="date" value={rec.paper_date} onChange={v => set('paper_date', v)} />
-          </div>
-
-          <Field label="Customer name" value={rec.customer_name} onChange={pickCustomer} placeholder="SHIV TRANSPORT" />
-          {customers.length > 0 && (
-            <div className="flex flex-wrap gap-1 -mt-1">
-              {customers.slice(0, 6).map(c => (
-                <button key={c.id} type="button" onClick={() => pickCustomer(c.name || '')}
-                  className="text-[11px] px-2 py-1 rounded-lg" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-input)', color: 'var(--text-muted)' }}>
-                  {c.name}
-                </button>
-              ))}
+          {!isImageSheet && <>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Paper No." value={rec.paper_no} onChange={v => set('paper_no', v)} />
+              <Field label="Date" type="date" value={rec.paper_date} onChange={v => set('paper_date', v)} />
             </div>
-          )}
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Vehicle / Model (ON ACCOUNT OF)" value={rec.model} onChange={v => set('model', v)} placeholder="TATA MOTORS SIGNA 4932.T" />
-            <Field label="Vehicle No." value={rec.vehicle_no} onChange={v => set('vehicle_no', v)} placeholder="MH-46-TC-164" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Chassis No." value={rec.chassis_no} onChange={v => set('chassis_no', v)} placeholder="MAT566136T1H24001" />
-            <Field label="Engine No." value={rec.engine_no} onChange={v => set('engine_no', v)} placeholder="B6.7B62320D14162H64616434" />
-          </div>
+            <Field label="Customer name" value={rec.customer_name} onChange={pickCustomer} placeholder="SHIV TRANSPORT" />
+            {customers.length > 0 && <div className="flex flex-wrap gap-1 -mt-1">
+              {customers.slice(0, 6).map(c => <button key={c.id} type="button" onClick={() => pickCustomer(c.name || '')}
+                className="text-[11px] px-2 py-1 rounded-lg" style={{ background: 'var(--bg-input)', color: 'var(--text-muted)' }}>{c.name}</button>)}
+            </div>}
+            <Field label="Vehicle / Model" value={rec.model} onChange={v => set('model', v)} placeholder="TATA SIGNA 4832 BSVI 10X2" />
+          </>}
+          {isImageSheet && <div className="text-sm rounded-xl p-3" style={{ background: 'var(--bg-input)', color: 'var(--text-secondary)' }}>
+            Your {rec.type === 'form_17' ? 'Form 17 certificate' : 'Vahan receipt'} is already selected as the default.
+            Enter just the two numbers below. The handwriting-style text and company stamp print <b>below</b> the original scan.
+          </div>}
+          <Field label="Chassis No." value={rec.chassis_no} onChange={v => set('chassis_no', v)} placeholder="Write chassis number" />
+          <Field label="Engine No." value={rec.engine_no} onChange={v => set('engine_no', v)} placeholder="Write engine number" />
 
           {/* ── Margin money receipt ── */}
           {rec.type === 'money_receipt' && (
@@ -781,48 +700,16 @@ export default function VehiclePaperForm() {
             </>
           )}
 
-          {/* ── Form 17 / Vahan ── */}
-          {isImageSheet && (
-            <>
-              <div className="pt-1" style={{ borderTop: '1px solid var(--border)' }} />
-              <div>
-                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>Paper image (prints above Chassis / Engine No.)</label>
-                {rec.image_data ? (
-                  <div className="relative">
-                    <img src={rec.image_data} alt="" className="w-full rounded-xl" style={{ maxHeight: 180, objectFit: 'contain', background: '#fff' }} />
-                    <button type="button" onClick={() => set('image_data', '')}
-                      className="absolute top-2 right-2 p-1.5 rounded-lg" style={{ background: 'rgba(0,0,0,0.6)', color: '#fff' }}><X size={14} /></button>
-                    <button type="button" onClick={() => fileRef.current?.click()}
-                      className="mt-2 text-xs px-3 py-1.5 rounded-lg w-full" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-input)', color: 'var(--text-secondary)' }}>
-                      Replace image
-                    </button>
-                  </div>
-                ) : (
-                  <button type="button" onClick={() => fileRef.current?.click()}
-                    className="w-full py-6 rounded-xl flex flex-col items-center gap-2 text-sm"
-                    style={{ background: 'var(--bg-input)', border: '1.5px dashed var(--border-input)', color: 'var(--text-muted)' }}>
-                    <Upload size={20} />
-                    Upload Form 17 / Vahan paper scan
-                  </button>
-                )}
-                <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }}
-                  onChange={e => { handleImage(e.target.files?.[0]); e.target.value = '' }} />
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Toggle label="Print title line" checked={!!opts.showTitle} onChange={v => setD('showTitle', v)} />
-                <Toggle label="Vehicle details strip" checked={!!opts.showDetails} onChange={v => setD('showDetails', v)} />
-                <Toggle label="Image border" checked={opts.imageBorder !== false} onChange={v => setD('imageBorder', v)} />
-              </div>
-              <Field label="Remarks (printed below the numbers)" value={rec.notes} onChange={v => set('notes', v)} />
-            </>
-          )}
+          {isImageSheet && <div className="space-y-2">
+            <Toggle label="Handwritten-style chassis / engine" checked={opts.handwriting !== false} onChange={v => setD('handwriting', v)} />
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              Using your supplied original scan. If this certificate/receipt is renewed, replace the sample below.
+            </p>
+            <button type="button" onClick={() => fileRef.current?.click()} className="btn-secondary text-xs flex items-center gap-2"><Upload size={14} /> {rec.image_data ? 'Replace custom scan' : 'Use a different scan'}</button>
+            {rec.image_data && <button type="button" onClick={() => set('image_data', '')} className="btn-secondary text-xs ml-2">Restore default</button>}
+            <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { handleImage(e.target.files?.[0]); e.target.value = '' }} />
+          </div>}
 
-          {opts.showFooterStrip !== false && (
-            <Field label="Address strip text (bottom bar)"
-              value={opts.footerAddress || ''}
-              onChange={v => setD('footerAddress', v)}
-              placeholder={DEFAULT_FOOTER_ADDRESS} />
-          )}
 
           <div className="text-[11px] leading-relaxed px-3 py-2 rounded-xl" style={{ background: 'var(--bg-input)', color: 'var(--text-muted)' }}>
             Click <b>Save</b> to store this paper. <b>Print</b> / <b>PDF</b> capture exactly what you see in the preview — one A4 page.
