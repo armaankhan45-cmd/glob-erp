@@ -48,6 +48,9 @@ export function defaultData(type) {
     letterheadMm: 0,
     footerMm: 0,
     handwriting: true,
+    scanWidthMm: 190,
+    scanHeightMm: 228,
+    scanZoomPct: 100,
     showSignature: type === 'form_22a' ? false : true,
     sigStyle: sigBlock || type === 'form_22a' ? 'block' : 'plain',
     fontFamily: 'Arial',
@@ -164,7 +167,6 @@ function Sheet({ org, opts, children }) {
   const header = !isScan && opts.useLetterhead !== false
     ? (opts.useCustomLetterhead && isImg(org?.letterhead_url) ? org.letterhead_url : defaultLetterhead)
     : null
-  // Address bar only on Margin Money Receipt and Form 22-A — NEVER on scans.
   const footer = !isScan && opts.showFooterStrip !== false
     ? (opts.useCustomLetterhead && isImg(org?.letterhead_footer_url) ? org.letterhead_footer_url : defaultAddressBar)
     : null
@@ -225,13 +227,17 @@ function SignBlock({ org, show = true, compact = false }) {
 }
 
 /** Plain "SIGNATURE :" line — exactly as on the company's margin money receipt */
-function PlainSignature() {
+function PlainSignature({ org }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', marginTop: '26mm' }}>
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ fontWeight: 800, fontSize: '13.5pt', letterSpacing: '1.5px' }}>SIGNATURE :</div>
-        <div style={{ width: '38mm', height: '2px', background: '#4a90d9', margin: '1.5mm auto 0' }} />
-      </div>
+    <div style={{ alignSelf: 'center', width: '54mm', height: '39mm',
+      position: 'relative', flexShrink: 0, marginTop: '5mm', textAlign: 'center' }}>
+      <img src={org?.stamp_url || defaultStamp} alt="Company signed stamp"
+        style={{ width: '39mm', height: '27mm', objectFit: 'contain', display: 'block', margin: '0 auto' }} />
+      {org?.signature_url && <img src={org.signature_url} alt="Company signature"
+        style={{ position: 'absolute', left: '50%', top: '5mm', transform: 'translateX(-50%)',
+          width: '23mm', height: '12mm', objectFit: 'contain' }} />}
+      <div style={{ fontWeight: 800, fontSize: '12pt', letterSpacing: '1px' }}>SIGNATURE :</div>
+      <div style={{ width: '38mm', height: '1px', background: '#4a90d9', margin: '1mm auto 0' }} />
     </div>
   )
 }
@@ -313,7 +319,7 @@ export function MoneyReceiptPaper({ rec, org, opts }) {
       {opts.showSignature !== false && (
         opts.sigStyle === 'block'
           ? <SignBlock org={org} show />
-          : <PlainSignature />
+          : <PlainSignature org={org} />
       )}
     </Sheet>
   )
@@ -391,15 +397,19 @@ export function Form22APaper({ rec, org, opts }) {
 // ═══════════════════════════════════════════════════════════════
 export function ImageSheetPaper({ rec, org, opts }) {
   const image = rec.image_data || (rec.type === 'vahan' ? defaultVahan : defaultForm17)
+  const scanW = Math.min(190, Math.max(130, Number(opts.scanWidthMm) || 190))
+  const scanH = Math.min(244, Math.max(150, Number(opts.scanHeightMm) || 228))
+  const zoom = Math.min(115, Math.max(75, Number(opts.scanZoomPct) || 100))
   const ink = { fontFamily: "'Caveat', 'Segoe Print', cursive", fontWeight: 700,
     fontSize: '13pt', color: '#29203d', letterSpacing: '0.4px' }
   return (
     <Sheet org={org} opts={{ ...opts, paperType: rec.type }}>
       {/* Reproduce the supplied official scan. Never redraw or edit the government document. */}
-      <div style={{ height: '228mm', width: '100%', flexShrink: 0,
+      <div style={{ height: scanH + 'mm', width: '100%', flexShrink: 0,
         display: 'flex', alignItems: 'flex-start', justifyContent: 'center', overflow: 'hidden' }}>
         <img src={image} alt={rec.type === 'vahan' ? 'Vahan receipt reference' : 'Form 17 reference'}
-          style={{ display: 'block', maxWidth: '100%', maxHeight: '228mm', objectFit: 'contain' }} />
+          style={{ display: 'block', maxWidth: scanW + 'mm', maxHeight: scanH + 'mm', objectFit: 'contain',
+            transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }} />
       </div>
       {/* Handwritten-looking text is deliberately separate BELOW the scan. */}
       <div style={{ flexShrink: 0, padding: '1mm 5mm 0', fontSize: '9pt', lineHeight: 1.1 }}>
@@ -706,6 +716,25 @@ export default function VehiclePaperForm() {
               <Area label="Closing paragraph (each line as you want it printed)" value={opts.closingText} onChange={v => setD('closingText', v)} rows={4} />
             </>
           )}
+
+          {isImageSheet && <div className="space-y-3 p-3 rounded-xl" style={{ background: 'var(--bg-input)' }}>
+            <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Adjust {rec.type === 'form_17' ? 'Form 17' : 'Vahan'} scan size · A4</h3>
+            {[
+              ['Width', 'scanWidthMm', 130, 190, 190, 'mm'],
+              ['Height', 'scanHeightMm', 150, 244, 228, 'mm'],
+              ['Zoom', 'scanZoomPct', 75, 115, 100, '%'],
+            ].map(([label, key, min, max, fallback, unit]) => (
+              <label key={key} className="block text-xs" style={{ color: 'var(--text-secondary)' }}>
+                <span className="flex justify-between mb-1"><span>{label}</span><b>{opts[key] ?? fallback}{unit}</b></span>
+                <input type="range" min={min} max={max} step="1" value={opts[key] ?? fallback}
+                  onChange={e => setD(key, Number(e.target.value))} className="w-full" />
+              </label>
+            ))}
+            <button type="button" className="btn-secondary text-xs" onClick={() => setRec(prev => ({
+              ...prev, data: { ...prev.data, scanWidthMm: 190, scanHeightMm: 228, scanZoomPct: 100 }
+            }))}>Reset scan size</button>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Check Preview A4 before printing. Zoom above 100% can crop scan edges.</p>
+          </div>}
 
           {isImageSheet && <div className="space-y-2">
             <Toggle label="Handwritten-style chassis / engine" checked={opts.handwriting !== false} onChange={v => setD('handwriting', v)} />
