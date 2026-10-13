@@ -1,3 +1,6 @@
+
+
+
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../api/client'
@@ -85,10 +88,10 @@ function ClassicLayout({ quotation, items, org, boldOn, customerSize, detailSize
    PRO LAYOUT — With letterhead image header, stamp, signature
    Matches the company's printed letterhead format
    ═══════════════════════════════════════════════════════════════ */
-function ProLayout({ quotation, items, boldOn, customerSize, detailSize, qNum, gstRate, totalGST, totalAmount, amountWords }) {
+function ProLayout({ quotation, items, boldOn, customerSize, detailSize, qNum, gstRate, totalGST, totalAmount, amountWords, selectedFont }) {
   const bdr = '1.5px solid #000'
   return (
-    <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily: "'Calibri','Segoe UI','Helvetica Neue',Arial,sans-serif", width: '210mm', minHeight: '297mm', background: '#fff', color: '#000', display: 'flex', flexDirection: 'column' }}>
+    <div className="bg-white shadow-lg mx-auto print-area" style={{ fontFamily: selectedFont || "'Calibri','Segoe UI','Helvetica Neue',Arial,sans-serif", width: '210mm', minHeight: '297mm', background: '#fff', color: '#000', display: 'flex', flexDirection: 'column' }}>
       {/* Real scanned letterhead — logo, GLOB wordmark, tagline, GSTIN, mobile numbers */}
       <img src="/letterhead/glob-header.png" alt="" style={{ width: '100%', display: 'block' }} />
 
