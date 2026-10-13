@@ -75,7 +75,7 @@ export default function MainLayout() {
       }
       const style = document.createElement('style')
       style.id = 'app-font-style'
-      style.textContent = "*, body, html, div, span, p, h1, h2, h3, h4, h5, h6, button, input, select, textarea, table, th, td, label, a, li, nav { font-family: '" + savedFont + "', system-ui, sans-serif !important; }"
+      style.textContent = "html, body, button, input, select, textarea { font-family: '" + savedFont + "', system-ui, sans-serif; }"
       if (!document.getElementById('app-font-style')) {
         document.head.appendChild(style)
       }
