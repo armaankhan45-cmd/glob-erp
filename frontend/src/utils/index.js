@@ -202,13 +202,58 @@ const MARGIN_MM = 6
 
 async function elementToCanvas(el) {
   const { default: html2canvas } = await import('html2canvas')
-  return await html2canvas(el, {
-    scale: 2,               // crisp print quality
-    useCORS: true,          // allow external images (QR codes, logos)
-    allowTaint: false,
-    backgroundColor: '#ffffff',
-    logging: false,
-  })
+  // Make sure web fonts (invoice/quotation font) are loaded before we snapshot
+  try { if (document.fonts && document.fonts.ready) await document.fonts.ready } catch (e) {}
+  // Phones have a ~390px viewport, so capturing the live element gives a squeezed / cropped
+  // page. Snapshot a fixed A4-width copy placed off-screen instead — identical on every device.
+  const wrapper = document.createElement('div')
+  wrapper.style.cssText = `position:fixed;left:-10000px;top:0;width:${A4_W_PX}px;background:#fff;pointer-events:none;`
+  const clone = el.cloneNode(true)
+  clone.style.width = `${A4_W_PX}px`
+  clone.style.maxWidth = 'none'
+  clone.style.margin = '0'
+  clone.style.boxShadow = 'none'
+  clone.style.transform = 'none'
+  wrapper.appendChild(clone)
+  document.body.appendChild(wrapper)
+  try {
+    return await html2canvas(clone, {
+      scale: 2,               // crisp print quality
+      useCORS: true,          // allow external images (QR codes, logos)
+      allowTaint: false,
+      backgroundColor: '#ffffff',
+      logging: false,
+      width: A4_W_PX,
+      windowWidth: A4_W_PX,
+      scrollX: 0,
+      scrollY: 0,
+    })
+  } finally {
+    if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper)
+  }
+}
+
+// Save a jsPDF document in a way that works on phones (iOS Safari ignores pdf.save()).
+async function savePdf(pdf, filename) {
+  const blob = pdf.output('blob')
+  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  if (isIOS) {
+    try {
+      const file = new File([blob], filename, { type: 'application/pdf' })
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: filename }); return }
+    } catch (e) { if (e && e.name === 'AbortError') return }
+    const url = URL.createObjectURL(blob)
+    if (!window.open(url, '_blank')) window.location.href = url
+    return
+  }
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  setTimeout(() => URL.revokeObjectURL(url), 4000)
 }
 
 /**
@@ -227,7 +272,7 @@ export async function downloadPdf(el, filename) {
   const offX = (A4_W_MM - imgW) / 2
   const offY = (A4_H_MM - imgH) / 2
   pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', offX, offY, imgW, imgH)
-  pdf.save(filename.endsWith('.pdf') ? filename : `${filename}.pdf`)
+  await savePdf(pdf, filename.endsWith('.pdf') ? filename : `${filename}.pdf`)
 }
 
 /**
