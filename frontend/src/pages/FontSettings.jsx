@@ -160,7 +160,7 @@ export function applyFont(fontName) {
 
   const style = document.createElement('style')
   style.id = 'app-font-style'
-  style.textContent = "*, body, html, div, span, p, h1, h2, h3, h4, h5, h6, button, input, select, textarea, table, th, td, label, a, li, nav { font-family: '" + fontName + "', system-ui, sans-serif !important; }"
+  style.textContent = "html, body, button, input, select, textarea { font-family: '" + fontName + "', system-ui, sans-serif; }"
   document.head.appendChild(style)
   document.body.style.fontFamily = "'" + fontName + "', system-ui, sans-serif"
 }
