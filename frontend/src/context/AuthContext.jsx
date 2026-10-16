@@ -3,6 +3,19 @@ import api from '../api/client'
 
 const AuthContext = createContext(null)
 
+// Old app versions cached the entire organization object, including mail
+// credentials. Purge those fields before rendering or re-caching the user.
+function safeUser(raw) {
+  if (!raw) return raw
+  const org = raw.organization
+  if (!org) return raw
+  const keys = ['id', 'name', 'gstin', 'address', 'city', 'state', 'state_code',
+    'pincode', 'phone', 'email', 'logo_url']
+  return { ...raw, organization: Object.fromEntries(keys
+    .filter(k => org[k] !== undefined).map(k => [k, org[k]])) }
+}
+
+
 export function useAuth() {
   const ctx = useContext(AuthContext)
   if (!ctx) throw new Error('useAuth must be inside AuthProvider')
@@ -20,7 +33,7 @@ export function AuthProvider({ children }) {
     const token = localStorage.getItem('token')
     const savedUser = localStorage.getItem('user')
 
-    if (token && savedUser) { try { setUser(JSON.parse(savedUser)) } catch {} }
+    if (token && savedUser) { try { const cleaned = safeUser(JSON.parse(savedUser)); setUser(cleaned); localStorage.setItem('user', JSON.stringify(cleaned)) } catch {} }
 
     if (!token) { setLoading(false); setInitialized(true); return }
 
@@ -30,8 +43,8 @@ export function AuthProvider({ children }) {
 
     api.get('/auth/me', { timeout: 8000 }).then(res => {
       if (!cancelled) {
-        setUser(res.data.user)
-        localStorage.setItem('user', JSON.stringify(res.data.user))
+        setUser(safeUser(res.data.user))
+        localStorage.setItem('user', JSON.stringify(safeUser(res.data.user)))
         setLoading(false); setInitialized(true); clearTimeout(safetyTimeout)
       }
     }).catch(err => {
@@ -40,7 +53,7 @@ export function AuthProvider({ children }) {
           localStorage.removeItem('token'); localStorage.removeItem('user'); setUser(null)
           if (!window.location.pathname.includes('/login')) { window.location.href = '/login' }
         } else {
-          if (savedUser) { try { setUser(JSON.parse(savedUser)) } catch {} }
+          if (savedUser) { try { setUser(safeUser(JSON.parse(savedUser))) } catch {} }
         }
         setLoading(false); setInitialized(true); clearTimeout(safetyTimeout)
       }
@@ -55,8 +68,8 @@ export function AuthProvider({ children }) {
       const res = await api.post('/auth/login', { email, password })
       const { token, user } = res.data
       localStorage.setItem('token', token)
-      localStorage.setItem('user', JSON.stringify(user))
-      setUser(user)
+      localStorage.setItem('user', JSON.stringify(safeUser(user)))
+      setUser(safeUser(user))
       return { success: true }
     } catch (err) {
       const msg = err.response?.data?.msg || err.message || 'Login failed'
@@ -68,7 +81,7 @@ export function AuthProvider({ children }) {
   const logout = useCallback(() => { localStorage.removeItem('token'); localStorage.removeItem('user'); setUser(null) }, [])
 
   const refreshUser = useCallback(async () => {
-    try { const res = await api.get('/auth/me'); setUser(res.data.user); localStorage.setItem('user', JSON.stringify(res.data.user)) } catch {}
+    try { const res = await api.get('/auth/me'); setUser(safeUser(res.data.user)); localStorage.setItem('user', JSON.stringify(safeUser(res.data.user))) } catch {}
   }, [])
 
   if (loading && !localStorage.getItem('user')) {
