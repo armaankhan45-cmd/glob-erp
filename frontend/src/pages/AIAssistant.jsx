@@ -18,7 +18,7 @@ async function streamChat(message, messages, { onDelta, onTool }) {
   const resp = await fetch(`${API_BASE}/ai/stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ message, messages }),
+    body: JSON.stringify({ message, messages: messages.slice(0, -1) }),
     signal: AbortSignal.timeout(30000)
   })
   if (resp.status === 404 || resp.status === 405) streamUnavailable = true
@@ -38,12 +38,21 @@ async function streamChat(message, messages, { onDelta, onTool }) {
       if (!t.startsWith('data:')) continue
       let ev
       try { ev = JSON.parse(t.slice(5).trim()) } catch (e) { continue }
-      if (ev.delta) { result.text += ev.delta; onDelta(ev.delta) }
-      else if (ev.tool) { result.toolCalls.push(ev.tool); onTool(ev.tool) }
-      else if (ev.done) { result.provider = ev.provider }
-      else if (ev.error) { throw new Error(ev.msg) }
+      // Backend SSE emits {text}, {name,args,result}, {provider}.
+      // Accept both this format and older {delta}/{tool}/{done} events.
+      const delta = typeof ev.delta === 'string' ? ev.delta
+        : typeof ev.text === 'string' ? ev.text : ''
+      if (delta) { result.text += delta; onDelta(delta) }
+      if (ev.tool) { result.toolCalls.push(ev.tool); onTool(ev.tool) }
+      else if (ev.name && Object.prototype.hasOwnProperty.call(ev, 'result')) {
+        const tool = { name: ev.name, args: ev.args, result: ev.result }
+        result.toolCalls.push(tool); onTool(tool)
+      }
+      if (ev.provider) result.provider = ev.provider
+      if (ev.error) throw new Error(ev.msg || 'AI stream failed')
     }
   }
+  if (!result.text.trim()) throw new Error('AI stream returned no answer')
   return result
 }
 
