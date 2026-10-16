@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useLayoutEffect } from 'react'
 
 // ══════════════════════════════════════════════════════════
 // GLOB ERP — Theme System
@@ -19,17 +19,25 @@ const ThemeContext = createContext()
 
 export function ThemeProvider({ children }) {
   const [themeKey, setThemeKey] = useState(() => localStorage.getItem('glob-theme-key') || 'cyan')
-  const [mode, setMode] = useState(() => localStorage.getItem('glob-mode') || 'dark')
+  const [mode, setMode] = useState(() => localStorage.getItem('glob-mode') === 'light' ? 'light' : 'dark')
 
-  const toggleMode = () => {
-    const next = mode === 'dark' ? 'light' : 'dark'
-    setMode(next)
-    localStorage.setItem('glob-mode', next)
-  }
+  const toggleMode = () => setMode(previous => previous === 'dark' ? 'light' : 'dark')
+
+  useEffect(() => {
+    localStorage.setItem('glob-mode', mode)
+  }, [mode])
+
+  useEffect(() => {
+    const onStorage = event => {
+      if (event.key === 'glob-mode') setMode(event.newValue === 'light' ? 'light' : 'dark')
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
 
   useEffect(() => { localStorage.setItem('glob-theme-key', themeKey) }, [themeKey])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const accent = THEMES[themeKey]?.color || '#22d3ee'
     const r = parseInt(accent.slice(1,3), 16)
     const g = parseInt(accent.slice(3,5), 16)
@@ -44,16 +52,16 @@ export function ThemeProvider({ children }) {
 
     // ═══ ALL CSS vars used across the entire app ═══
     if (mode === 'light') {
-      root.style.setProperty('--bg-primary', '#ffffff')
-      root.style.setProperty('--bg-page', '#ffffff')
+      root.style.setProperty('--bg-primary', '#f5f7fa')
+      root.style.setProperty('--bg-page', '#f5f7fa')
       root.style.setProperty('--bg-card', '#ffffff')
-      root.style.setProperty('--bg-sidebar', '#ffffff')
-      root.style.setProperty('--bg-topbar', '#ffffff')
-      root.style.setProperty('--bg-input', '#ffffff')
-      root.style.setProperty('--bg-glass', '#ffffff')
-      root.style.setProperty('--bg-glass-md', '#ffffff')
-      root.style.setProperty('--bg-glass-strong', '#ffffff')
-      root.style.setProperty('--surface-glass', '#ffffff')
+      root.style.setProperty('--bg-sidebar', 'rgba(255,255,255,0.95)')
+      root.style.setProperty('--bg-topbar', 'rgba(255,255,255,0.90)')
+      root.style.setProperty('--bg-input', '#ebeef3')
+      root.style.setProperty('--bg-glass', 'rgba(0,0,0,0.04)')
+      root.style.setProperty('--bg-glass-md', 'rgba(0,0,0,0.06)')
+      root.style.setProperty('--bg-glass-strong', 'rgba(0,0,0,0.08)')
+      root.style.setProperty('--surface-glass', 'rgba(0,0,0,0.04)')
       root.style.setProperty('--border', 'rgba(0,0,0,0.10)')
       root.style.setProperty('--border-md', 'rgba(0,0,0,0.06)')
       root.style.setProperty('--border-strong', 'rgba(0,0,0,0.14)')
@@ -68,19 +76,20 @@ export function ThemeProvider({ children }) {
       root.style.setProperty('--text-light', '#475569')
       root.style.setProperty('--text-faint', 'rgba(26,26,46,0.30)')
       root.style.setProperty('--navy', '#1a1a2e')
+      root.style.colorScheme = 'light'
       root.classList.add('light-mode')
       root.classList.remove('dark-mode')
     } else {
-      root.style.setProperty('--bg-primary', '#06080f')
-      root.style.setProperty('--bg-page', '#06080f')
-      root.style.setProperty('--bg-card', '#06080f')
-      root.style.setProperty('--bg-sidebar', '#06080f')
-      root.style.setProperty('--bg-topbar', '#06080f')
-      root.style.setProperty('--bg-input', '#06080f')
-      root.style.setProperty('--bg-glass', '#06080f')
-      root.style.setProperty('--bg-glass-md', '#06080f')
-      root.style.setProperty('--bg-glass-strong', '#06080f')
-      root.style.setProperty('--surface-glass', '#06080f')
+      root.style.setProperty('--bg-primary', '#0f1419')
+      root.style.setProperty('--bg-page', '#080b14')
+      root.style.setProperty('--bg-card', 'rgba(22,28,38,0.97)')
+      root.style.setProperty('--bg-sidebar', 'rgba(16,22,32,0.96)')
+      root.style.setProperty('--bg-topbar', 'rgba(18,24,34,0.80)')
+      root.style.setProperty('--bg-input', 'rgba(255,255,255,0.06)')
+      root.style.setProperty('--bg-glass', 'rgba(255,255,255,0.04)')
+      root.style.setProperty('--bg-glass-md', 'rgba(255,255,255,0.06)')
+      root.style.setProperty('--bg-glass-strong', 'rgba(255,255,255,0.10)')
+      root.style.setProperty('--surface-glass', 'rgba(255,255,255,0.04)')
       root.style.setProperty('--border', 'rgba(255,255,255,0.08)')
       root.style.setProperty('--border-md', 'rgba(255,255,255,0.05)')
       root.style.setProperty('--border-strong', 'rgba(255,255,255,0.12)')
@@ -95,6 +104,7 @@ export function ThemeProvider({ children }) {
       root.style.setProperty('--text-light', '#cbd5d1')
       root.style.setProperty('--text-faint', 'rgba(226,232,240,0.30)')
       root.style.setProperty('--navy', '#1e293b')
+      root.style.colorScheme = 'dark'
       root.classList.add('dark-mode')
       root.classList.remove('light-mode')
     }
