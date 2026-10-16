@@ -449,7 +449,7 @@ export default function Settings() {
           <div>
             <label className="block text-sm font-medium text-white/70 mb-1">SMTP Password (App Password)</label>
             <div className="relative">
-              <input type={showSmtpPass ? 'text' : 'password'} value={org.smtp_pass || ''} onChange={e => update('smtp_pass', e.target.value)} className="input-field pr-10" placeholder="xxxx xxxx xxxx xxxx" />
+              <input type={showSmtpPass ? 'text' : 'password'} value={org.smtp_pass || ''} onChange={e => update('smtp_pass', e.target.value)} className="input-field pr-10" placeholder={org.smtp_pass_set ? "Configured — enter a new password to change" : "Enter app password"} />
               <button onClick={() => setShowSmtpPass(!showSmtpPass)} className="absolute right-2 top-2 text-white/30 hover:text-white/60 transition-colors">
                 {showSmtpPass ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
@@ -463,7 +463,7 @@ export default function Settings() {
             <Send size={16} /> {testingEmail ? 'Sending...' : 'Send Test Email'}
           </button>
           {!org.smtp_host && <span className="text-xs text-amber-400">⚠ Not configured — email sharing will use mailto: fallback</span>}
-          {org.smtp_host && org.smtp_user && org.smtp_pass && <span className="text-xs text-emerald-400">✓ SMTP configured</span>}
+          {org.smtp_host && org.smtp_user && (org.smtp_pass_set || org.smtp_pass) && <span className="text-xs text-emerald-400">✓ SMTP configured</span>}
         </div>
       </div>
 
