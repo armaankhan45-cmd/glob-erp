@@ -10,15 +10,19 @@ import {
 // STREAMING CLIENT — reads Server-Sent Events for live token output
 // ═══════════════════════════════════════════════════════════════
 const API_BASE = import.meta.env.VITE_API_URL || '/api'
+let streamUnavailable = false // remember old Render deploys that lack /ai/stream
 
 async function streamChat(message, messages, { onDelta, onTool }) {
+  if (streamUnavailable) throw new Error('Streaming unavailable on this backend')
   const token = localStorage.getItem('token')
   const resp = await fetch(`${API_BASE}/ai/stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ message, messages })
+    body: JSON.stringify({ message, messages }),
+    signal: AbortSignal.timeout(30000)
   })
-  if (!resp.ok || !resp.body) throw new Error('Streaming unavailable')
+  if (resp.status === 404 || resp.status === 405) streamUnavailable = true
+  if (!resp.ok || !resp.body) throw new Error(`Streaming unavailable (${resp.status})`)
   const reader = resp.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
@@ -41,6 +45,28 @@ async function streamChat(message, messages, { onDelta, onTool }) {
     }
   }
   return result
+}
+
+// Immediate, private answers for common business questions. These use only
+// authenticated ERP endpoints — no external model or anonymous service.
+const money = value => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Number(value) || 0)
+async function instantBusinessAnswer(question) {
+  const q = question.toLowerCase().trim()
+  if (/how.*business|business.*doing|business overview|revenue|profit/.test(q)) {
+    const r = await api.get('/dashboard/stats', { timeout: 25000 })
+    if (!r.data?.success || !r.data.stats) return null
+    const x = r.data.stats
+    return `**Business snapshot (live ERP data)**\n\n- Total invoiced: **${money(x.totalRevenue)}**\n- Paid invoice total: **${money(x.paidRevenue)}**\n- Unpaid invoices: **${x.pendingInvoices || 0}** (${money(x.pendingAmount)})\n- Recorded expenses: **${money(x.totalExpenses)}**\n- Revenue minus recorded expenses: **${money(x.netProfit)}**\n- Customers: **${x.customerCount || 0}**\n\n*These are ERP figures, not a bank balance or audited profit.*`
+  }
+  if (/gst|tax payable|input tax|output tax/.test(q)) {
+    const now = new Date()
+    const year = now.getMonth() < 3 ? now.getFullYear() - 1 : now.getFullYear()
+    const r = await api.get('/gst/summary', { params: { year }, timeout: 25000 })
+    if (!r.data?.success || !r.data.gstr3b) return null
+    const g = r.data.gstr3b
+    return `**GST summary — FY ${year}–${String(year + 1).slice(-2)} (live ERP data)**\n\n- Output GST: **${money(g.outputTotal)}**\n- Input GST: **${money(g.inputTotal)}**\n- Estimated net payable: **${money(g.netPayable)}**\n\n*Check the GST Reports page before filing.*`
+  }
+  return null
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -213,7 +239,7 @@ export default function AIAssistant() {
     setMessages([{
       role: 'assistant',
       welcome: true,
-      content: `# 👋 Namaste! I'm your Glob ERP Copilot\n\nI'm plugged into your **live ERP database** and I know your **business** — your SS304 tankers, materials, GST rules and formats — so I answer with **real numbers**, no guessing.\n\nTry asking:\n\n📈 **"How is my business doing?"** — revenue, profit, GST at a glance\n💰 **"Who owes me money?"** — unpaid & overdue invoices\n🧾 **"How much GST do I owe?"** — output vs input tax\n🏭 **"What products do you make?"** — from my business knowledge base\n📦 **"Am I low on stock?"** — inventory alerts\n\n…or use me as your **system engineer**: diagnose errors, auto-fix issues, read/write code, and check deploys.`,
+      content: `# 👋 Namaste! I'm your Glob ERP Copilot\n\nI'm plugged into your **live ERP database** and I know your **business** — your SS304 tankers, materials, GST rules and formats — so I answer with **real numbers**, no guessing.\n\nTry asking:\n\n📈 **"How is my business doing?"** — revenue, profit, GST at a glance\n💰 **"Who owes me money?"** — unpaid & overdue invoices\n🧾 **"How much GST do I owe?"** — output vs input tax\n🏭 **"What products do you make?"** — from my business knowledge base\n📦 **"Am I low on stock?"** — inventory alerts\n\nFor privacy, I cannot execute SQL, edit code or deploy from chat. Use the **Diagnostics** page for system checks.`,
       toolCalls: []
     }])
   }, [])
@@ -232,28 +258,19 @@ export default function AIAssistant() {
       .map(m => ({ role: m.role, content: m.content }))
     const historyForBackend = history.length > 0 && history[0].role === 'assistant' ? history.slice(1) : history
 
-    // Image generation shortcut (free, no key)
-    const wantsImage = /\b(generate|create|draw|make|design)\b.*\b(image|img|picture|photo|logo|icon|illustration)\b/i.test(userMsg)
-
-    if (wantsImage) {
-      try {
-        const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(userMsg)}?width=1024&height=1024&nologo=true`
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: `🖼️ **Image Generated!**\n\n![Generated Image](${imageUrl})\n\n*Prompt: "${userMsg}"*\n\n💡 Right-click the image to save it, or ask me for another.`,
-          toolCalls: [], provider: 'Pollinations Image (Free)'
-        }])
-      } catch (err) {
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: `❌ Image generation failed: ${err.message}. Try a simpler description.`,
-          toolCalls: [], isError: true
-        }])
+    // Direct live-ERP answers work even when the deployed AI stream is missing.
+    // This also keeps these financial figures away from public model providers.
+    try {
+      const direct = await instantBusinessAnswer(userMsg)
+      if (direct) {
+        setMessages(prev => [...prev, { role: 'assistant', content: direct, toolCalls: [], provider: 'Live ERP data' }])
+        setLoading(false)
+        return
       }
-      setLoading(false)
-      inputRef.current?.focus()
-      return
-    }
+    } catch (e) { /* use the authenticated chat endpoint below */ }
+
+    // Never send a business prompt to a public image-generation URL from the
+    // browser without consent. The backend's privacy mode controls AI providers.
 
     // ── STREAMING path (live token output) ──
     const msgId = Date.now()
@@ -261,6 +278,7 @@ export default function AIAssistant() {
     const patch = (updater) => setMessages(prev => prev.map(m => m._id === msgId ? updater(m) : m))
 
     try {
+      if (aiStatus?.streamingSupported !== true || selectedProvider !== 'auto') throw new Error('Use chat API on this backend')
       const result = await streamChat(userMsg, historyForBackend, {
         onDelta: (d) => patch(m => ({ ...m, content: m.content + d })),
         onTool: (t) => patch(m => ({ ...m, toolCalls: [...m.toolCalls, t] })),
@@ -268,16 +286,16 @@ export default function AIAssistant() {
       patch(m => ({ ...m, _streaming: false, provider: result.provider || 'AI' }))
     } catch (streamErr) {
       // Fall back to non-streaming /ai/chat
-      patch(m => ({ ...m, content: '', _streaming: false }))
+      patch(m => ({ ...m, content: '', _streaming: true }))
       try {
         const body = { messages: historyForBackend }
         if (selectedProvider !== 'auto') body.provider = selectedProvider
         const res = await api.post('/ai/chat', body)
         const data = res.data
-        patch(m => ({ ...m, content: data.message || 'No response', toolCalls: data.toolCalls || [], provider: data.provider }))
+        patch(m => ({ ...m, content: data.message || 'No response', _streaming: false, toolCalls: data.toolCalls || [], provider: data.provider }))
       } catch (chatErr) {
         const errMsg = chatErr.response?.data?.msg || chatErr.message
-        patch(m => ({ ...m, content: `❌ **Error:** ${errMsg}\n\nThe AI service might be temporarily unavailable. Try again in a moment.`, isError: true }))
+        patch(m => ({ ...m, content: `❌ **Error:** ${errMsg}\n\nThe AI service might be temporarily unavailable. Try again in a moment.`, _streaming: false, isError: true }))
       }
     } finally {
       setLoading(false)
@@ -288,8 +306,8 @@ export default function AIAssistant() {
   const handleKeyDown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input) } }
   const clearChat = () => setMessages([{ role: 'assistant', welcome: true, content: '🗑️ Chat cleared! What would you like to know?', toolCalls: [] }])
 
-  const availableProviders = ['auto', ...(aiStatus?.providers || ['Pollinations AI (Free)'])]
-  const toolCount = aiStatus?.toolsAvailable || 30
+  const availableProviders = ['auto', ...(aiStatus?.providers || [])]
+  const toolCount = aiStatus?.toolsAvailable ?? 0
   const showWelcome = messages.length === 1 && messages[0].welcome
 
   return (
