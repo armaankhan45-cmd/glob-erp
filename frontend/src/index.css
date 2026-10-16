@@ -64,22 +64,22 @@
 }
 
 /* ─── LIGHT MODE: Fix ALL text-white opacity classes ─── */
-.light-mode .text-white { color: var(--text-primary) !important; }
-.light-mode .text-white\/5 { color: var(--text-muted) !important; }
-.light-mode .text-white\/10 { color: var(--text-muted) !important; }
-.light-mode .text-white\/15 { color: var(--text-muted) !important; }
-.light-mode .text-white\/20 { color: var(--text-muted) !important; }
-.light-mode .text-white\/25 { color: var(--text-muted) !important; }
-.light-mode .text-white\/30 { color: var(--text-muted) !important; }
-.light-mode .text-white\/35 { color: var(--text-secondary) !important; }
-.light-mode .text-white\/40 { color: var(--text-secondary) !important; }
-.light-mode .text-white\/45 { color: var(--text-secondary) !important; }
-.light-mode .text-white\/50 { color: var(--text-secondary) !important; }
-.light-mode .text-white\/55 { color: var(--text-secondary) !important; }
-.light-mode .text-white\/60 { color: var(--text-secondary) !important; }
-.light-mode .text-white\/70 { color: var(--text-primary) !important; }
-.light-mode .text-white\/80 { color: var(--text-primary) !important; }
-.light-mode .text-white\/90 { color: var(--text-bright) !important; }
+.light-mode .text-white:not(.print-area *):not(.btn-primary):not(.fab):not(.bg-emerald-600):not(.bg-red-600):not(.bg-blue-600):not(.bg-purple-600) { color: var(--text-primary) !important; }
+.light-mode .text-white\/5:not(.print-area *) { color: var(--text-muted) !important; }
+.light-mode .text-white\/10:not(.print-area *) { color: var(--text-muted) !important; }
+.light-mode .text-white\/15:not(.print-area *) { color: var(--text-muted) !important; }
+.light-mode .text-white\/20:not(.print-area *) { color: var(--text-muted) !important; }
+.light-mode .text-white\/25:not(.print-area *) { color: var(--text-muted) !important; }
+.light-mode .text-white\/30:not(.print-area *) { color: var(--text-muted) !important; }
+.light-mode .text-white\/35:not(.print-area *) { color: var(--text-secondary) !important; }
+.light-mode .text-white\/40:not(.print-area *) { color: var(--text-secondary) !important; }
+.light-mode .text-white\/45:not(.print-area *) { color: var(--text-secondary) !important; }
+.light-mode .text-white\/50:not(.print-area *) { color: var(--text-secondary) !important; }
+.light-mode .text-white\/55:not(.print-area *) { color: var(--text-secondary) !important; }
+.light-mode .text-white\/60:not(.print-area *) { color: var(--text-secondary) !important; }
+.light-mode .text-white\/70:not(.print-area *) { color: var(--text-primary) !important; }
+.light-mode .text-white\/80:not(.print-area *) { color: var(--text-primary) !important; }
+.light-mode .text-white\/90:not(.print-area *) { color: var(--text-bright) !important; }
 
 /* ─── LIGHT MODE: Fix hover:text-white ─── */
 .light-mode .hover\:text-white:hover { color: var(--text-primary) !important; }
@@ -130,9 +130,9 @@
 
 /* ─── LIGHT MODE: Fix ALL inline rgba(255,255,255) styles ─── */
 .light-mode .card { background: #fff; border-color: rgba(0,0,0,0.08); }
-.light-mode table th { color: rgba(30,41,59,0.4); }
-.light-mode table tbody tr { border-color: rgba(0,0,0,0.06); }
-.light-mode table tbody tr:hover { background: rgba(0,0,0,0.03); }
+.light-mode table:not(.print-area table) th { color: rgba(30,41,59,0.4); }
+.light-mode table:not(.print-area table) tbody tr { border-color: rgba(0,0,0,0.06); }
+.light-mode table:not(.print-area table) tbody tr:hover { background: rgba(0,0,0,0.03); }
 .light-mode .input-field { background: #e8eaef; color: #1e293b; border-color: rgba(0,0,0,0.14); }
 .light-mode .btn-primary { color: #fff; }
 .light-mode .nebula-table th { color: rgba(30,41,59,0.4); }
@@ -152,31 +152,24 @@
 .light-mode .btn-secondary:hover { background: rgba(var(--accent-rgb),0.12); }
 .light-mode .btn-danger { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.2); color: #f87171; }
 
-/* ─── LIGHT MODE: Fix ALL inline style= attributes ─── */
-.light-mode [style*="color: #fff"] { color: var(--text-primary) !important; }
-.light-mode [style*="color: #ffffff"] { color: var(--text-primary) !important; }
-.light-mode [style*="color: '#fff'"] { color: var(--text-primary) !important; }
-.light-mode [style*="color: white"] { color: var(--text-primary) !important; }
-.light-mode [style*="color: '#e8eaf0'"] { color: var(--text-light) !important; }
-.light-mode [style*="color: '#c8cad0'"] { color: var(--text-secondary) !important; }
-.light-mode [style*="color: rgba(255,255,255"] { color: var(--text-secondary) !important; }
-.light-mode [style*="background: '#06080f'"] { background: var(--bg-primary) !important; }
-.light-mode [style*="background: '#080b14'"] { background: var(--bg-primary) !important; }
-.light-mode [style*="background: '#0a0a1a'"] { background: var(--bg-primary) !important; }
-.light-mode [style*="background: '#0d1b2a'"] { background: var(--bg-primary) !important; }
-.light-mode [style*="background: rgba(4,6,16"] { background: var(--bg-sidebar) !important; }
-.light-mode [style*="background: rgba(12,16,32"] { background: var(--bg-card) !important; }
-.light-mode [style*="background: rgba(14,18,36"] { background: var(--bg-card) !important; }
-.light-mode [style*="background: rgba(255,255,255,0.04"] { background: var(--bg-glass) !important; }
-.light-mode [style*="background: rgba(255,255,255,0.05"] { background: var(--bg-glass) !important; }
-.light-mode [style*="background: rgba(255,255,255,0.06"] { background: var(--bg-glass-md) !important; }
-.light-mode [style*="background: rgba(255,255,255,0.08"] { background: var(--bg-glass-strong) !important; }
-.light-mode [style*="background: rgba(255,255,255,0.10"] { background: var(--bg-glass-strong) !important; }
-.light-mode [style*="border: 1px solid rgba(255,255,255"] { border-color: var(--border) !important; }
-.light-mode [style*="borderBottom: 1px solid rgba(255,255,255"] { border-bottom-color: var(--border) !important; }
-.light-mode [style*="borderTop: 1px solid rgba(255,255,255"] { border-top-color: var(--border) !important; }
-.light-mode [style*="borderLeft: 1px solid rgba(255,255,255"] { border-left-color: var(--border) !important; }
-.light-mode [style*="borderRight: 1px solid rgba(255,255,255"] { border-right-color: var(--border) !important; }
+/* Only recolor known dark chrome. Do NOT recolor all inline white text:
+   white text must remain white on accent buttons, charts and A4 documents. */
+.light-mode .sidebar-link { color: var(--text-secondary); }
+.light-mode .sidebar-link.active { color: var(--accent); }
+.light-mode :is(.btn-primary, .bg-emerald-600, .bg-red-600, .bg-blue-600,
+  .bg-purple-600, .fab).text-white,
+.light-mode :is(.btn-primary, .bg-emerald-600, .bg-red-600, .bg-blue-600,
+  .bg-purple-600, .fab) .text-white,
+.light-mode .text-white[style*="linear-gradient"] { color: #fff !important; }
+/* React serializes inline rgba with spaces; target both forms. */
+.light-mode [style*="background: rgba(12, 16, 32"]:not(.print-area *),
+.light-mode [style*="background: rgba(14, 18, 36"]:not(.print-area *),
+.light-mode [style*="background: rgb(12, 16, 32"]:not(.print-area *) {
+  background: var(--bg-card) !important;
+}
+.light-mode [style*="background: rgba(4, 6, 16"]:not(.print-area *) {
+  background: var(--bg-sidebar) !important;
+}
 
 /* ─── LIGHT MODE: Fix scrollbar ─── */
 .light-mode ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); }
