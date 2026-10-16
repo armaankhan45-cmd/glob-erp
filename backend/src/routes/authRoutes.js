@@ -7,6 +7,7 @@ const getDb = require('../config/db');
 const config = require('../config/env');
 const { auth, adminOnly } = require('../middleware/auth');
 const auditLog = require('../middleware/auditLog');
+const { publicOrganization } = require('../config/publicOrganization');
 
 // FIX #7: Joi validation schemas for auth routes
 const Joi = require('joi');
@@ -60,6 +61,10 @@ const addUserSchema = Joi.object({
 // Register - creates organization + admin user
 router.post('/register', async (req, res) => {
   try {
+    // Existing ERP is private: no anonymous creation of organizations/admins.
+    if (process.env.ALLOW_PUBLIC_REGISTRATION !== 'true') {
+      return res.status(403).json({ success: false, msg: 'Public registration is disabled.' });
+    }
     // FIX #7: Validate input with Joi before touching DB
     const { error, value } = registerSchema.validate(req.body);
     if (error) return res.status(400).json({ success: false, msg: error.details[0].message });
@@ -166,7 +171,7 @@ router.post('/login', async (req, res) => {
         role: user.role,
         phone: user.phone,
         organization_id: user.organization_id,
-        organization: org
+        organization: publicOrganization(org)
       }
     });
   } catch (err) {
@@ -191,8 +196,6 @@ router.post('/forgot-password', async (req, res) => {
       return res.json({ success: true, msg: 'If email exists, OTP has been sent' });
     }
 
-    // crypto.randomInt is cryptographically secure — Math.random() isn't meant for
-    // anything security-sensitive, even a short-lived, rate-limited OTP.
     const otp = crypto.randomInt(100000, 1000000).toString();
     const expires = Date.now() + 10 * 60 * 1000; // 10 min
 
@@ -322,7 +325,7 @@ router.get('/me', auth, async (req, res) => {
         role: user.role,
         phone: user.phone,
         organization_id: user.organization_id,
-        organization: org
+        organization: publicOrganization(org)
       }
     });
   } catch (err) {

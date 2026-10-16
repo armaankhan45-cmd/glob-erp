@@ -1,3 +1,4 @@
+const { documentOrganization } = require('../config/publicOrganization');
 const express = require('express');
 const router = express.Router();
 const getDb = require('../config/db');
@@ -124,7 +125,7 @@ router.get('/:id', auth, async (req, res) => {
     if (!invoice) return res.status(404).json({ success: false, msg: 'Invoice not found' });
     const items = await db('invoice_items').where({ invoice_id: invoice.id });
     const org = await db('organizations').where({ id: req.user.organization_id }).first();
-    res.json({ success: true, invoice, items, organization: org });
+    res.json({ success: true, invoice, items, organization: documentOrganization(org) });
   } catch (err) { console.error('Get invoice error:', err); res.status(500).json({ success: false, msg: 'Failed' }); }
 });
 

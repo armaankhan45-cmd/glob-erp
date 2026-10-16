@@ -4,6 +4,7 @@ const getDb = require('../config/db');
 const { auth, adminOnly } = require('../middleware/auth');
 const multer = require('multer');
 const auditLog = require('../middleware/auditLog');
+const { settingsOrganization } = require('../config/publicOrganization');
 
 // Multer for logo uploads — store in memory as buffer (not disk)
 const upload = multer({
@@ -112,9 +113,9 @@ router.get('/', auth, async (req, res) => {
     const org = await db('organizations').where({ id: req.user.organization_id }).first();
     
     const settingsMap = {};
-    settings.forEach(s => { settingsMap[s.key] = s.value; });
+    settings.forEach(s => { if (!/(password|secret|token|api.?key|smtp.?pass)/i.test(s.key)) settingsMap[s.key] = s.value; });
     
-    res.json({ success: true, settings: settingsMap, organization: org });
+    res.json({ success: true, settings: settingsMap, organization: settingsOrganization(org, req.user.role === 'admin') });
   } catch (err) {
     console.error('Get settings error:', err);
     res.status(500).json({ success: false, msg: 'Failed' });
@@ -150,10 +151,18 @@ router.post('/', auth, adminOnly, async (req, res) => {
       for (const col of allowedOrgCols) {
         if (organization[col] !== undefined) cleanOrg[col] = organization[col];
       }
-      await db('organizations').where({ id: orgId }).update(cleanOrg);
+      // A blank secret means 'keep the existing one', not 'erase it'.
+      if (!cleanOrg.smtp_pass) delete cleanOrg.smtp_pass;
+      if (!cleanOrg.resend_api_key) delete cleanOrg.resend_api_key;
+      if (Object.keys(cleanOrg).length) await db('organizations').where({ id: orgId }).update(cleanOrg);
     }
 
-    await auditLog(req.user.id, orgId, 'UPDATE', 'settings', null, null, { settings, organization }, req.ip);
+    // Never write passwords or API keys into audit_log.
+    const safeAuditSettings = Object.fromEntries(Object.entries(settings || {})
+      .filter(([key]) => !/(password|secret|token|api.?key|smtp.?pass)/i.test(key)));
+    const safeAuditOrg = { ...(organization || {}) };
+    delete safeAuditOrg.smtp_pass; delete safeAuditOrg.resend_api_key;
+    await auditLog(req.user.id, orgId, 'UPDATE', 'settings', null, null, { settings: safeAuditSettings, organization: safeAuditOrg }, req.ip);
     res.json({ success: true, msg: 'Settings saved' });
   } catch (err) {
     console.error('Save settings error:', err);
@@ -206,7 +215,8 @@ router.get('/email-status', auth, async (req, res) => {
     const RESEND_API_KEY = process.env.RESEND_API_KEY;
     const db = getDb();
     const org = await db('organizations').where({ id: req.user.organization_id }).first();
-    const hasSMTP = org.smtp_host && org.smtp_user && org.smtp_pass;
+    // Boolean only — never return the SMTP password to the browser.
+    const hasSMTP = !!(org?.smtp_host && org?.smtp_user && org?.smtp_pass);
     res.json({
       success: true,
       emailConfigured: !!RESEND_API_KEY || hasSMTP,
