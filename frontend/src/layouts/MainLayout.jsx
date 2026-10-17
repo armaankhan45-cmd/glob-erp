@@ -38,11 +38,10 @@ function MiniMarkdown({ text }) {
 
 function PageLoader() {
   return (
-    <div className="flex items-center justify-center h-64">
-      <div className="text-center">
-        <div className="w-10 h-10 border-4 rounded-full animate-spin mx-auto" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}></div>
-        <p className="text-sm mt-3 font-medium" style={{ color: 'var(--text-muted)' }}>Loading page...</p>
-      </div>
+    <div className="space-y-4 page-shell">
+      <div className="skeleton" style={{ height: 30, width: 220 }} />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">{[0, 1, 2, 3].map(i => <div key={i} className="skeleton" style={{ height: 96 }} />)}</div>
+      <div className="skeleton" style={{ height: 300 }} />
     </div>
   )
 }
@@ -138,7 +137,7 @@ export default function MainLayout() {
         <TopBar />
         <main className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth" style={{ background: 'var(--bg-primary)' }}>
           <Suspense fallback={<PageLoader />}>
-            <Outlet />
+            <div key={location.pathname} className="page-shell"><Outlet /></div>
           </Suspense>
         </main>
       </div>
