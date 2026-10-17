@@ -1,0 +1,88 @@
+/* ═══════════════════════════════════════════════════════════════
+   DESIGN SYSTEM v2 — loaded AFTER index.css. Refines every page
+   (cards, tables, forms, buttons, sidebar, mobile) in one place.
+   Works in both light and dark mode through the existing variables.
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  --radius-md: 12px; --radius-lg: 18px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.18), 0 1px 1px rgba(0,0,0,.12);
+  --shadow-md: 0 10px 28px rgba(0,0,0,.28);
+  --ease-out: cubic-bezier(.16,1,.3,1);
+}
+.light-mode { --shadow-sm: 0 1px 2px rgba(15,23,42,.06), 0 1px 1px rgba(15,23,42,.04); --shadow-md: 0 10px 28px rgba(15,23,42,.10); }
+
+html { -webkit-text-size-adjust: 100%; }
+body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
+::selection { background: rgba(var(--accent-rgb), .28); }
+:focus-visible { outline: 2px solid rgba(var(--accent-rgb), .65); outline-offset: 2px; border-radius: 8px; }
+
+/* Scrollbars */
+* { scrollbar-width: thin; scrollbar-color: rgba(var(--accent-rgb), .25) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(var(--accent-rgb), .22); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(var(--accent-rgb), .4); }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* Page container + entrance */
+.page-shell { max-width: 1480px; margin: 0 auto; animation: pageIn .38s var(--ease-out) both; }
+@keyframes pageIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+main h1 { letter-spacing: -0.02em; line-height: 1.2; }
+main h2, main h3 { letter-spacing: -0.01em; }
+
+/* Cards */
+.card, .stat-card { border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
+.card { padding: 22px; }
+.stat-card { transition: transform .25s var(--ease-out), box-shadow .25s var(--ease-out), border-color .25s; }
+.stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: rgba(var(--accent-rgb), .3); }
+
+/* Tables */
+.nebula-table th { font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--text-muted); padding: 12px 14px; white-space: nowrap; }
+.nebula-table td { padding: 13px 14px; vertical-align: middle; font-variant-numeric: tabular-nums; }
+.nebula-table tbody tr:last-child { border-bottom: none; }
+.nebula-table tbody tr:hover { background: rgba(var(--accent-rgb), .05); }
+
+/* Buttons */
+.btn-primary, .btn-secondary, .btn-danger { min-height: 40px; border-radius: var(--radius-md); font-weight: 600; letter-spacing: .005em; transition: transform .15s var(--ease-out), box-shadow .2s, opacity .2s, background .2s; }
+.btn-primary { box-shadow: 0 4px 14px rgba(var(--accent-rgb), .25); }
+.btn-primary:hover { box-shadow: 0 8px 20px rgba(var(--accent-rgb), .35); }
+.btn-primary:active, .btn-secondary:active, .btn-danger:active { transform: scale(.97); }
+.btn-primary:disabled, .btn-secondary:disabled, .btn-danger:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+/* Forms */
+.input-field { min-height: 42px; border-radius: var(--radius-md); }
+.input-field:hover { border-color: rgba(var(--accent-rgb), .35); }
+textarea.input-field { min-height: 88px; resize: vertical; line-height: 1.5; }
+label { font-weight: 500; }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
+
+/* Badges & chips */
+.status-badge { border-radius: 999px; padding: 3px 11px; letter-spacing: .02em; }
+.chip { border-radius: 999px; padding: 6px 14px; }
+.chip:hover { border-color: rgba(var(--accent-rgb), .35); color: var(--text-primary); }
+
+/* Sidebar */
+.sidebar-link { position: relative; padding: 9px 12px; }
+.sidebar-link.active::before { content: ''; position: absolute; left: -2px; top: 22%; bottom: 22%; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent); box-shadow: 0 0 10px rgba(var(--accent-rgb), .6); }
+.sidebar-link svg { flex-shrink: 0; }
+
+/* Loading skeleton */
+.skeleton { background: linear-gradient(90deg, var(--bg-glass) 25%, var(--bg-glass-strong) 37%, var(--bg-glass) 63%); background-size: 400% 100%; animation: skeletonMove 1.4s ease infinite; border-radius: var(--radius-md); }
+@keyframes skeletonMove { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+
+/* Toasts */
+.anim-toast-in { animation: toastIn .28s var(--ease-out) both; }
+@keyframes toastIn { from { opacity: 0; transform: translateX(26px) scale(.98); } to { opacity: 1; transform: none; } }
+
+/* Mobile */
+@media (max-width: 768px) {
+  main { padding: 12px !important; }
+  .card { padding: 16px; border-radius: 16px; }
+  /* 16px inputs stop iOS Safari from zooming the page on focus */
+  input, select, textarea { font-size: 16px !important; }
+  .btn-primary, .btn-secondary, .btn-danger, .chip { min-height: 44px; }
+  /* any table scrolls sideways on its own instead of breaking the page width */
+  .nebula-table, main table:not(.print-area table) { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; }
+  main h1 { font-size: 1.35rem; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+@media print { .page-shell { animation: none; max-width: none; } }
