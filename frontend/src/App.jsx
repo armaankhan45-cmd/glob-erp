@@ -7,6 +7,7 @@ import { useState, useEffect, Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
+import { ToastProvider } from './context/ToastContext'
 import AutoHealErrorBoundary from './components/AutoHealErrorBoundary'
 import DotField from './components/DotField'
 import MagnetLines from './components/MagnetLines'
@@ -322,6 +323,7 @@ function LoginPage() {
 export default function App() {
   return (
     <ThemeProvider>
+      <ToastProvider>
       <AutoHealErrorBoundary>
         <BrowserRouter>
           <AuthProvider>
@@ -364,6 +366,7 @@ export default function App() {
           </AuthProvider>
         </BrowserRouter>
       </AutoHealErrorBoundary>
+      </ToastProvider>
     </ThemeProvider>
   )
 }
