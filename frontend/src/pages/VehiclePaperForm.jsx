@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../api/client'
 import { ArrowLeft, Printer, Download, Save, Trash2, Upload, X, Check, Eye, Edit } from 'lucide-react'
 import { numberToWordsCaps, printElement } from '../utils'
@@ -436,13 +436,15 @@ export function ImageSheetPaper({ rec, org, opts }) {
 export default function VehiclePaperForm() {
   const { type: typeParam, id } = useParams()
   const navigate = useNavigate()
+  const [qp] = useSearchParams()
+  const prefillCustomer = qp.get('customer') || ''
   const fileRef = useRef(null)
 
   const [rec, setRec] = useState(() => {
     const t = typeParam && PAPER_TYPES[typeParam] ? typeParam : 'money_receipt'
     return {
       type: t, paper_no: '', paper_date: todayISO(), title: '',
-      customer_id: null, customer_name: '', customer_address: '', customer_gstin: '', customer_phone: '',
+      customer_id: null, customer_name: prefillCustomer, customer_address: '', customer_gstin: '', customer_phone: '',
       vehicle_no: '', chassis_no: '', engine_no: '', model: '',
       amount: '', payment_mode: 'NEFT', reference: '', bank_name: '', reference_date: '',
       towards: 'Margin money for tanker / body fabrication work', balance_amount: '', notes: '',
@@ -471,7 +473,15 @@ export default function VehiclePaperForm() {
       setOrg(o)
 
     }).catch(() => {})
-    api.get('/customers').then(res => setCustomers(res.data.customers || [])).catch(() => {})
+    api.get('/customers').then(res => {
+      const list = res.data.customers || []
+      setCustomers(list)
+      if (prefillCustomer && !id) {
+        const c = list.find(x => (x.name || '').toLowerCase() === prefillCustomer.toLowerCase())
+        if (c) setRec(prev => ({ ...prev, customer_name: c.name, customer_id: c.id,
+          customer_address: prev.customer_address || c.address || '', customer_gstin: prev.customer_gstin || c.gstin || '', customer_phone: prev.customer_phone || c.phone || '' }))
+      }
+    }).catch(() => {})
   }, []) // eslint-disable-line
 
   // ── Load existing record OR next number ──
@@ -570,7 +580,7 @@ export default function VehiclePaperForm() {
   const handleDelete = async () => {
     if (!recordId) return
     if (!confirm('Delete this saved paper?')) return
-    try { await api.delete(`/vehicle-papers/${recordId}`); navigate('/app/vehicle-papers') }
+    try { await api.delete(`/vehicle-papers/${recordId}`); navigate(rec.customer_name ? `/app/vehicle-papers?t=${encodeURIComponent(rec.customer_name)}` : '/app/vehicle-papers') }
     catch (e) { alert('Delete failed') }
   }
 
@@ -604,7 +614,7 @@ export default function VehiclePaperForm() {
     <div className="space-y-4">
       {/* ═══ ACTION BAR ═══ */}
       <div className="flex flex-wrap items-center gap-2 no-print">
-        <button onClick={() => navigate('/app/vehicle-papers')} className="p-2 rounded-xl hover:bg-white/5" style={{ color: 'var(--text-muted)' }}><ArrowLeft size={20} /></button>
+        <button onClick={() => navigate(rec.customer_name ? `/app/vehicle-papers?t=${encodeURIComponent(rec.customer_name)}` : '/app/vehicle-papers')} className="p-2 rounded-xl hover:bg-white/5" style={{ color: 'var(--text-muted)' }}><ArrowLeft size={20} /></button>
         <h1 className="text-xl font-bold text-white flex-1">
           {meta.label}
           {rec.paper_no && <span className="text-sm font-normal ml-2" style={{ color: 'var(--text-muted)' }}>{rec.paper_no}</span>}
