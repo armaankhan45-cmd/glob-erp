@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, useMemo } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../api/client'
-import { Receipt, FileText, FileSpreadsheet, Truck, Plus, Search, Trash2, Printer, ArrowRight, IndianRupee } from 'lucide-react'
+import { Receipt, FileText, FileSpreadsheet, Truck, Plus, Search, Trash2, Printer, ArrowLeft, Building2, CheckCircle2, Circle, X } from 'lucide-react'
 
 // ═══════════════════════════════════════════════════════════════
 // VEHICLE PAPERS — hub
@@ -55,25 +55,30 @@ function fmtDate(d) {
   return `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${dt.getFullYear()}`
 }
 
+
+const UNASSIGNED = 'No transporter name'
+const keyOf = (name) => (name || '').trim().toLowerCase() || '__none__'
+
 export default function VehiclePapers() {
   const navigate = useNavigate()
+  const [params, setParams] = useSearchParams()
   const [papers, setPapers] = useState([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
+  const [newName, setNewName] = useState('')
+  const [showNew, setShowNew] = useState(false)
+
+  const selectedKey = params.get('t') ? keyOf(params.get('t')) : null
+  const selectedNameParam = params.get('t') || ''
 
   const load = async () => {
     try {
       setLoading(true)
       const res = await api.get('/vehicle-papers')
       setPapers(res.data.papers || [])
-    } catch (e) {
-      console.error('Load vehicle papers', e)
-    } finally {
-      setLoading(false)
-    }
+    } catch (e) { console.error('Load vehicle papers', e) }
+    finally { setLoading(false) }
   }
-
   useEffect(() => { load() }, [])
 
   const handleDelete = async (id) => {
@@ -81,138 +86,183 @@ export default function VehiclePapers() {
     try {
       await api.delete(`/vehicle-papers/${id}`)
       setPapers(prev => prev.filter(p => p.id !== id))
-    } catch (e) {
-      alert(e.response?.data?.msg || 'Delete failed')
-    }
+    } catch (e) { alert(e.response?.data?.msg || 'Delete failed') }
   }
 
-  const counts = papers.reduce((acc, p) => { acc[p.type] = (acc[p.type] || 0) + 1; return acc }, {})
+  // ── Group every paper under its transporter (customer name) ──
+  const groups = useMemo(() => {
+    const map = new Map()
+    papers.forEach(p => {
+      const k = keyOf(p.customer_name)
+      if (!map.has(k)) map.set(k, { key: k, name: (p.customer_name || '').trim() || UNASSIGNED, papers: [] })
+      map.get(k).papers.push(p)
+    })
+    return Array.from(map.values()).map(g => {
+      const vehicles = new Set(g.papers.map(p => (p.vehicle_no || '').trim().toUpperCase()).filter(Boolean))
+      const latest = g.papers.reduce((m, p) => { const d = new Date(p.paper_date || p.created_at); return d > m ? d : m }, new Date(0))
+      return { ...g, vehicles: Array.from(vehicles), latest }
+    }).sort((a, b) => a.name.localeCompare(b.name))
+  }, [papers])
 
   const q = search.trim().toLowerCase()
-  const visible = papers.filter(p => {
-    if (filter !== 'all' && p.type !== filter) return false
+  const matches = (g) => {
     if (!q) return true
-    return [p.paper_no, p.customer_name, p.vehicle_no, p.chassis_no, p.engine_no, p.title]
-      .filter(Boolean).some(v => String(v).toLowerCase().includes(q))
-  })
+    if (g.name.toLowerCase().includes(q)) return true
+    return g.papers.some(p => [p.paper_no, p.vehicle_no, p.chassis_no, p.engine_no, p.title]
+      .filter(Boolean).some(v => String(v).toLowerCase().includes(q)))
+  }
+  const visibleGroups = groups.filter(matches)
 
+  const selected = selectedKey
+    ? (groups.find(g => g.key === selectedKey) || { key: selectedKey, name: selectedNameParam || UNASSIGNED, papers: [], vehicles: [] })
+    : null
+
+  const openTransporter = (name) => setParams({ t: name === UNASSIGNED ? '' : name }, { replace: false })
+  const closeTransporter = () => setParams({})
+  const startNew = () => {
+    const n = newName.trim()
+    if (!n) return
+    setShowNew(false); setNewName('')
+    setParams({ t: n })
+  }
+  const createFor = (type, name) => {
+    const qs = name && name !== UNASSIGNED ? `?customer=${encodeURIComponent(name)}` : ''
+    navigate(`/app/vehicle-papers/new/${type}${qs}`)
+  }
+
+  // ════════════════ DETAIL VIEW — one transporter, all four papers ════════════════
+  if (selected) {
+    const total = selected.papers.length
+    return (
+      <div className="space-y-5">
+        <div className="flex items-center gap-3 flex-wrap">
+          <button onClick={closeTransporter} className="p-2 rounded-xl hover:bg-white/5" style={{ color: 'var(--text-muted)' }} title="Back to all transporters"><ArrowLeft size={20} /></button>
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: 'var(--bg-glass)', border: '1px solid var(--border)' }}>
+            <Building2 size={20} style={{ color: 'var(--accent)' }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl font-bold text-white truncate">{selected.name}</h1>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              {total} paper{total === 1 ? '' : 's'}{selected.vehicles.length > 0 && <> · Vehicles: {selected.vehicles.join(', ')}</>}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {Object.values(PAPER_TYPES).map(t => {
+            const Icon = t.icon
+            const list = selected.papers.filter(p => p.type === t.key)
+            return (
+              <div key={t.key} className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-glass)', border: '1px solid var(--border)' }}>
+                <div className="p-4 flex items-center gap-3" style={{ borderBottom: list.length ? '1px solid var(--border)' : 'none' }}>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${t.accent}1a`, border: `1px solid ${t.accent}40` }}>
+                    <Icon size={18} style={{ color: t.accent }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-white text-sm">{t.label}</div>
+                    <div className="text-xs flex items-center gap-1" style={{ color: list.length ? t.accent : 'var(--text-muted)' }}>
+                      {list.length ? <><CheckCircle2 size={12} /> {list.length} saved</> : <><Circle size={12} /> Not created yet</>}
+                    </div>
+                  </div>
+                  <button onClick={() => createFor(t.key, selected.name)} className="btn-secondary flex items-center gap-1 text-xs px-3 py-1.5"><Plus size={13} /> Add</button>
+                </div>
+                {list.map(p => (
+                  <div key={p.id} className="px-4 py-3 flex items-center gap-3 hover:bg-white/5 cursor-pointer" style={{ borderTop: '1px solid var(--border)' }}
+                    onClick={() => navigate(`/app/vehicle-papers/${p.id}`)}>
+                    <div className="flex-1 min-w-0 text-sm">
+                      <div className="font-semibold text-white">{p.paper_no || `#${p.id}`} <span className="font-normal text-xs" style={{ color: 'var(--text-muted)' }}>· {fmtDate(p.paper_date)}</span></div>
+                      <div className="text-xs truncate" style={{ color: 'var(--text-secondary)' }}>
+                        {[p.vehicle_no && `Veh: ${p.vehicle_no}`, p.chassis_no && `Chassis: ${p.chassis_no}`, p.engine_no && `Engine: ${p.engine_no}`].filter(Boolean).join('  ·  ') || '—'}
+                      </div>
+                    </div>
+                    {p.amount ? <div className="text-sm font-semibold text-white whitespace-nowrap">₹{fmtAmount(p.amount)}</div> : null}
+                    <button onClick={(e) => { e.stopPropagation(); navigate(`/app/vehicle-papers/${p.id}`) }} title="Open / Print" className="p-2 rounded-lg hover:bg-white/10" style={{ color: 'var(--accent)' }}><Printer size={15} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); handleDelete(p.id) }} title="Delete" className="p-2 rounded-lg hover:bg-red-500/10" style={{ color: '#f87171' }}><Trash2 size={15} /></button>
+                  </div>
+                ))}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  // ════════════════ HUB VIEW — list of transporters ════════════════
   return (
     <div className="space-y-5">
-      {/* Header */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-white flex items-center gap-3">
             <Truck size={24} style={{ color: 'var(--accent)' }} /> Vehicle Papers
           </h1>
           <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
-            Generate, save, print &amp; download vehicle documents — money receipts, Form 22-A, Form 17 and Vahan papers.
+            All papers are grouped by transporter — open a transporter to see its Margin Money, Form 22-A, Form 17 and Vahan papers together.
           </p>
         </div>
-        <button onClick={() => navigate('/app/vehicle-papers/new/money_receipt')} className="btn-primary flex items-center gap-2 btn-shine">
-          <Plus size={16} /> New Paper
-        </button>
+        <button onClick={() => setShowNew(v => !v)} className="btn-primary flex items-center gap-2 btn-shine"><Plus size={16} /> New Transporter</button>
       </div>
 
-      {/* Type cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {Object.values(PAPER_TYPES).map(t => {
-          const Icon = t.icon
-          const count = counts[t.key] || 0
-          return (
-            <button key={t.key} onClick={() => navigate(`/app/vehicle-papers/new/${t.key}`)}
-              className="text-left p-4 rounded-2xl transition-all hover:scale-[1.02] group"
-              style={{ background: 'var(--bg-glass)', border: '1px solid var(--border)' }}
-            >
-              <div className="flex items-center justify-between">
-                <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: `${t.accent}1a`, border: `1px solid ${t.accent}40` }}>
-                  <Icon size={20} style={{ color: t.accent }} />
-                </div>
-                <span className="text-xs font-bold px-2 py-1 rounded-lg" style={{ background: `${t.accent}18`, color: t.accent }}>{count} saved</span>
-              </div>
-              <div className="mt-3 font-bold text-white text-sm">{t.label}</div>
-              <div className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--text-muted)' }}>{t.desc}</div>
-              <div className="mt-3 flex items-center gap-1 text-xs font-semibold" style={{ color: t.accent }}>
-                Create new <ArrowRight size={13} />
-              </div>
-            </button>
-          )
-        })}
-      </div>
-
-      {/* Saved papers */}
-      <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-glass)', border: '1px solid var(--border)' }}>
-        <div className="p-4 flex flex-wrap items-center gap-3" style={{ borderBottom: '1px solid var(--border)' }}>
-          <h2 className="font-bold text-white flex items-center gap-2"><IndianRupee size={16} style={{ color: 'var(--accent)' }} /> Saved Papers</h2>
-          <div className="relative ml-auto">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search no / customer / chassis / engine…"
-              className="pl-9 pr-3 py-2 rounded-xl text-sm w-72 max-w-full"
-              style={{ background: 'var(--bg-input)', border: '1px solid var(--border-input)', color: 'var(--text-primary)', outline: 'none' }} />
-          </div>
-          <div className="flex items-center gap-1 flex-wrap">
-            <button onClick={() => setFilter('all')} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${filter === 'all' ? 'btn-primary' : 'btn-secondary'}`}>All</button>
-            {Object.values(PAPER_TYPES).map(t => (
-              <button key={t.key} onClick={() => setFilter(t.key)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${filter === t.key ? 'btn-primary' : 'btn-secondary'}`}>{t.short}</button>
-            ))}
-          </div>
+      {showNew && (
+        <div className="rounded-2xl p-4 flex flex-wrap items-center gap-3" style={{ background: 'var(--bg-glass)', border: '1px solid var(--border)' }}>
+          <input autoFocus value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === 'Enter' && startNew()}
+            placeholder="Transporter name, e.g. SHIV TRANSPORT"
+            list="vp-transporters"
+            className="flex-1 min-w-[220px] px-3 py-2 rounded-xl text-sm"
+            style={{ background: 'var(--bg-input)', border: '1px solid var(--border-input)', color: 'var(--text-primary)', outline: 'none' }} />
+          <datalist id="vp-transporters">{groups.filter(g => g.name !== UNASSIGNED).map(g => <option key={g.key} value={g.name} />)}</datalist>
+          <button onClick={startNew} className="btn-primary text-sm px-4 py-2">Open</button>
+          <button onClick={() => { setShowNew(false); setNewName('') }} className="p-2 rounded-lg hover:bg-white/10" style={{ color: 'var(--text-muted)' }}><X size={16} /></button>
         </div>
+      )}
 
-        {loading ? (
-          <div className="p-10 text-center text-sm" style={{ color: 'var(--text-muted)' }}>Loading…</div>
-        ) : visible.length === 0 ? (
-          <div className="p-10 text-center">
-            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No saved papers yet. Click a card above to create one.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr style={{ color: 'var(--text-muted)' }} className="text-xs uppercase tracking-wider">
-                  <th className="text-left px-4 py-3">No.</th>
-                  <th className="text-left px-4 py-3">Type</th>
-                  <th className="text-left px-4 py-3">Date</th>
-                  <th className="text-left px-4 py-3">Customer</th>
-                  <th className="text-left px-4 py-3">Vehicle</th>
-                  <th className="text-left px-4 py-3">Chassis / Engine</th>
-                  <th className="text-right px-4 py-3">Amount</th>
-                  <th className="text-right px-4 py-3">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map(p => {
-                  const meta = PAPER_TYPES[p.type] || PAPER_TYPES.money_receipt
-                  const Icon = meta.icon
+      <div className="relative">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search transporter, vehicle no, chassis, engine or paper no…"
+          className="w-full pl-10 pr-3 py-2.5 rounded-xl text-sm"
+          style={{ background: 'var(--bg-input)', border: '1px solid var(--border-input)', color: 'var(--text-primary)', outline: 'none' }} />
+      </div>
+
+      {loading ? (
+        <div className="p-10 text-center text-sm" style={{ color: 'var(--text-muted)' }}>Loading…</div>
+      ) : visibleGroups.length === 0 ? (
+        <div className="p-10 text-center rounded-2xl" style={{ background: 'var(--bg-glass)', border: '1px solid var(--border)' }}>
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{papers.length === 0 ? 'No papers yet. Click “New Transporter” to start.' : 'No transporter matches your search.'}</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {visibleGroups.map(g => (
+            <button key={g.key} onClick={() => openTransporter(g.name)} className="text-left p-4 rounded-2xl transition-all hover:scale-[1.01]"
+              style={{ background: 'var(--bg-glass)', border: '1px solid var(--border)' }}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)' }}>
+                  <Building2 size={18} style={{ color: 'var(--accent)' }} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="font-bold text-white truncate">{g.name}</div>
+                  <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {g.papers.length} paper{g.papers.length === 1 ? '' : 's'}{g.vehicles.length > 0 && ` · ${g.vehicles.length} vehicle${g.vehicles.length === 1 ? '' : 's'}`}{g.latest.getTime() > 0 && ` · last ${fmtDate(g.latest)}`}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 grid grid-cols-4 gap-1.5">
+                {Object.values(PAPER_TYPES).map(t => {
+                  const n = g.papers.filter(p => p.type === t.key).length
                   return (
-                    <tr key={p.id} className="transition-colors hover:bg-white/5" style={{ borderTop: '1px solid var(--border)' }}>
-                      <td className="px-4 py-3 font-bold text-white">{p.paper_no || `#${p.id}`}</td>
-                      <td className="px-4 py-3">
-                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-1 rounded-lg" style={{ background: `${meta.accent}18`, color: meta.accent }}>
-                          <Icon size={12} /> {meta.short}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3" style={{ color: 'var(--text-secondary)' }}>{fmtDate(p.paper_date)}</td>
-                      <td className="px-4 py-3" style={{ color: 'var(--text-secondary)' }}>{p.customer_name || '—'}</td>
-                      <td className="px-4 py-3" style={{ color: 'var(--text-secondary)' }}>{p.vehicle_no || '—'}</td>
-                      <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>
-                        {p.chassis_no || '—'}<br />{p.engine_no || ''}
-                      </td>
-                      <td className="px-4 py-3 text-right font-semibold text-white">{p.amount ? `₹${fmtAmount(p.amount)}` : '—'}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => navigate(`/app/vehicle-papers/${p.id}`)} title="Open"
-                            className="p-2 rounded-lg hover:bg-white/10" style={{ color: 'var(--accent)' }}><Printer size={15} /></button>
-                          <button onClick={() => handleDelete(p.id)} title="Delete"
-                            className="p-2 rounded-lg hover:bg-red-500/10" style={{ color: '#f87171' }}><Trash2 size={15} /></button>
-                        </div>
-                      </td>
-                    </tr>
+                    <div key={t.key} className="text-center rounded-lg py-1.5 text-[10px] font-bold"
+                      style={{ background: n ? `${t.accent}18` : 'rgba(255,255,255,0.03)', color: n ? t.accent : 'var(--text-muted)', border: `1px solid ${n ? `${t.accent}40` : 'var(--border)'}` }}>
+                      {t.short.replace('Form ', 'F-').replace(' Paper', '').replace('Margin Money', 'Margin')}{n ? ` ✓${n > 1 ? n : ''}` : ''}
+                    </div>
                   )
                 })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+              </div>
+              {g.vehicles.length > 0 && (
+                <div className="mt-2 text-xs truncate" style={{ color: 'var(--text-secondary)' }}>{g.vehicles.slice(0, 3).join(' · ')}{g.vehicles.length > 3 && ` +${g.vehicles.length - 3}`}</div>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
