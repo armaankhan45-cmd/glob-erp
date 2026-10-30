@@ -1,0 +1,86 @@
+/* ═══════════════════════════════════════════════════════════════
+   DESIGN POLISH v3 — loaded last. One calm visual system for light + dark.
+   Principles: clear type hierarchy, restrained accent, quiet surfaces,
+   consistent radius/spacing, visible focus, no decorative glow.
+   Touches nothing inside .print-area (printed documents stay as-is).
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  --r-sm: 8px; --r-md: 12px; --r-lg: 16px;
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px;
+  --ok: #10b981; --warn: #f59e0b; --bad: #ef4444; --info: #3b82f6;
+  --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+body { font-family: var(--font-ui); font-feature-settings: 'cv11', 'ss01', 'tnum'; line-height: 1.5; }
+
+/* ── Type scale ── */
+main h1 { font-size: clamp(1.4rem, 1.1rem + 1vw, 1.85rem); font-weight: 750; letter-spacing: -0.025em; }
+main h2 { font-size: 1.125rem; font-weight: 650; }
+main h3 { font-size: 0.95rem; font-weight: 650; }
+main p, main td, main label { font-size: 0.875rem; }
+label { color: var(--text-secondary); font-size: 0.8125rem; letter-spacing: 0; }
+.text-muted, small { color: var(--text-muted); }
+.glow-text { text-shadow: none !important; font-weight: 700; }
+
+/* ── Surfaces: flat, bordered, softly elevated (no heavy glass/glow) ── */
+.card, .stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+  box-shadow: var(--shadow-sm);
+}
+.stat-card { padding: var(--sp-5); }
+.stat-card:hover { transform: translateY(-1px); border-color: rgba(var(--accent-rgb), .35); }
+.light-mode .card, .light-mode .stat-card { background: #fff; border-color: rgba(15,23,42,.09); }
+.light-mode main { background: #f4f6f9; }
+
+/* ── Header bars & sidebar: consistent with theme, quiet divider ── */
+header { background: var(--bg-topbar) !important; border-bottom: 1px solid var(--border) !important; backdrop-filter: blur(12px); }
+aside { border-right: 1px solid var(--border); }
+.sidebar-link { border-radius: var(--r-md); font-weight: 550; color: var(--text-secondary); transition: background .15s, color .15s; }
+.sidebar-link:hover { background: var(--bg-glass-md); color: var(--text-bright); }
+.sidebar-link.active { background: rgba(var(--accent-rgb), .12); color: var(--accent); }
+.light-mode .sidebar-link.active { color: #0e7490; background: rgba(var(--accent-rgb), .14); }
+
+/* ── Tables: dense, readable, numeric alignment ── */
+.nebula-table { border-collapse: separate; border-spacing: 0; width: 100%; }
+.nebula-table thead th { background: var(--bg-glass); border-bottom: 1px solid var(--border-strong); text-align: left; position: sticky; top: 0; z-index: 1; }
+.nebula-table tbody td { border-bottom: 1px solid var(--border-md); }
+.nebula-table tbody tr { transition: background .12s; }
+.nebula-table td.num, .nebula-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ── Inputs ── */
+.input-field {
+  background: var(--bg-input); border: 1px solid var(--border-input); color: var(--text-bright);
+  border-radius: var(--r-md); padding: 10px 14px; transition: border-color .15s, box-shadow .15s, background .15s;
+}
+.input-field::placeholder { color: var(--text-muted); }
+.input-field:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), .18); outline: none; }
+select.input-field, input[type="date"].input-field { color-scheme: inherit; }
+.light-mode input[type="date"].input-field { color-scheme: light; }
+.dark-mode input[type="date"].input-field { color-scheme: dark; }
+
+/* ── Buttons: one primary per view, quiet secondary ── */
+.btn-primary { background: var(--accent); color: #04121a; border: 1px solid transparent; }
+.light-mode .btn-primary { color: #fff; background: #0e7490; }
+.btn-secondary { background: var(--bg-glass-md); color: var(--text-primary); border: 1px solid var(--border-strong); }
+.btn-secondary:hover { background: var(--bg-glass-strong); border-color: rgba(var(--accent-rgb), .4); }
+
+/* ── Status badges use semantic colour, readable in both themes ── */
+.status-badge { font-size: 11px; font-weight: 650; border: 1px solid transparent; }
+
+/* ── Floating AI button: calmer ── */
+.fab { box-shadow: 0 6px 20px rgba(0,0,0,.25) !important; animation: none !important; }
+
+/* ── Page transition handled by framer-motion; disable CSS one ── */
+.page-shell { animation: none; }
+
+/* ── Phone: bigger tap targets, no horizontal bleed ── */
+@media (max-width: 768px) {
+  main { padding: 12px; padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+  .stat-card { padding: var(--sp-4); }
+  main h1 { font-size: 1.3rem; }
+}
+
+@media print { header, aside, .fab, .no-print { display: none !important; } }

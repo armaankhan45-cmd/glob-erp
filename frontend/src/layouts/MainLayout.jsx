@@ -4,6 +4,7 @@ import Sidebar from '../components/Sidebar'
 import TopBar from '../components/TopBar'
 import { Menu, Bot, X, Send } from 'lucide-react'
 import api from '../api/client'
+import { motion } from 'framer-motion'
 
 function MiniMarkdown({ text }) {
   if (!text) return null
@@ -137,7 +138,10 @@ export default function MainLayout() {
         <TopBar />
         <main className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth" style={{ background: 'var(--bg-primary)' }}>
           <Suspense fallback={<PageLoader />}>
-            <div key={location.pathname} className="page-shell"><Outlet /></div>
+            <motion.div key={location.pathname} className="page-shell"
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}>
+              <Outlet />
+            </motion.div>
           </Suspense>
         </main>
       </div>

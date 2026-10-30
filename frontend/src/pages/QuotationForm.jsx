@@ -36,6 +36,8 @@ export default function QuotationForm() {
     quotation_number: '',
   })
   const [customerId, setCustomerId] = useState(null)
+  const todayLocal = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
+  const [qDate, setQDate] = useState(todayLocal)
   const [selectedCust, setSelectedCust] = useState(null)
   const [customers, setCustomers] = useState([])
   const [pastQuotationNames, setPastQuotationNames] = useState([])
@@ -150,6 +152,7 @@ export default function QuotationForm() {
         quotation_number: qNum,
       }))
       setCustomerId(q.customer_id || null)
+      if (q.quotation_date) setQDate(String(q.quotation_date).slice(0, 10))
       setItems(res.data.items?.length > 0 ? res.data.items : [{ description: '', quantity: 1, unit: 'Unit', rate: 0, igst_rate: 18, amount: 0 }])
       setCalculated({ subtotal: parseFloat(q.subtotal) || 0, igst_amount: parseFloat(q.igst_amount) || 0, total_amount: parseFloat(q.total_amount) || 0 })
     } catch {
@@ -188,7 +191,7 @@ export default function QuotationForm() {
     try {
       const data = {
         customer_id: customerId || null,
-        quotation_date: new Date().toISOString().split('T')[0],
+        quotation_date: qDate || todayLocal(),
         validity_date: null,
         quotation_number: form.quotation_number,
         subtotal: calculated.subtotal,
@@ -282,6 +285,16 @@ export default function QuotationForm() {
             </span>
           </div>
           <p className="text-xs text-white/45 mt-1">Type your quotation number. Next time it will auto-suggest the next number.</p>
+        </div>
+
+        {/* Quotation Date — editable on new and edit */}
+        <div>
+          <label className="block text-sm font-semibold text-white/80 mb-1">Quotation Date *</label>
+          <div className="flex items-center gap-3 flex-wrap">
+            <input type="date" value={qDate} onChange={e => setQDate(e.target.value)} className="input-field w-48" max="2100-12-31" />
+            <button type="button" onClick={() => setQDate(todayLocal())} className="btn-secondary text-xs px-3 py-2">Today</button>
+          </div>
+          <p className="text-xs text-white/45 mt-1">This date prints on the quotation. Change it to back-date or post-date.</p>
         </div>
 
         {/* Customer Name — Dropdown + Text */}
