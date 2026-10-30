@@ -181,11 +181,11 @@ export default function Dashboard() {
   const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
 
   const quickActions = [
-    { label: 'New Invoice', path: '/app/invoices/new', icon: FileText, color: '#06b6d4', bg: 'rgba(6,182,212,0.12)' },
-    { label: 'Add Customer', path: '/app/customers', icon: UserPlus, color: '#22c55e', bg: 'rgba(34,197,94,0.12)' },
-    { label: 'New Quote', path: '/app/quotations/new', icon: Plus, color: '#a855f7', bg: 'rgba(168,85,247,0.12)' },
-    { label: 'GST Reports', path: '/app/gst', icon: Calculator, color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
-    { label: 'Record Purchase', path: '/app/purchases/new', icon: CreditCard, color: '#4f8fff', bg: 'rgba(79,143,255,0.12)' },
+    { label: 'New Invoice', path: '/app/invoices/new', icon: FileText, color: 'var(--accent-ink)', bg: 'var(--bg-glass-md)' },
+    { label: 'Add Customer', path: '/app/customers', icon: UserPlus, color: 'var(--accent-ink)', bg: 'var(--bg-glass-md)' },
+    { label: 'New Quote', path: '/app/quotations/new', icon: Plus, color: 'var(--accent-ink)', bg: 'var(--bg-glass-md)' },
+    { label: 'GST Reports', path: '/app/gst', icon: Calculator, color: 'var(--accent-ink)', bg: 'var(--bg-glass-md)' },
+    { label: 'Record Purchase', path: '/app/purchases/new', icon: CreditCard, color: 'var(--accent-ink)', bg: 'var(--bg-glass-md)' },
   ]
 
   const pendingAmount = stats.pendingAmount || 0
@@ -211,7 +211,7 @@ export default function Dashboard() {
   // ═══ SKELETON LOADING ═══
   if (loading) return (
     <div className="space-y-6">
-      <div className="rounded-2xl p-8 relative overflow-hidden" style={{ background: 'linear-gradient(135deg, var(--accent-dark), var(--accent), var(--accent-light))', height: 120, animation: 'entranceScale 0.6s cubic-bezier(0.16,1,0.3,1) both' }}>
+      <div className="card" style={{ height: 120, animation: 'entranceScale 0.6s cubic-bezier(0.16,1,0.3,1) both' }}>
         <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 80% 50%, rgba(255,255,255,0.3), transparent 50%)' }}></div>
         <SkeletonBlock w="220px" h="28px" radius="6px" style={{ background: 'rgba(255,255,255,0.2)' }} />
         <SkeletonBlock w="300px" h="16px" radius="4px" className="mt-3" />
@@ -304,14 +304,11 @@ export default function Dashboard() {
       {/* ═══════════════════════════════════════════
           WELCOME BANNER — SplitText animated heading
           ═══════════════════════════════════════════ */}
-      <div className="rounded-2xl p-7 text-white relative overflow-hidden"
-        style={{ background: 'linear-gradient(135deg, var(--accent-dark), var(--accent), var(--accent-light))', animation: 'entranceScale 0.7s cubic-bezier(0.16,1,0.3,1) both' }}>
-        <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 80% 50%, rgba(255,255,255,0.3), transparent 50%)' }}></div>
-        <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.2) 1px, transparent 1px)', backgroundSize: '28px 28px' }}></div>
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-5">
+      <div className="card">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
           <div>
             {/* SplitText — animated letter-by-letter welcome */}
-            <h1 className="text-2xl font-extrabold mb-1" style={{ letterSpacing: '-0.5px' }}>
+            <h1 className="text-2xl font-semibold mb-1">
               <SplitText
                 text={`Welcome, ${user?.name || 'User'}!`}
                 tag="span"
@@ -321,16 +318,15 @@ export default function Dashboard() {
                 from={{ opacity: 0, y: 15 }}
                 to={{ opacity: 1, y: 0 }}
               />
-              <span> 👋</span>
             </h1>
-            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.85)' }}>{user?.organization?.name} • GSTIN: {user?.organization?.gstin || 'N/A'}</p>
-            <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.65)' }}>{today}</p>
+            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{user?.organization?.name} • GSTIN: {user?.organization?.gstin || 'N/A'}</p>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{today}</p>
           </div>
           {monthGrowth !== null && (
-            <div className="flex items-center gap-3 px-5 py-3 rounded-2xl" style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(12px)' }}>
+            <div className="flex items-center gap-3 px-5 py-3 rounded-2xl" style={{ background: 'var(--bg-glass-md)', border: '1px solid var(--border)' }}>
               {monthGrowth >= 0 ? <ArrowUpRight size={22} /> : <ArrowDownRight size={22} />}
               <div>
-                <p className="text-[10px] font-medium" style={{ color: 'rgba(255,255,255,0.75)' }}>vs {periodMeta.momCompareLabel || 'Last Month'}</p>
+                <p className="text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>vs {periodMeta.momCompareLabel || 'Last Month'}</p>
                 <p className="font-extrabold text-xl">{monthGrowth >= 0 ? '+' : ''}{monthGrowth}%</p>
               </div>
             </div>

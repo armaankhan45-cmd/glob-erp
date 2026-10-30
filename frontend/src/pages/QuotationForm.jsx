@@ -276,7 +276,7 @@ export default function QuotationForm() {
               type="number" 
               value={form.quotation_number} 
               onChange={e => setForm({...form, quotation_number: e.target.value})} 
-              className="input-field w-40" 
+              className="input-field" style={{ width: 140 }}
               placeholder="e.g. 871"
               min="1"
             />
@@ -291,7 +291,7 @@ export default function QuotationForm() {
         <div>
           <label className="block text-sm font-semibold text-white/80 mb-1">Quotation Date *</label>
           <div className="flex items-center gap-3 flex-wrap">
-            <input type="date" value={qDate} onChange={e => setQDate(e.target.value)} className="input-field w-48" max="2100-12-31" />
+            <input type="date" value={qDate} onChange={e => setQDate(e.target.value)} className="input-field" style={{ width: 180 }} max="2100-12-31" />
             <button type="button" onClick={() => setQDate(todayLocal())} className="btn-secondary text-xs px-3 py-2">Today</button>
           </div>
           <p className="text-xs text-white/45 mt-1">This date prints on the quotation. Change it to back-date or post-date.</p>

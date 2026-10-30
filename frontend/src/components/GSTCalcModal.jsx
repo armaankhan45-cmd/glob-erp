@@ -18,11 +18,11 @@ export default function GSTCalcModal() {
       {/* ═══ MOVED: bottom-24 so it doesn't overlap with AI FAB (bottom-6 right-6) ═══ */}
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-24 right-6 w-14 h-14 rounded-full shadow-xl flex items-center justify-center hover:scale-110 transition-all z-30"
-        style={{ background: 'linear-gradient(135deg, #f59e0b, #ef4444)', color: '#fff' }}
+        className="fixed right-5 w-11 h-11 rounded-xl flex items-center justify-center z-30"
+        style={{ bottom: 72, background: 'var(--bg-card)', color: 'var(--text-primary)', border: '1px solid var(--border-strong)', boxShadow: '0 2px 8px rgba(0,0,0,.15)' }}
         title="GST Calculator"
       >
-        <Calculator size={24} />
+        <Calculator size={20} />
       </button>
 
       {open && (
