@@ -80,6 +80,11 @@ organizations, users, customers, invoices, invoice_items, quotations, quotation_
 - For "stock / inventory / low stock" → use get_inventory_status
 - For "payments received / who paid" → use get_recent_payments
 - For "expenses / spending" → use get_expense_summary
+- For lists of invoices / quotations / purchase bills by month, customer or status → use list_invoices / list_quotations / list_purchases
+- For "tell me about <customer>" / what a customer owes → use get_customer_detail
+- For trends, growth, month-by-month comparison → use get_monthly_trend
+- For a document number or name when the type is unknown → use find_document
+- For vehicle papers (Margin Money, Form 22A, Form 17, Vahan) → use list_vehicle_papers
 - ALWAYS run these tools and report REAL numbers — never invent figures.
 - Format money in Indian ₹ with commas (e.g. ₹12,50,000).
 
@@ -297,6 +302,54 @@ const TOOL_DEFINITIONS = [
     description: "Check Vercel deployment status for the frontend. Shows latest build status and URL.",
     parameters: { type: "OBJECT", properties: {} }
   },
+  {
+    name: "list_invoices",
+    description: "List sales invoices with filters. Use for questions like 'invoices in October', 'unpaid invoices of Tata', 'biggest invoice this month'.",
+    parameters: { type: "OBJECT", properties: {
+      month: { type: "STRING", description: "Month as YYYY-MM (optional)" },
+      payment_status: { type: "STRING", description: "Paid, Unpaid or Partial (optional)" },
+      customer: { type: "STRING", description: "Customer name contains (optional)" },
+      limit: { type: "NUMBER", description: "Max rows, default 25" } } }
+  },
+  {
+    name: "list_quotations",
+    description: "List quotations with filters by month or customer name.",
+    parameters: { type: "OBJECT", properties: {
+      month: { type: "STRING", description: "Month as YYYY-MM (optional)" },
+      customer: { type: "STRING", description: "Customer name contains (optional)" },
+      limit: { type: "NUMBER", description: "Max rows, default 25" } } }
+  },
+  {
+    name: "list_purchases",
+    description: "List purchase bills with filters by month, supplier or payment status.",
+    parameters: { type: "OBJECT", properties: {
+      month: { type: "STRING", description: "Month as YYYY-MM (optional)" },
+      supplier: { type: "STRING", description: "Supplier name contains (optional)" },
+      payment_status: { type: "STRING", description: "Paid, Unpaid or Partial (optional)" },
+      limit: { type: "NUMBER", description: "Max rows, default 25" } } }
+  },
+  {
+    name: "get_customer_detail",
+    description: "Full picture of one customer: contact details, invoices, total business, outstanding amount. Pass a name or an id.",
+    parameters: { type: "OBJECT", properties: { customer: { type: "STRING", description: "Customer name or numeric id" } }, required: ["customer"] }
+  },
+  {
+    name: "get_monthly_trend",
+    description: "Month-by-month sales and purchase totals (with GST) for the last N months. Use for trends, comparisons and growth questions.",
+    parameters: { type: "OBJECT", properties: { months: { type: "NUMBER", description: "How many months back, default 6, max 24" } } }
+  },
+  {
+    name: "list_vehicle_papers",
+    description: "List saved Vehicle Papers (Margin Money, Form 22A, Form 17, Vahan) by type or vehicle number. Never returns file contents.",
+    parameters: { type: "OBJECT", properties: {
+      doc_type: { type: "STRING", description: "money_receipt, form_22a, form_17 or vahan (optional)" },
+      vehicle_no: { type: "STRING", description: "Vehicle number contains (optional)" } } }
+  },
+  {
+    name: "find_document",
+    description: "Search invoices, quotations, purchase bills and customers at once by number or name. Use when the user gives a number like 'INV-101' or a name and you do not know the type.",
+    parameters: { type: "OBJECT", properties: { query: { type: "STRING", description: "Number or name to find" } }, required: ["query"] }
+  },
   // FIX #9: restart_server removed from AI tools — destructive ops need real server-side confirmation, not LLM-decided chat text
   {
     name: "get_env_vars",
@@ -421,13 +474,25 @@ const SAFE_AI_TOOL_NAMES = new Set([
   'get_business_overview', 'get_dashboard_stats', 'get_gst_summary',
   'get_outstanding_invoices', 'get_outstanding_bills', 'get_top_customers',
   'search_customer', 'get_inventory_status', 'get_recent_payments',
-  'get_expense_summary', 'get_knowledge'
+  'get_expense_summary', 'get_knowledge',
+  'list_invoices', 'list_quotations', 'list_purchases', 'get_customer_detail',
+  'get_monthly_trend', 'list_vehicle_papers', 'find_document'
 ]);
 const SAFE_TOOL_DEFINITIONS = TOOL_DEFINITIONS.filter(t => SAFE_AI_TOOL_NAMES.has(t.name));
 
 // ═══════════════════════════════════════════════
 // TOOL EXECUTORS — Actual functions that run on the server
 // ═══════════════════════════════════════════════
+
+// "YYYY-MM" -> [firstDay, lastDay] as YYYY-MM-DD strings (or null)
+function monthRange(m) {
+  const mm = /^(\d{4})-(\d{2})$/.exec(String(m || '').trim());
+  if (!mm) return null;
+  const y = +mm[1], mo = +mm[2];
+  if (mo < 1 || mo > 12) return null;
+  const last = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+  return [`${mm[1]}-${mm[2]}-01`, `${mm[1]}-${mm[2]}-${String(last).padStart(2, '0')}`];
+}
 
 const BLOCKED_SQL = /\b(DROP\s+(TABLE|DATABASE|SCHEMA|INDEX)|TRUNCATE|ALTER\s+TABLE\s+\w+\s+DROP|GRANT|REVOKE)\b/i;
 const DANGEROUS_SQL = /\b(DELETE\s+FROM|UPDATE\s+\w+\s+SET)\b/i;
@@ -891,6 +956,93 @@ async function executeTool(name, args, orgId) {
         const byCategory = await db('expenses').where({ organization_id: orgId }).select('category').sum('amount as t').groupBy('category').orderBy('t', 'desc');
         const recent = await db('expenses').where({ organization_id: orgId }).orderBy('expense_date', 'desc').limit(limit);
         return { totalExpenses: parseFloat(total.t || 0), byCategory, recentExpenses: recent };
+      } catch (err) { return { error: err.message }; }
+    }
+
+    case 'list_invoices':
+    case 'list_quotations':
+    case 'list_purchases': {
+      try {
+        const limit = Math.min(parseInt(args.limit) || 25, 100);
+        const range = monthRange(args.month);
+        if (args.month && !range) return { error: 'month must look like 2026-10' };
+        const like = v => `%${String(v).trim()}%`;
+        let q, rows;
+        if (name === 'list_invoices') {
+          q = db('invoices').where({ 'invoices.organization_id': orgId }).leftJoin('customers', 'invoices.customer_id', 'customers.id');
+          if (range) q = q.whereBetween('invoices.invoice_date', range);
+          if (args.payment_status) q = q.where('invoices.payment_status', args.payment_status);
+          if (args.customer) q = q.where('customers.name', 'ilike', like(args.customer));
+          rows = await q.select('invoices.id', 'invoices.invoice_number', db.raw("to_char(invoices.invoice_date,'YYYY-MM-DD') as invoice_date"), 'customers.name as customer_name', 'invoices.subtotal', 'invoices.total_amount', 'invoices.payment_status').orderBy('invoices.invoice_date', 'desc').limit(limit);
+        } else if (name === 'list_quotations') {
+          q = db('quotations').where({ 'quotations.organization_id': orgId }).leftJoin('customers', 'quotations.customer_id', 'customers.id');
+          if (range) q = q.whereBetween('quotations.quotation_date', range);
+          if (args.customer) q = q.where(function () { this.where('customers.name', 'ilike', like(args.customer)).orWhereRaw("split_part(quotations.notes, '|||', 1) ilike ?", [like(args.customer)]); });
+          rows = await q.select('quotations.id', 'quotations.quotation_number', db.raw("to_char(quotations.quotation_date,'YYYY-MM-DD') as quotation_date"), db.raw("COALESCE(customers.name, NULLIF(split_part(quotations.notes, '|||', 1), '')) as customer_name"), 'quotations.total_amount', 'quotations.status').orderBy('quotations.quotation_date', 'desc').limit(limit);
+        } else {
+          q = db('purchase_bills').where({ organization_id: orgId });
+          if (range) q = q.whereBetween('bill_date', range);
+          if (args.supplier) q = q.where('supplier_name', 'ilike', like(args.supplier));
+          if (args.payment_status) q = q.where('payment_status', args.payment_status);
+          rows = await q.select('id', 'bill_number', db.raw("to_char(bill_date,'YYYY-MM-DD') as bill_date"), 'supplier_name', 'subtotal', 'total_amount', 'payment_status').orderBy('bill_date', 'desc').limit(limit);
+        }
+        const total = rows.reduce((s, r) => s + parseFloat(r.total_amount || 0), 0);
+        return { count: rows.length, totalAmount: total, rows };
+      } catch (err) { return { error: err.message }; }
+    }
+
+    case 'get_customer_detail': {
+      try {
+        const key = String(args.customer || '').trim();
+        if (!key) return { error: 'Provide a customer name or id' };
+        let cust = /^\d+$/.test(key) ? await db('customers').where({ organization_id: orgId, id: key }).first() : null;
+        if (!cust) cust = await db('customers').where({ organization_id: orgId }).where('name', 'ilike', `%${key}%`).first();
+        if (!cust) return { error: `No customer matching "${key}"` };
+        const invoices = await db('invoices').where({ organization_id: orgId, customer_id: cust.id }).select('id', 'invoice_number', db.raw("to_char(invoice_date,'YYYY-MM-DD') as invoice_date"), 'total_amount', 'payment_status').orderBy('invoice_date', 'desc').limit(50);
+        const sum = (arr, f) => arr.filter(f).reduce((s, r) => s + parseFloat(r.total_amount || 0), 0);
+        return {
+          customer: { id: cust.id, name: cust.name, gstin: cust.gstin, phone: cust.phone, email: cust.email, city: cust.city, state: cust.state },
+          invoiceCount: invoices.length, totalBusiness: sum(invoices, () => true),
+          outstanding: sum(invoices, r => r.payment_status !== 'Paid'), recentInvoices: invoices.slice(0, 10)
+        };
+      } catch (err) { return { error: err.message }; }
+    }
+
+    case 'get_monthly_trend': {
+      try {
+        const n = Math.min(Math.max(parseInt(args.months) || 6, 1), 24);
+        const from = new Date(); from.setDate(1); from.setMonth(from.getMonth() - (n - 1));
+        const start = `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, '0')}-01`;
+        const sales = await db('invoices').where({ organization_id: orgId }).where('invoice_date', '>=', start)
+          .select(db.raw("to_char(invoice_date, 'YYYY-MM') as month"), db.raw('COUNT(*) as count'), db.raw('COALESCE(SUM(total_amount),0) as total'), db.raw('COALESCE(SUM(cgst_amount+sgst_amount+igst_amount),0) as gst')).groupBy('month').orderBy('month');
+        const buys = await db('purchase_bills').where({ organization_id: orgId }).where('bill_date', '>=', start)
+          .select(db.raw("to_char(bill_date, 'YYYY-MM') as month"), db.raw('COUNT(*) as count'), db.raw('COALESCE(SUM(total_amount),0) as total'), db.raw('COALESCE(SUM(cgst_amount+sgst_amount+igst_amount),0) as gst')).groupBy('month').orderBy('month');
+        return { from: start, sales, purchases: buys };
+      } catch (err) { return { error: err.message }; }
+    }
+
+    case 'list_vehicle_papers': {
+      try {
+        let q = db('vehicle_papers').where({ organization_id: orgId });
+        if (args.doc_type) q = q.where('type', args.doc_type);
+        if (args.vehicle_no) q = q.where('vehicle_no', 'ilike', `%${String(args.vehicle_no).trim()}%`);
+        const rows = await q.select('id', 'type', 'paper_no', db.raw("to_char(paper_date,'YYYY-MM-DD') as paper_date"), 'customer_name', 'vehicle_no', 'chassis_no', 'engine_no', 'model', 'amount', 'payment_mode').orderBy('created_at', 'desc').limit(50);
+        return { count: rows.length, papers: rows };
+      } catch (err) { return { error: err.message }; }
+    }
+
+    case 'find_document': {
+      try {
+        const q = String(args.query || '').trim();
+        if (q.length < 2) return { error: 'Query too short' };
+        const like = `%${q}%`;
+        const [inv, quo, pur, cus] = await Promise.all([
+          db('invoices').where({ 'invoices.organization_id': orgId }).leftJoin('customers', 'invoices.customer_id', 'customers.id').where(function () { this.where('invoices.invoice_number', 'ilike', like).orWhere('customers.name', 'ilike', like); }).select('invoices.id', 'invoices.invoice_number', 'customers.name as customer_name', 'invoices.total_amount', 'invoices.payment_status').limit(5),
+          db('quotations').where({ organization_id: orgId }).where(function () { this.where('quotation_number', 'ilike', like).orWhereRaw("split_part(notes, '|||', 1) ilike ?", [like]); }).select('id', 'quotation_number', db.raw("split_part(notes, '|||', 1) as customer_name"), 'total_amount').limit(5),
+          db('purchase_bills').where({ organization_id: orgId }).where(function () { this.where('bill_number', 'ilike', like).orWhere('supplier_name', 'ilike', like); }).select('id', 'bill_number', 'supplier_name', 'total_amount', 'payment_status').limit(5),
+          db('customers').where({ organization_id: orgId }).where(function () { this.where('name', 'ilike', like).orWhere('gstin', 'ilike', like).orWhere('phone', 'ilike', like); }).select('id', 'name', 'phone', 'gstin').limit(5),
+        ]);
+        return { invoices: inv, quotations: quo, purchases: pur, customers: cus };
       } catch (err) { return { error: err.message }; }
     }
 

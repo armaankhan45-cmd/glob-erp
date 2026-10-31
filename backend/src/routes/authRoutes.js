@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const router = express.Router();
 const getDb = require('../config/db');
 const config = require('../config/env');
-const { auth, adminOnly } = require('../middleware/auth');
+const { auth, adminOnly , invalidateUser } = require('../middleware/auth');
 const auditLog = require('../middleware/auditLog');
 const { publicOrganization } = require('../config/publicOrganization');
 
@@ -404,6 +404,74 @@ router.post('/users', auth, adminOnly, async (req, res) => {
     res.status(201).json({ success: true, user: { id: user.id || user, name, email, role } });
   } catch (err) {
     console.error('Add user error:', err);
+    res.status(500).json({ success: false, msg: 'Failed' });
+  }
+});
+
+// Edit user (admin only): name, email, phone, role, optional new password
+router.put('/users/:id', auth, adminOnly, async (req, res) => {
+  try {
+    const db = getDb();
+    const orgId = req.user.organization_id;
+    const target = await db('users').where({ id: req.params.id, organization_id: orgId }).first();
+    if (!target) return res.status(404).json({ success: false, msg: 'User not found' });
+
+    const schema = Joi.object({
+      name: Joi.string().min(2).max(100),
+      email: Joi.string().email(),
+      phone: Joi.string().max(20).allow('', null),
+      role: Joi.string().valid('admin', 'accountant', 'viewer'),
+      password: Joi.string().min(6).max(100).allow('', null),
+    });
+    const { error, value } = schema.validate(req.body);
+    if (error) return res.status(400).json({ success: false, msg: error.details[0].message });
+
+    if (value.role && value.role !== 'admin' && target.role === 'admin') {
+      const [{ count }] = await db('users').where({ organization_id: orgId, role: 'admin' }).count('* as count');
+      if (parseInt(count) <= 1) return res.status(400).json({ success: false, msg: 'Cannot remove the last admin' });
+    }
+    if (value.email && value.email !== target.email) {
+      const dup = await db('users').where({ email: value.email }).whereNot({ id: target.id }).first();
+      if (dup) return res.status(400).json({ success: false, msg: 'Email already registered' });
+    }
+
+    const upd = {};
+    ['name', 'email', 'phone', 'role'].forEach(k => { if (value[k] !== undefined) upd[k] = value[k]; });
+    if (value.password) upd.password_hash = await bcrypt.hash(value.password, 12);
+    if (!Object.keys(upd).length) return res.status(400).json({ success: false, msg: 'Nothing to update' });
+
+    await db('users').where({ id: target.id }).update(upd);
+    invalidateUser(target.id);
+    const { password_hash, ...safeOld } = target;
+    const { password_hash: _ph, ...safeNew } = upd;
+    await auditLog(req.user.id, orgId, 'UPDATE', 'users', target.id, { name: safeOld.name, email: safeOld.email, role: safeOld.role }, { ...safeNew, password_changed: !!value.password }, req.ip);
+    res.json({ success: true, msg: 'User updated' });
+  } catch (err) {
+    console.error('Update user error:', err);
+    res.status(500).json({ success: false, msg: 'Failed' });
+  }
+});
+
+// Delete user (admin only) — not yourself, not the last admin
+router.delete('/users/:id', auth, adminOnly, async (req, res) => {
+  try {
+    const db = getDb();
+    const orgId = req.user.organization_id;
+    const target = await db('users').where({ id: req.params.id, organization_id: orgId }).first();
+    if (!target) return res.status(404).json({ success: false, msg: 'User not found' });
+    if (String(target.id) === String(req.user.id)) return res.status(400).json({ success: false, msg: 'You cannot delete your own account' });
+    if (target.role === 'admin') {
+      const [{ count }] = await db('users').where({ organization_id: orgId, role: 'admin' }).count('* as count');
+      if (parseInt(count) <= 1) return res.status(400).json({ success: false, msg: 'Cannot delete the last admin' });
+    }
+    await db('users').where({ id: target.id }).del();
+    invalidateUser(target.id);
+    await auditLog(req.user.id, orgId, 'DELETE', 'users', target.id, { name: target.name, email: target.email, role: target.role }, null, req.ip);
+    res.json({ success: true, msg: 'User deleted' });
+  } catch (err) {
+    console.error('Delete user error:', err);
+    // records still reference this user (e.g. foreign keys) — tell the admin instead of a bare 500
+    if (err.code === '23503') return res.status(409).json({ success: false, msg: 'This user has linked records and cannot be deleted. Change their role to Viewer instead.' });
     res.status(500).json({ success: false, msg: 'Failed' });
   }
 });

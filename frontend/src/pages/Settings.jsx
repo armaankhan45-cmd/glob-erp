@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../api/client'
 import { useAuth } from '../context/AuthContext'
-import { Save, Upload, Plus, Eye, EyeOff, Trash2, Mail, Send } from 'lucide-react'
+import { Save, Upload, Plus, Eye, EyeOff, Trash2, Mail, Send, Pencil, X } from 'lucide-react'
 
 // Complete font name list — 124+ fonts (all categories)
 // Defined inline so Settings.jsx has NO dependency on FontSettings.jsx (fixes build error)
@@ -217,6 +217,24 @@ export default function Settings() {
     try {
       await api.post('/auth/change-password', passwordForm)
       setMsg('✓ Password changed!'); setPasswordForm({ currentPassword: '', newPassword: '' })
+    } catch (err) { setMsg(err.response?.data?.msg || '✗ Failed') }
+  }
+
+  const [editUser, setEditUser] = useState(null)   // user being edited (copy)
+  const handleSaveUser = async () => {
+    try {
+      const { id, name, email, phone, role, password } = editUser
+      const body = { name, email, phone: phone || '', role }
+      if (password) body.password = password
+      await api.put(`/auth/users/${id}`, body)
+      setEditUser(null); loadData(); setMsg('✓ User updated!')
+    } catch (err) { setMsg(err.response?.data?.msg || '✗ Failed') }
+  }
+  const handleDeleteUser = async (u) => {
+    if (!window.confirm(`Delete ${u.name} (${u.email})? They will lose access immediately.`)) return
+    try {
+      await api.delete(`/auth/users/${u.id}`)
+      loadData(); setMsg('✓ User deleted')
     } catch (err) { setMsg(err.response?.data?.msg || '✗ Failed') }
   }
 
@@ -483,10 +501,21 @@ export default function Settings() {
       {user?.role === 'admin' && (
         <div className="card space-y-4">
           <h3 className="font-bold text-lg">User Management</h3>
-          <table className="w-full text-sm">
-            <thead><tr className="border-b text-white/40 text-left"><th className="pb-2">Name</th><th className="pb-2">Email</th><th className="pb-2">Role</th></tr></thead>
-            <tbody>{users.map(u => (<tr key={u.id} className="border-b border-white/5"><td className="py-2">{u.name}</td><td className="py-2">{u.email}</td><td className="py-2"><span className="px-2 py-0.5 rounded-full text-xs font-medium bg-white/5">{u.role}</span></td></tr>))}</tbody>
+          <div className="overflow-x-auto">
+          <table className="nebula-table w-full">
+            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th style={{ textAlign: 'right' }}>Actions</th></tr></thead>
+            <tbody>{users.map(u => (
+              <tr key={u.id}>
+                <td>{u.name}{String(u.id) === String(user?.id) && <span className="ml-2 text-xs" style={{ color: 'var(--text-muted)' }}>(you)</span>}</td>
+                <td>{u.email}</td>
+                <td><span className="px-2 py-0.5 rounded-md text-xs font-medium capitalize" style={{ background: 'var(--bg-glass-md)' }}>{u.role}</span></td>
+                <td style={{ textAlign: 'right' }}>
+                  <button onClick={() => setEditUser({ ...u, password: '' })} className="p-1.5 rounded-md hover:bg-white/10" title="Edit user"><Pencil size={15} /></button>
+                  {String(u.id) !== String(user?.id) && <button onClick={() => handleDeleteUser(u)} className="p-1.5 rounded-md hover:bg-white/10 text-red-400" title="Delete user"><Trash2 size={15} /></button>}
+                </td>
+              </tr>))}</tbody>
           </table>
+          </div>
           <div className="grid md:grid-cols-4 gap-3">
             <input value={newUser.name} onChange={e => setNewUser({...newUser, name: e.target.value})} className="input-field" placeholder="Name" />
             <input value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} className="input-field" placeholder="Email" />
@@ -496,6 +525,30 @@ export default function Settings() {
                 <option value="admin">Admin</option><option value="accountant">Accountant</option><option value="viewer">Viewer</option>
               </select>
               <button onClick={handleAddUser} className="btn-primary text-sm whitespace-nowrap flex items-center gap-1"><Plus size={14} /> Add</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,.55)' }} onClick={() => setEditUser(null)}>
+          <div className="card w-full max-w-md space-y-3" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-lg">Edit user</h3>
+              <button onClick={() => setEditUser(null)} className="p-1 rounded-md hover:bg-white/10"><X size={18} /></button>
+            </div>
+            <div><label className="block text-sm mb-1">Name</label><input className="input-field" value={editUser.name || ''} onChange={e => setEditUser({ ...editUser, name: e.target.value })} /></div>
+            <div><label className="block text-sm mb-1">Email</label><input className="input-field" value={editUser.email || ''} onChange={e => setEditUser({ ...editUser, email: e.target.value })} /></div>
+            <div><label className="block text-sm mb-1">Phone</label><input className="input-field" value={editUser.phone || ''} onChange={e => setEditUser({ ...editUser, phone: e.target.value })} /></div>
+            <div><label className="block text-sm mb-1">Role</label>
+              <select className="input-field" value={editUser.role} onChange={e => setEditUser({ ...editUser, role: e.target.value })}>
+                <option value="admin">Admin</option><option value="accountant">Accountant</option><option value="viewer">Viewer</option>
+              </select></div>
+            <div><label className="block text-sm mb-1">New password <span style={{ color: 'var(--text-muted)' }}>(leave empty to keep current)</span></label>
+              <input type="password" className="input-field" value={editUser.password} onChange={e => setEditUser({ ...editUser, password: e.target.value })} placeholder="Min 6 characters" /></div>
+            <div className="flex gap-2 justify-end pt-1">
+              <button onClick={() => setEditUser(null)} className="btn-secondary">Cancel</button>
+              <button onClick={handleSaveUser} className="btn-primary">Save changes</button>
             </div>
           </div>
         </div>
