@@ -18,10 +18,10 @@ export default function Invoices() {
     try { await api.delete('/invoices/' + id); load() } catch (err) { alert('Delete failed') }
   }
 
-  const download = async (inv, e) => {
+  // PDF from the list: open the invoice and let it download itself (same sharp PDF as the detail page)
+  const download = (inv, e) => {
     if (e) e.stopPropagation()
-    const token = localStorage.getItem('token')
-    window.open(`${api.defaults.baseURL}/invoices/${inv.id}/pdf?token=${token}`, '_blank')
+    navigate(`/app/invoices/${inv.id}?download=pdf`)
   }
 
   const openInvoice = (inv) => navigate('/app/invoices/' + inv.id)
@@ -120,7 +120,7 @@ export default function Invoices() {
                     <td className="text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
                         <button onClick={() => openInvoice(inv)} className="action-icon" title="View"><Eye size={14} /></button>
-                        <button onClick={(e) => download(inv, e)} className="action-icon" title="PDF"><Download size={14} /></button>
+                        <button onClick={(e) => download(inv, e)} className="action-icon" title="Download PDF"><Download size={14} /></button>
                         <button onClick={(e) => del(inv.id, inv.invoice_number, e)} className="action-icon text-red-400" title="Delete"><Trash2 size={14} /></button>
                       </div>
                     </td>

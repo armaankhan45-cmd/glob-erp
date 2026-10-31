@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../api/client'
 import { ArrowLeft, Printer, Download, Save, Trash2, Upload, X, Check, Eye, Edit } from 'lucide-react'
-import { numberToWordsCaps, printElement } from '../utils'
+import { numberToWordsCaps, printElement, safeFileName } from '../utils'
+import DownloadMenu from '../components/DownloadMenu'
 import { PAPER_TYPES } from './VehiclePapers'
 import defaultLetterhead from '../assets/vehicle-papers/glob-letterhead.jpg?inline'
 import defaultAddressBar from '../assets/vehicle-papers/glob-address-bar.jpg?inline'
@@ -584,26 +585,6 @@ export default function VehiclePaperForm() {
     catch (e) { alert('Delete failed') }
   }
 
-  const handlePrint = async () => {
-    const el = document.querySelector('.print-area')
-    await document.fonts.ready
-    await printElement(el, rec.paper_no || meta.label)
-  }
-
-  const handlePdf = async () => {
-    const el = document.querySelector('.print-area')
-    const name = (rec.paper_no || meta.short).replace(/[\\/]/g, '-')
-    try {
-      await document.fonts.ready
-      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')])
-      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#fff' })
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-      pdf.addImage(canvas.toDataURL('image/jpeg', 0.94), 'JPEG', 0, 0, 210, 297)
-      pdf.save(`${meta.short.replace(/\s/g, '')}_${name}.pdf`)
-    }
-    catch (e) { alert('PDF failed: ' + e.message) }
-  }
-
   const opts = rec.data || {}
   const words = (opts.wordsOverride || '').trim() ||
     (parseFloat(rec.amount) > 0 ? numberToWordsCaps(parseFloat(rec.amount)).replace(' RUPEES', '').replace('RUPEES ', '') : '')
@@ -627,8 +608,10 @@ export default function VehiclePaperForm() {
         <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2 btn-shine disabled:opacity-50">
           <Save size={16} /> {saving ? 'Saving…' : recordId ? 'Update' : 'Save'}
         </button>
-        <button onClick={handlePrint} className="btn-secondary flex items-center gap-2 btn-shine"><Printer size={16} /> Print</button>
-        <button onClick={handlePdf} className="btn-secondary flex items-center gap-2 btn-shine"><Download size={16} /> PDF</button>
+        <DownloadMenu
+          getEl={async () => { if (viewMode !== 'preview') { setViewMode('preview'); await new Promise(r => setTimeout(r, 450)) } return document.querySelector('.print-area') }}
+          baseName={safeFileName(meta.short, rec.paper_no, rec.customer_name, rec.vehicle_no)}
+          title={rec.paper_no || meta.label} shareText={meta.label} />
         {recordId && <button onClick={handleDelete} className="btn-danger flex items-center gap-2"><Trash2 size={16} /> Delete</button>}
       </div>
 

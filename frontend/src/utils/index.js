@@ -187,25 +187,30 @@ export function formatDate(dateStr) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// CLIENT-SIDE PDF + PRINT (html2canvas + jsPDF)
-// Captures the real rendered invoice/quotation (stamp, signature,
-// logo, QR — everything you SEE is exactly what prints/downloads),
-// auto-scales to ONE A4 page, and downloads a genuine .pdf file.
-// Lives here in utils/index.js so NO extra file is required.
+// CLIENT-SIDE PDF / IMAGE / PRINT / SHARE (html2canvas + jsPDF)
+// Captures the real rendered document (stamp, signature, letterhead,
+// QR — what you SEE is what you get) from a fixed A4-width copy so
+// phones and desktops give identical output.
+//  • sharp: 3x render (2.5x on iPhone to stay inside its canvas limit)
+//  • A4-shaped documents (letterhead papers) fill the full page
+//  • taller documents flow onto extra pages, cut on blank lines
 // ═══════════════════════════════════════════════════════════════
 
 const A4_W_MM = 210
 const A4_H_MM = 297
 const A4_W_PX = 794   // ≈210mm @96dpi
-const A4_H_PX = 1123  // ≈297mm @96dpi
 const MARGIN_MM = 6
+
+const isIOS = () => /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+
+/** Safe file name from parts: safeFileName('Invoice', 'GST/001/26-27', 'Tata Motors') -> Invoice_GST-001-26-27_Tata-Motors */
+export function safeFileName(...parts) {
+  return parts.filter(Boolean).map(p => String(p).trim().replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, '-').replace(/-+/g, '-')).filter(Boolean).join('_').slice(0, 120) || 'document'
+}
 
 async function elementToCanvas(el) {
   const { default: html2canvas } = await import('html2canvas')
-  // Make sure web fonts (invoice/quotation font) are loaded before we snapshot
   try { if (document.fonts && document.fonts.ready) await document.fonts.ready } catch (e) {}
-  // Phones have a ~390px viewport, so capturing the live element gives a squeezed / cropped
-  // page. Snapshot a fixed A4-width copy placed off-screen instead — identical on every device.
   const wrapper = document.createElement('div')
   wrapper.style.cssText = `position:fixed;left:-10000px;top:0;width:${A4_W_PX}px;background:#fff;pointer-events:none;`
   const clone = el.cloneNode(true)
@@ -217,102 +222,149 @@ async function elementToCanvas(el) {
   wrapper.appendChild(clone)
   document.body.appendChild(wrapper)
   try {
+    // wait for every image (logo, stamp, letterhead) so none are missing in the file
+    await Promise.all([...clone.querySelectorAll('img')].map(img => img.complete ? null : new Promise(r => { img.onload = img.onerror = r; setTimeout(r, 4000) })))
     return await html2canvas(clone, {
-      scale: 2,               // crisp print quality
-      useCORS: true,          // allow external images (QR codes, logos)
-      allowTaint: false,
-      backgroundColor: '#ffffff',
-      logging: false,
-      width: A4_W_PX,
-      windowWidth: A4_W_PX,
-      scrollX: 0,
-      scrollY: 0,
+      scale: isIOS() ? 2.5 : 3, useCORS: true, allowTaint: false, backgroundColor: '#ffffff',
+      logging: false, width: A4_W_PX, windowWidth: A4_W_PX, scrollX: 0, scrollY: 0,
     })
   } finally {
     if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper)
   }
 }
 
-// Save a jsPDF document in a way that works on phones (iOS Safari ignores pdf.save()).
-async function savePdf(pdf, filename) {
-  const blob = pdf.output('blob')
-  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-  if (isIOS) {
+// Row y (in canvas px) near `target` that is blank, so a page break never slices through text
+function findBlankRow(canvas, target, searchUp) {
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  const w = canvas.width
+  for (let y = Math.min(target, canvas.height - 1); y > target - searchUp && y > 0; y--) {
+    const row = ctx.getImageData(0, y, w, 1).data
+    let blank = true
+    for (let x = 0; x < row.length; x += 16) { if (row[x] < 245 || row[x + 1] < 245 || row[x + 2] < 245) { blank = false; break } }
+    if (blank) return y
+  }
+  return target
+}
+
+async function buildPdf(el, title) {
+  const canvas = await elementToCanvas(el)
+  const { jsPDF } = await import('jspdf')
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true })
+  if (title) pdf.setProperties({ title, author: 'Glob Fabrication & Enterprises', creator: 'Glob ERP' })
+  const ratio = canvas.height / canvas.width
+  const a4Ratio = A4_H_MM / A4_W_MM
+  const jpeg = c => c.toDataURL('image/jpeg', 0.96)
+
+  // 1) A4-shaped document (letterhead papers): fill the page edge to edge
+  if (Math.abs(ratio - a4Ratio) < 0.04) {
+    pdf.addImage(jpeg(canvas), 'JPEG', 0, 0, A4_W_MM, A4_H_MM)
+    return pdf
+  }
+  // 2) fits (or only slightly taller than) one page: keep it on ONE page, shrinking up to ~15% if needed
+  const innerW = A4_W_MM - MARGIN_MM * 2
+  const innerH = A4_H_MM - MARGIN_MM * 2
+  const mmPerPx = innerW / canvas.width
+  const totalMm = canvas.height * mmPerPx
+  if (totalMm <= innerH * 1.18) {
+    const k = Math.min(1, innerH / totalMm)
+    const w = innerW * k, h = totalMm * k
+    pdf.addImage(jpeg(canvas), 'JPEG', (A4_W_MM - w) / 2, MARGIN_MM, w, h)
+    return pdf
+  }
+  // 3) long document: flow across pages, breaking on blank lines
+  const pagePx = Math.floor(innerH / mmPerPx)
+  let y = 0, page = 0
+  while (y < canvas.height - 2) {
+    let end = Math.min(y + pagePx, canvas.height)
+    if (end < canvas.height) end = findBlankRow(canvas, end, Math.floor(pagePx * 0.12))
+    if (end <= y + 20) end = Math.min(y + pagePx, canvas.height)
+    const slice = document.createElement('canvas')
+    slice.width = canvas.width; slice.height = end - y
+    const sctx = slice.getContext('2d'); sctx.fillStyle = '#fff'; sctx.fillRect(0, 0, slice.width, slice.height)
+    sctx.drawImage(canvas, 0, y, canvas.width, end - y, 0, 0, canvas.width, end - y)
+    if (page > 0) pdf.addPage()
+    pdf.addImage(jpeg(slice), 'JPEG', MARGIN_MM, MARGIN_MM, innerW, (end - y) * mmPerPx)
+    y = end; page++
+  }
+  return pdf
+}
+
+function triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = filename
+  document.body.appendChild(a); a.click(); document.body.removeChild(a)
+  setTimeout(() => URL.revokeObjectURL(url), 4000)
+}
+
+// iPhone Safari ignores a.download — open the share sheet (Save to Files / WhatsApp / Print) instead
+async function saveBlob(blob, filename, mime) {
+  if (isIOS()) {
     try {
-      const file = new File([blob], filename, { type: 'application/pdf' })
+      const file = new File([blob], filename, { type: mime })
       if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: filename }); return }
     } catch (e) { if (e && e.name === 'AbortError') return }
     const url = URL.createObjectURL(blob)
     if (!window.open(url, '_blank')) window.location.href = url
     return
   }
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  setTimeout(() => URL.revokeObjectURL(url), 4000)
+  triggerDownload(blob, filename)
 }
 
-/**
- * Download the element as a REAL single-page A4 PDF.
- */
+/** Download the element as a real A4 PDF (sharp, multi-page when long). */
 export async function downloadPdf(el, filename) {
   if (!el) throw new Error('Nothing to export')
+  const name = filename.endsWith('.pdf') ? filename : `${filename}.pdf`
+  const pdf = await buildPdf(el, name.replace(/\.pdf$/, '').replace(/_/g, ' '))
+  await saveBlob(pdf.output('blob'), name, 'application/pdf')
+}
+
+/** Download the element as a PNG image (good for WhatsApp / email previews). */
+export async function downloadImage(el, filename) {
+  if (!el) throw new Error('Nothing to export')
   const canvas = await elementToCanvas(el)
-  const { jsPDF } = await import('jspdf')
-  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-  const maxW = A4_W_MM - MARGIN_MM * 2
-  const maxH = A4_H_MM - MARGIN_MM * 2
-  const scale = Math.min(maxW / canvas.width, maxH / canvas.height)
-  const imgW = canvas.width * scale
-  const imgH = canvas.height * scale
-  const offX = (A4_W_MM - imgW) / 2
-  const offY = (A4_H_MM - imgH) / 2
-  pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', offX, offY, imgW, imgH)
-  await savePdf(pdf, filename.endsWith('.pdf') ? filename : `${filename}.pdf`)
+  const blob = await new Promise(r => canvas.toBlob(r, 'image/png'))
+  if (!blob) throw new Error('Could not create image')
+  await saveBlob(blob, filename.endsWith('.png') ? filename : `${filename}.png`, 'image/png')
 }
 
-/**
- * Print the element on exactly ONE A4 page.
- * Uses a hidden iframe (NOT window.open) so it is never blocked by
- * popup blockers and never breaks the print flow.
- */
-function printViaIframe(html) {
-  let iframe = document.createElement('iframe')
-  iframe.setAttribute('aria-hidden', 'true')
-  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;'
-  document.body.appendChild(iframe)
-  const win = iframe.contentWindow
-  const doc = win.document
-  doc.open()
-  doc.write(html)
-  doc.close()
-  const img = doc.querySelector('img.print-sheet')
-  const doPrint = () => {
-    try { win.focus(); win.print() } catch (e) { window.print() }
-    setTimeout(() => { try { if (iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe) } catch (e) {} }, 2000)
-  }
-  if (img && !img.complete) { img.onload = () => setTimeout(doPrint, 60) }
-  else { setTimeout(doPrint, 200) }
+/** True when this browser can share a file (phones, some desktops). */
+export function canShareFiles() {
+  try { return !!(navigator.canShare && navigator.canShare({ files: [new File(['x'], 'x.pdf', { type: 'application/pdf' })] })) } catch (e) { return false }
 }
 
+/** Open the native share sheet with the PDF attached (WhatsApp, Mail, Drive…). */
+export async function sharePdf(el, filename, text = '') {
+  if (!el) throw new Error('Nothing to export')
+  const name = filename.endsWith('.pdf') ? filename : `${filename}.pdf`
+  const pdf = await buildPdf(el, name.replace(/\.pdf$/, '').replace(/_/g, ' '))
+  const file = new File([pdf.output('blob')], name, { type: 'application/pdf' })
+  try { await navigator.share({ files: [file], title: name, text }) }
+  catch (e) { if (!e || e.name !== 'AbortError') throw e }
+}
+
+/** Print the element — prints the exact same pages as the PDF download. */
 export async function printElement(el, title = 'Document') {
   if (!el) { window.print(); return }
   try {
-    const canvas = await elementToCanvas(el)
-    const scale = Math.min(A4_W_PX / canvas.width, A4_H_PX / canvas.height)
-    const w = Math.round(canvas.width * scale)
-    const h = Math.round(canvas.height * scale)
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.95)
-    const html = `<!DOCTYPE html><html><head><title>${title}</title><style>
-@page { size: A4; margin: 0; }
-html, body { margin: 0; padding: 0; background: #fff; }
-img.print-sheet { width: ${w}px; height: ${h}px; display: block; }
-</style></head><body><img class="print-sheet" src="${dataUrl}" /></body></html>`
-    printViaIframe(html)
+    const pdf = await buildPdf(el, title)
+    // render the exact PDF pages as images so print == download
+    const blobUrl = URL.createObjectURL(pdf.output('blob'))
+    // Prefer the native PDF viewer where available (crisp vector-like output)
+    if (!isIOS()) {
+      const iframe = document.createElement('iframe')
+      iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;'
+      iframe.src = blobUrl
+      document.body.appendChild(iframe)
+      iframe.onload = () => {
+        setTimeout(() => {
+          try { iframe.contentWindow.focus(); iframe.contentWindow.print() } catch (e) { window.open(blobUrl, '_blank') }
+          setTimeout(() => { try { document.body.removeChild(iframe) } catch (e) {} URL.revokeObjectURL(blobUrl) }, 60000)
+        }, 250)
+      }
+      return
+    }
+    window.open(blobUrl, '_blank') || (window.location.href = blobUrl)
   } catch (e) {
     window.print()
   }

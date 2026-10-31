@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Download, Trash2, Printer, Edit, AlertCircle, Share2, MessageCircle, Mail, LayoutTemplate } from 'lucide-react'
 import api from '../api/client'
 import BoldToggle from '../components/BoldToggle'
-import { downloadPdf, printElement } from '../utils'
+import { downloadPdf, printElement, safeFileName } from '../utils'
+import DownloadMenu from '../components/DownloadMenu'
 
 function fmt(n) {
   return new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0)
@@ -46,6 +47,7 @@ function numberToWords(num) {
 export default function InvoiceDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const [sp, setSp] = useSearchParams()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -112,7 +114,7 @@ export default function InvoiceDetail() {
     const safeName = (inv.invoice_number || `invoice-${id}`).replace(/\//g, '-')
     try {
       if (printEl) {
-        await downloadPdf(printEl, `Invoice_${safeName}.pdf`)
+        await downloadPdf(printEl, `${safeFileName('Invoice', inv.invoice_number || id, inv.customer_name || data?.customer?.name)}.pdf`)
         return
       }
     } catch (e) {
@@ -134,6 +136,13 @@ export default function InvoiceDetail() {
       URL.revokeObjectURL(url)
     } catch (e) { alert('PDF download failed: ' + e.message) }
   }
+
+  useEffect(() => {
+    if (!data || loading || sp.get('download') !== 'pdf') return
+    const t = setTimeout(async () => { await handleDownloadPDF(); setSp({}, { replace: true }) }, 900)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line
+  }, [data, loading])
 
   const handleWhatsApp = async () => {
     setSharing(true)
@@ -261,8 +270,7 @@ export default function InvoiceDetail() {
         </div>
 
         <BoldToggle />
-        <button onClick={handlePrint} className="btn-secondary flex items-center gap-2"><Printer size={16} /> Print</button>
-        <button onClick={handleDownloadPDF} className="btn-secondary flex items-center gap-2"><Download size={16} /> PDF</button>
+        <DownloadMenu getEl={() => document.querySelector('.print-area')} baseName={safeFileName('Invoice', inv.invoice_number || id, inv.customer_name || data?.customer?.name)} title={`Invoice ${invNum}`} shareText={`Tax Invoice ${inv.invoice_number || ''}`} />
 
         <div className="relative">
           <button onClick={() => setShareOpen(!shareOpen)} className="btn-secondary flex items-center gap-2"><Share2 size={16} /> Share</button>
