@@ -50,6 +50,7 @@ const Settings        = lazy(() => import('./pages/Settings').catch(() => ({ def
 const FontSettings    = lazy(() => import('./pages/FontSettings').catch(() => ({ default: () => <PageFallback name="Font Settings" /> })))
 const ExportData      = lazy(() => import('./pages/ExportData').catch(() => ({ default: () => <PageFallback name="Export" /> })))
 const DeployControl   = lazy(() => import('./pages/DeployControl').catch(() => ({ default: () => <PageFallback name="Deploy" /> })))
+const AuditLog        = lazy(() => import('./pages/AuditLog').catch(() => ({ default: () => <PageFallback name="Audit Log" /> })))
 const Diagnostics     = lazy(() => import('./pages/Diagnostics').catch(() => ({ default: () => <PageFallback name="Diagnostics" /> })))
 
 function InlineLoader() {
@@ -358,6 +359,7 @@ export default function App() {
                 <Route path="export" element={<ExportData />} />
                 <Route path="deploy" element={<DeployControl />} />
                 <Route path="diagnostics" element={<Diagnostics />} />
+                <Route path="audit" element={<AuditLog />} />
                 <Route path="" element={<Navigate to="/app/dashboard" replace />} />
               </Route>
               <Route path="/" element={<Navigate to="/app/dashboard" replace />} />

@@ -292,6 +292,7 @@ app.use('/api/settings', safe('./routes/settingsRoutes'));
 app.use('/api/vehicle-papers', safe('./routes/vehiclePaperRoutes'));
 app.use('/api/search', safe('./routes/searchRoutes'));
 app.use('/api/export', safe('./routes/exportRoutes'));
+app.use('/api/audit', safe('./routes/auditRoutes'));
 
 app.use(errorTrackerMiddleware);
 

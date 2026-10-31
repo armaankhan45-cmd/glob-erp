@@ -3,14 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" href="/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover" />
     <meta name="theme-color" content="#06b6d4" />
     <meta name="description" content="Glob ERP - GST Compliant Fabrication Management" />
     <meta name="color-scheme" content="light dark" />
     <script>try { document.documentElement.classList.add(localStorage.getItem("glob-mode") === "light" ? "light-mode" : "dark-mode") } catch (e) { document.documentElement.classList.add("dark-mode") }</script>
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="apple-mobile-web-app-title" content="Glob ERP" />
+    <link rel="apple-touch-icon" href="/icon-180.png" />
+    <link rel="manifest" href="/manifest.json" />
     <title>Glob ERP</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -25,9 +27,17 @@
     </style>
     <script>
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(r) { for (var i = 0; i < r.length; i++) r[i].unregister(); });
-        if ('caches' in window) { caches.keys().then(function(n) { for (var i = 0; i < n.length; i++) caches.delete(n[i]); }); }
+        window.addEventListener('load', function () { navigator.serviceWorker.register('/sw.js').catch(function () {}); });
       }
+      function __off() {
+        var b = document.getElementById('offline-bar');
+        if (!b) { b = document.createElement('div'); b.id = 'offline-bar';
+          b.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:99999;padding:6px 12px;text-align:center;font:600 12px Inter,sans-serif;background:#f59e0b;color:#111;padding-bottom:calc(6px + env(safe-area-inset-bottom))';
+          b.textContent = 'Offline — viewing saved data (read-only)'; document.body.appendChild(b); }
+        b.style.display = navigator.onLine ? 'none' : 'block';
+      }
+      window.addEventListener('online', __off); window.addEventListener('offline', __off);
+      window.addEventListener('load', __off);
     </script>
   </head>
   <body>

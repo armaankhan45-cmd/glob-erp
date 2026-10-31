@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme, THEMES } from '../context/ThemeContext'
-import { LayoutDashboard, FileText, FileSpreadsheet, Users, ShoppingCart, Calculator, BarChart3, Settings, Download, RefreshCw, LogOut, Factory, Activity, Bot, Upload, Palette, Truck, Moon, Sun } from 'lucide-react'
+import { LayoutDashboard, FileText, FileSpreadsheet, Users, ShoppingCart, Calculator, BarChart3, Settings, Download, RefreshCw, LogOut, Factory, Activity, Bot, Upload, Palette, Truck, Moon, Sun, ShieldCheck } from 'lucide-react'
 
 // FIX: Role-based sidebar visibility — Deploy Control & Diagnostics are admin-only
 const navItems = [
@@ -18,6 +18,7 @@ const navItems = [
   { label: 'Export Excel', path: '/app/export', icon: Download, section: 'SYSTEM', role: 'admin' },
   { label: 'Settings', path: '/app/settings', icon: Settings, section: 'SYSTEM', role: 'admin' },
   { label: 'Deploy Control', path: '/app/deploy', icon: Upload, section: 'SYSTEM', role: 'admin' },
+  { label: 'Audit Log', path: '/app/audit', icon: ShieldCheck, section: 'SYSTEM', role: 'admin' },
   { label: 'Diagnostics', path: '/app/diagnostics', icon: Activity, section: 'SYSTEM', role: 'admin' },
 ]
 
