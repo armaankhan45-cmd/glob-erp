@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const getDb = require('../config/db');
 const { auth } = require('../middleware/auth');
+const { computeQuarterly, currentFy } = require('../utils/gstQuarterly');
 
 // Item-wise sales
 router.get('/item-wise-sales', auth, async (req, res) => {
@@ -30,23 +31,40 @@ router.get('/item-wise-sales', auth, async (req, res) => {
   }
 });
 
-// Customer-wise sales
+// Customer-wise sales (honours the from/to filter the Reports page sends)
 router.get('/customer-wise-sales', auth, async (req, res) => {
   try {
     const db = getDb();
-    const data = await db('invoices')
+    const { from, to } = req.query;
+    let query = db('invoices')
       .where({ 'invoices.organization_id': req.user.organization_id })
-      .leftJoin('customers', 'invoices.customer_id', 'customers.id')
+      .leftJoin('customers', 'invoices.customer_id', 'customers.id');
+    if (from) query = query.where('invoices.invoice_date', '>=', from);
+    if (to) query = query.where('invoices.invoice_date', '<=', to);
+    const data = await query
       .select('customers.name as customer_name', 'customers.gstin',
         db.raw('COUNT(invoices.id) as invoice_count'),
         db.raw('SUM(invoices.total_amount) as total_amount'))
       .groupBy('customers.id')
       .orderBy('total_amount', 'desc');
-    
+
     res.json({ success: true, data });
   } catch (err) {
     console.error('Customer-wise sales error:', err);
     res.status(500).json({ success: false, msg: 'Failed', data: [] });
+  }
+});
+
+// Quarterly GST — Indian FY (Apr–Mar), tax settled per quarter with statutory ITC set-off
+router.get('/gst-quarterly', auth, async (req, res) => {
+  try {
+    const db = getDb();
+    const fy = parseInt(req.query.fy, 10) || currentFy();
+    const data = await computeQuarterly(db, req.user.organization_id, fy, { creditNotes: req.query.cn !== '0' });
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Quarterly GST error:', err);
+    res.status(500).json({ success: false, msg: 'Failed' });
   }
 });
 
@@ -90,12 +108,13 @@ router.get('/customer-statement/:id', auth, async (req, res) => {
     if (to) query = query.where('invoice_date', '<=', to);
     const invoices = await query.orderBy('invoice_date');
     
-    const payments = await db('payments')
+    let payQuery = db('payments')
       .where({ customer_id: req.params.id, organization_id: req.user.organization_id });
-    if (from) query = query.where('payment_date', '>=', from);
-    if (to) query = query.where('payment_date', '<=', to);
+    if (from) payQuery = payQuery.where('payment_date', '>=', from);
+    if (to) payQuery = payQuery.where('payment_date', '<=', to);
+    const payments = await payQuery.orderBy('payment_date');
 
-    const customer = await db('customers').where({ id: req.params.id }).first();
+    const customer = await db('customers').where({ id: req.params.id, organization_id: req.user.organization_id }).first();
     
     res.json({ success: true, customer, invoices, payments });
   } catch (err) {
