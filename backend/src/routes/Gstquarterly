@@ -1,0 +1,144 @@
+// Quarterly GST (QRMP-style) computation. FY runs Apr → Mar. Q1 Apr–Jun, Q2 Jul–Sep, Q3 Oct–Dec, Q4 Jan–Mar.
+// ITC set-off order (CGST Act §49 / Rule 88A):
+//   IGST liability ← IGST, then CGST, then SGST credit
+//   CGST liability ← CGST, then IGST credit
+//   SGST liability ← SGST, then IGST credit
+// Excess ITC carries forward. Pass opts.openingCredit to carry ITC in from the previous FY.
+
+const MONTHS = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+const MONTH_FULL = ['April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December', 'January', 'February', 'March'];
+const QUARTER_RANGE = ['Apr – Jun', 'Jul – Sep', 'Oct – Dec', 'Jan – Mar'];
+// States where the quarterly GSTR-3B is due on the 22nd (category 1); all others → 24th.
+const DUE_22_STATES = new Set(['27', '24', '23', '22', '29', '30', '32', '33', '36', '37', '25', '26', '34', '35', '31']);
+const QUARTER_END = ['06-30', '09-30', '12-31', '03-31'];
+const DUE_MONTH = [7, 10, 1, 4]; // return due the month after quarter end
+
+const pad = (n) => String(n).padStart(2, '0');
+const r2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+const num = (v) => parseFloat(v || 0) || 0;
+
+const monthKeyFor = (fy, i) => (i < 9 ? `${fy}-${pad(i + 4)}` : `${fy + 1}-${pad(i - 8)}`);
+const emptyHeads = () => ({ taxable: 0, cgst: 0, sgst: 0, igst: 0, total: 0, count: 0 });
+const headsFrom = (row) => {
+  const cgst = num(row?.cgst), sgst = num(row?.sgst), igst = num(row?.igst);
+  return { taxable: num(row?.taxable), cgst, sgst, igst, total: cgst + sgst + igst, count: parseInt(row?.cnt || 0, 10) };
+};
+const addHeads = (a, b) => ({
+  taxable: a.taxable + b.taxable, cgst: a.cgst + b.cgst, sgst: a.sgst + b.sgst,
+  igst: a.igst + b.igst, total: a.total + b.total, count: a.count + b.count,
+});
+const roundHeads = (h) => ({ taxable: r2(h.taxable), cgst: r2(h.cgst), sgst: r2(h.sgst), igst: r2(h.igst), total: r2(h.total), count: h.count });
+const roundBal = (b) => ({ cgst: r2(b.cgst), sgst: r2(b.sgst), igst: r2(b.igst), total: r2(b.cgst + b.sgst + b.igst) });
+
+// led = { c, s, i } credit balances. Mutates led, returns cash payable per head.
+function setOff(led, o) {
+  const use = (k, due) => { const u = Math.min(led[k], due); led[k] = r2(led[k] - u); return r2(due - u); };
+  let d = o.igst; for (const k of ['i', 'c', 's']) d = use(k, d);
+  const igst = d;
+  d = o.cgst; for (const k of ['c', 'i']) d = use(k, d);
+  const cgst = d;
+  d = o.sgst; for (const k of ['s', 'i']) d = use(k, d);
+  return { cgst, sgst: d, igst };
+}
+
+async function groupByMonth(db, table, dateCol, orgId, from, toExclusive, extra) {
+  const q = db(table).where({ organization_id: orgId }).where(dateCol, '>=', from).where(dateCol, '<', toExclusive);
+  if (extra) extra(q);
+  return q.select(
+    db.raw(`TO_CHAR(${dateCol}, 'YYYY-MM') as month`),
+    db.raw('COUNT(*) as cnt'),
+    db.raw('COALESCE(SUM(subtotal), 0) as taxable'),
+    db.raw('COALESCE(SUM(cgst_amount), 0) as cgst'),
+    db.raw('COALESCE(SUM(sgst_amount), 0) as sgst'),
+    db.raw('COALESCE(SUM(igst_amount), 0) as igst')
+  ).groupBy('month');
+}
+
+async function computeQuarterly(db, orgId, fy, opts = {}) {
+  fy = parseInt(fy, 10); // guards against "2026" + 1 → "20261"
+  if (!Number.isInteger(fy) || fy < 2017) throw new Error('Invalid financial year');
+  const fyStart = `${fy}-04-01`;
+  const fyEndExcl = `${fy + 1}-04-01`; // exclusive bound: safe for DATE and TIMESTAMP columns
+
+  const org = await db('organizations').where({ id: orgId }).first('state_code', 'gstin');
+  const stateCode = String(org?.state_code || (org?.gstin ? org.gstin.substring(0, 2) : '') || '27');
+  const dueDay = DUE_22_STATES.has(stateCode) ? 22 : 24;
+
+  const [outRows, inRows] = await Promise.all([
+    groupByMonth(db, 'invoices', 'invoice_date', orgId, fyStart, fyEndExcl, (q) => q.whereRaw("COALESCE(status, '') NOT ILIKE 'cancel%'")),
+    groupByMonth(db, 'purchase_bills', 'bill_date', orgId, fyStart, fyEndExcl),
+  ]);
+  let cnRows = [], cnApplied = false;
+  if (opts.creditNotes !== false) {
+    try { cnRows = await groupByMonth(db, 'credit_notes', 'credit_date', orgId, fyStart, fyEndExcl); cnApplied = true; } catch (e) { cnRows = []; }
+  }
+  const byMonth = (rows) => Object.fromEntries(rows.map((r) => [r.month, headsFrom(r)]));
+  const outM = byMonth(outRows), inM = byMonth(inRows), cnM = byMonth(cnRows);
+
+  // Month view: net output = sales − credit notes (NOT clamped, so excess credit notes aren't lost).
+  const months = MONTHS.map((label, i) => {
+    const key = monthKeyFor(fy, i);
+    const g = outM[key] || emptyHeads(), cn = cnM[key] || emptyHeads(), inp = inM[key] || emptyHeads();
+    const output = {
+      taxable: g.taxable - cn.taxable, cgst: g.cgst - cn.cgst, sgst: g.sgst - cn.sgst, igst: g.igst - cn.igst, count: g.count,
+    };
+    output.total = output.cgst + output.sgst + output.igst;
+    return { key, label, fullName: MONTH_FULL[i], quarter: Math.floor(i / 3) + 1, output, creditNotes: cn, input: inp };
+  });
+
+  const oc = opts.openingCredit || {};
+  const led = { c: r2(num(oc.cgst)), s: r2(num(oc.sgst)), i: r2(num(oc.igst)) };
+  const carry = { taxable: 0, cgst: 0, sgst: 0, igst: 0 }; // excess credit notes carried to next quarter
+
+  const quarters = [0, 1, 2, 3].map((qi) => {
+    const qMonths = months.slice(qi * 3, qi * 3 + 3);
+    const sum = (pick) => qMonths.reduce((acc, m) => addHeads(acc, pick(m)), emptyHeads());
+    const raw = sum((m) => m.output);
+    const creditNotes = sum((m) => m.creditNotes);
+    const input = sum((m) => m.input);
+
+    // Net at quarter level; a negative head becomes a carry-forward reduction, never silently dropped.
+    const output = { count: raw.count };
+    for (const k of ['taxable', 'cgst', 'sgst', 'igst']) {
+      const v = raw[k] - carry[k];
+      output[k] = Math.max(0, v); carry[k] = Math.max(0, -v);
+    }
+    output.total = output.cgst + output.sgst + output.igst;
+
+    const opening = roundBal({ cgst: led.c, sgst: led.s, igst: led.i });
+    led.c = r2(led.c + input.cgst); led.s = r2(led.s + input.sgst); led.i = r2(led.i + input.igst);
+    const pay = setOff(led, output);
+    const payable = { ...roundBal(pay) };
+    const closing = roundBal({ cgst: led.c, sgst: led.s, igst: led.i });
+
+    const dueYear = qi >= 2 ? fy + 1 : fy;
+    return {
+      q: qi + 1,
+      label: `Q${qi + 1}`,
+      range: QUARTER_RANGE[qi],
+      startDate: `${monthKeyFor(fy, qi * 3)}-01`,
+      endDate: `${qi < 3 ? fy : fy + 1}-${QUARTER_END[qi]}`,
+      dueDate: `${dueYear}-${pad(DUE_MONTH[qi])}-${pad(dueDay)}`,
+      months: qMonths.map((m) => ({ ...m, output: roundHeads(m.output), creditNotes: roundHeads(m.creditNotes), input: roundHeads(m.input) })),
+      output: roundHeads(output), creditNotes: roundHeads(creditNotes), input: roundHeads(input),
+      opening, payable, closing,
+      creditNoteCarryForward: r2(carry.cgst + carry.sgst + carry.igst),
+    };
+  });
+
+  const sumQ = (key) => roundHeads(quarters.reduce((a, q) => addHeads(a, q[key]), emptyHeads()));
+  const totals = {
+    output: sumQ('output'), input: sumQ('input'), creditNotes: sumQ('creditNotes'),
+    payable: r2(quarters.reduce((s, q) => s + q.payable.total, 0)),
+    closingCredit: quarters[3].closing.total,
+  };
+
+  return {
+    fy, fyLabel: `${fy}-${String(fy + 1).slice(2)}`, stateCode, dueDay, creditNotesApplied: cnApplied,
+    quarters, totals, months: quarters.flatMap((q) => q.months), // rounded, consistent with quarters
+  };
+}
+
+const currentFy = (date = new Date()) => (date.getMonth() >= 3 ? date.getFullYear() : date.getFullYear() - 1);
+
+module.exports = { computeQuarterly, currentFy, MONTHS, MONTH_FULL, QUARTER_RANGE, monthKeyFor };
