@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../api/client'
-import { ArrowLeft, Printer, Download, Save, Trash2, Upload, X, Check, Eye, Edit } from 'lucide-react'
-import { numberToWordsCaps, printElement, safeFileName } from '../utils'
+import { ArrowLeft, Printer, Download, Save, Trash2, Upload, X, Check, Eye, Edit, Share2 } from 'lucide-react'
+import { numberToWordsCaps, printElement, safeFileName, sharePdf, canShareFiles } from '../utils'
 import DownloadMenu from '../components/DownloadMenu'
 import { PAPER_TYPES } from './VehiclePapers'
 import defaultLetterhead from '../assets/vehicle-papers/glob-letterhead.jpg?inline'
@@ -439,6 +439,7 @@ export default function VehiclePaperForm() {
   const navigate = useNavigate()
   const [qp] = useSearchParams()
   const prefillCustomer = qp.get('customer') || ''
+  const startView = qp.get('view') === 'preview' ? 'preview' : 'edit'
   const fileRef = useRef(null)
 
   const [rec, setRec] = useState(() => {
@@ -458,7 +459,7 @@ export default function VehiclePaperForm() {
   const [recordId, setRecordId] = useState(id || null)
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState('')
-  const [viewMode, setViewMode] = useState('edit')
+  const [viewMode, setViewMode] = useState(startView)
 
   const meta = PAPER_TYPES[rec.type] || PAPER_TYPES.money_receipt
   const set = (k, v) => setRec(prev => ({ ...prev, [k]: v }))
@@ -585,6 +586,18 @@ export default function VehiclePaperForm() {
     catch (e) { alert('Delete failed') }
   }
 
+  const getPaperEl = async () => { if (viewMode !== 'preview') { setViewMode('preview'); await new Promise(r => setTimeout(r, 450)) } return document.querySelector('.print-area') }
+  const doPrint = async () => { try { const el = await getPaperEl(); if (el) await printElement(el, rec.paper_no || meta.label) } catch (e) { alert(e.message || 'Print failed') } }
+  const doShare = async () => {
+    const name = safeFileName(meta.short, rec.paper_no, rec.customer_name, rec.vehicle_no)
+    try {
+      if (canShareFiles()) { const el = await getPaperEl(); if (el) await sharePdf(el, name, meta.label); return }
+    } catch (e) { if (e?.name === 'AbortError') return }
+    // Desktop browsers can't share files — open WhatsApp with the details; the PDF can be attached from Download
+    const text = `${meta.label}${rec.paper_no ? ' ' + rec.paper_no : ''}\n${rec.customer_name || ''}\n${rec.model || ''}\nChassis: ${rec.chassis_no || '—'}\nEngine: ${rec.engine_no || '—'}`
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener')
+  }
+
   const opts = rec.data || {}
   const words = (opts.wordsOverride || '').trim() ||
     (parseFloat(rec.amount) > 0 ? numberToWordsCaps(parseFloat(rec.amount)).replace(' RUPEES', '').replace('RUPEES ', '') : '')
@@ -603,13 +616,15 @@ export default function VehiclePaperForm() {
         <button onClick={() => setViewMode(viewMode === 'edit' ? 'preview' : 'edit')}
           className="btn-secondary flex items-center gap-2">
           {viewMode === 'edit' ? <Eye size={16} /> : <Edit size={16} />}
-          {viewMode === 'edit' ? 'Preview A4' : 'Edit fields'}
+          {viewMode === 'edit' ? 'Preview A4' : 'Edit'}
         </button>
-        <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2 btn-shine disabled:opacity-50">
+        <button onClick={handleSave} disabled={saving} className="btn-secondary flex items-center gap-2 disabled:opacity-50">
           <Save size={16} /> {saving ? 'Saving…' : recordId ? 'Update' : 'Save'}
         </button>
+        <button onClick={doPrint} className="btn-secondary flex items-center gap-2"><Printer size={16} /> Print</button>
+        <button onClick={doShare} className="btn-secondary flex items-center gap-2"><Share2 size={16} /> Share</button>
         <DownloadMenu
-          getEl={async () => { if (viewMode !== 'preview') { setViewMode('preview'); await new Promise(r => setTimeout(r, 450)) } return document.querySelector('.print-area') }}
+          getEl={getPaperEl}
           baseName={safeFileName(meta.short, rec.paper_no, rec.customer_name, rec.vehicle_no)}
           title={rec.paper_no || meta.label} shareText={meta.label} />
         {recordId && <button onClick={handleDelete} className="btn-danger flex items-center gap-2"><Trash2 size={16} /> Delete</button>}

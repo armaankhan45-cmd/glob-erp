@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const getDb = require('../config/db');
 const { auth } = require('../middleware/auth');
+const { computeQuarterly } = require('../services/gstQuarterly');
 
 // GSTIN Lookup
 router.get('/lookup/:gstin', auth, async (req, res) => {
@@ -195,6 +196,18 @@ router.get('/summary', auth, async (req, res) => {
     });
   } catch (err) {
     console.error('GST summary error:', err);
+    res.status(500).json({ success: false, msg: 'Failed' });
+  }
+});
+
+// Quarterly GST (QRMP scheme): quarter-wise liability, ITC set-off, due dates and PMT-06 amounts
+router.get('/quarterly', auth, async (req, res) => {
+  try {
+    const year = parseInt(req.query.year, 10) || (new Date().getMonth() >= 3 ? new Date().getFullYear() : new Date().getFullYear() - 1);
+    const data = await computeQuarterly(getDb(), req.user.organization_id, year);
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('GST quarterly error:', err);
     res.status(500).json({ success: false, msg: 'Failed' });
   }
 });

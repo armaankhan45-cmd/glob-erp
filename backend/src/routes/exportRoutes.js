@@ -2,8 +2,7 @@ const express = require('express');
 const router = express.Router();
 const getDb = require('../config/db');
 const { auth } = require('../middleware/auth');
-const QUARTER_RANGE = ['Apr – Jun', 'Jul – Sep', 'Oct – Dec', 'Jan – Mar'];
-const monthKeyFor = (fy, i) => (i < 9 ? `${fy}-${String(i + 4).padStart(2, '0')}` : `${fy + 1}-${String(i - 8).padStart(2, '0')}`);
+const { computeQuarterly } = require('../services/gstQuarterly');
 
 // Self-healing require: if exceljs isn't installed yet on this server
 // (e.g. package.json was updated but `npm install` hasn't run there),
@@ -35,8 +34,12 @@ const BRAND_TEXT = 'FFFFFFFF'; // header text
 const ALT_ROW = 'FFF4F7FB';    // zebra stripe
 const BORDER = { style: 'thin', color: { argb: 'FFD8DEE6' } };
 const MONEY_FMT = '₹#,##0.00';
-const CURRENCY_COLS = new Set(['subtotal', 'cgst_amount', 'sgst_amount', 'igst_amount', 'total_amount', 'amount']);
-const DATE_COLS = new Set(['invoice_date', 'bill_date', 'payment_date']);
+const CURRENCY_COLS = new Set(['subtotal', 'cgst_amount', 'sgst_amount', 'igst_amount', 'total_amount', 'amount',
+  'taxable', 'cgst', 'sgst', 'igst', 'total', 'sales_taxable', 'out_cgst', 'out_sgst', 'out_igst', 'output_gst',
+  'pur_taxable', 'in_cgst', 'in_sgst', 'in_igst', 'input_gst', 'net_gst', 'opening_credit', 'pay_cgst', 'pay_sgst',
+  'pay_igst', 'pay_total', 'closing_credit', 'fixed_sum', 'self_estimate']);
+const COUNT_COLS = new Set(['records', 'sales_count', 'purchase_count']);   // summed in totals rows, no ₹ format
+const DATE_COLS = new Set(['invoice_date', 'bill_date', 'payment_date', 'date']);
 
 function styleHeaderRow(row) {
   row.eachCell(cell => {
@@ -85,11 +88,11 @@ function addTable(ws, columns, rows) {
   return ws;
 }
 
-function addTotalsRow(ws, columns, rows, labelKey) {
+function addTotalsRow(ws, columns, rows, labelKey, skip = new Set()) {
   if (!rows.length) return;
   const totals = {};
   columns.forEach(col => {
-    if (CURRENCY_COLS.has(col.key)) {
+    if ((CURRENCY_COLS.has(col.key) || COUNT_COLS.has(col.key)) && !skip.has(col.key)) {
       totals[col.key] = rows.reduce((s, r) => s + (Number(r[col.key]) || 0), 0);
     }
   });
@@ -140,267 +143,204 @@ function addInsightsSheet(wb, title, rows, moneyKey = 'total_amount', dateKey = 
   return ws;
 }
 
-// ─── Month-wise helpers ─────────────────────────────────────────────
-const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const pad2 = (n) => String(n).padStart(2, '0');
-const monthLabelOf = (key) => `${MONTH_SHORT[parseInt(key.slice(5, 7), 10) - 1]} ${key.slice(0, 4)}`;
+
+// ─── Month / quarter helpers (Indian financial year: Apr–Mar) ─────────────
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const QSPAN = ['', 'Apr–Jun', 'Jul–Sep', 'Oct–Dec', 'Jan–Mar'];
+const pad2 = n => String(n).padStart(2, '0');
 function monthKeyOf(v) {
   if (!v) return null;
-  if (v instanceof Date) return `${v.getFullYear()}-${pad2(v.getMonth() + 1)}`;
-  return String(v).slice(0, 7);
+  if (v instanceof Date) return isNaN(v) ? null : `${v.getFullYear()}-${pad2(v.getMonth() + 1)}`;
+  const m = /^(\d{4})-(\d{2})/.exec(String(v));
+  return m ? `${m[1]}-${m[2]}` : null;
 }
-function quarterOfKey(key) { const m = parseInt(key.slice(5, 7), 10); return Math.floor((m >= 4 ? m - 4 : m + 8) / 3) + 1; }
+const monthLabel = k => `${MON[+k.slice(5, 7) - 1]} ${k.slice(0, 4)}`;
+const quarterOf = k => { const m = +k.slice(5, 7); return m >= 4 && m <= 6 ? 1 : m >= 7 && m <= 9 ? 2 : m >= 10 ? 3 : 4; };
+const fyOfKey = k => { const y = +k.slice(0, 4), m = +k.slice(5, 7); return m >= 4 ? y : y - 1; };
+const fyLabel = fy => `FY ${fy}-${String(fy + 1).slice(2)}`;
+const quarterLabel = k => `Q${quarterOf(k)} ${fyLabel(fyOfKey(k))}`;
+function currentFyStart() { const d = new Date(); return d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1; }
+function parseFy(q) { if (!q || q === 'all') return null; const n = parseInt(q, 10); return Number.isFinite(n) ? n : null; }
 
-// ?month=YYYY-MM → one month · ?fy=2026 → Apr 2026–Mar 2027 · neither → everything (still month-wise)
-function parseRange(q) {
-  const month = /^\d{4}-\d{2}$/.test(q.month || '') ? q.month : null;
-  const fy = parseInt(q.fy, 10) || null;
-  if (month) {
-    const [y, m] = month.split('-').map(Number);
-    const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
-    return { scope: 'month', from: `${month}-01`, to: `${month}-${pad2(last)}`, tag: month, label: monthLabelOf(month), fy: null };
-  }
-  if (fy) return { scope: 'fy', from: `${fy}-04-01`, to: `${fy + 1}-03-31`, tag: `FY${fy}-${String(fy + 1).slice(2)}`, label: `FY ${fy}-${String(fy + 1).slice(2)}`, fy };
-  return { scope: 'all', from: null, to: null, tag: 'all-time', label: 'All time', fy: null };
-}
-function applyRange(qb, col, range) {
-  if (range?.from) qb.where(col, '>=', range.from);
-  if (range?.to) qb.where(col, '<=', range.to);
-  return qb;
-}
-function rowsByMonth(rows, dateKey) {
-  const map = new Map();
-  rows.forEach((r) => {
-    const k = monthKeyOf(r[dateKey]);
-    if (!k) return;
-    if (!map.has(k)) map.set(k, []);
-    map.get(k).push(r);
-  });
-  map.forEach((list) => list.sort((a, b) => String(a[dateKey] instanceof Date ? a[dateKey].toISOString() : a[dateKey]).localeCompare(String(b[dateKey] instanceof Date ? b[dateKey].toISOString() : b[dateKey]))));
-  return map;
-}
-function monthKeysFor(range, groups) {
-  if (range.scope === 'fy') return Array.from({ length: 12 }, (_, i) => monthKeyFor(range.fy, i));
-  if (range.scope === 'month') return [range.tag];
-  return Array.from(groups.keys()).sort();
-}
-function sumKeys(rows, keys) {
-  const out = {};
-  keys.forEach((k) => { out[k] = rows.reduce((s, r) => s + (Number(r[k]) || 0), 0); });
-  return out;
-}
-function monthlySummary(exp, rows, range) {
-  const moneyKeys = exp.columns.filter((c) => CURRENCY_COLS.has(c.key)).map((c) => c.key);
-  const groups = rowsByMonth(rows, exp.dateKey);
-  return monthKeysFor(range, groups).map((key) => {
-    const list = groups.get(key) || [];
-    return { key, label: monthLabelOf(key), quarter: quarterOfKey(key), count: list.length, totals: sumKeys(list, moneyKeys) };
+// pg returns NUMERIC as strings — make them real numbers so Excel can sum, sort and format them
+function normalizeRows(rows) {
+  return rows.map(r => {
+    const o = { ...r };
+    Object.keys(o).forEach(k => { if (CURRENCY_COLS.has(k) && o[k] !== null && o[k] !== undefined) o[k] = Number(o[k]) || 0; });
+    return o;
   });
 }
-
-function shadeRow(row, argb, bold = true) {
-  row.eachCell({ includeEmpty: true }, (cell) => {
-    cell.font = { bold, color: { argb: 'FF1E3A5F' } };
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } };
-    cell.border = { top: BORDER, left: BORDER, right: BORDER, bottom: BORDER };
-  });
+function filterByFy(rows, dateKey, fy) {
+  if (fy == null || !dateKey) return rows;
+  return rows.filter(r => { const k = monthKeyOf(r[dateKey]); return k && fyOfKey(k) === fy; });
+}
+async function loadRows(exp, db, orgId, fy) {
+  return filterByFy(normalizeRows(await exp.fetch(db, orgId)), exp.dateKey, fy);
 }
 
-// One workbook: a Summary sheet (every month, quarter sub-totals, grand total) + one sheet per month
-function buildMonthWiseWorkbook(exp, rows, range) {
-  const wb = new ExcelJS.Workbook();
-  wb.creator = 'Glob ERP'; wb.created = new Date();
-  const moneyCols = exp.columns.filter((c) => CURRENCY_COLS.has(c.key));
-  const showQuarter = range.scope === 'fy';
-  const groups = rowsByMonth(rows, exp.dateKey);
-  const keys = monthKeysFor(range, groups);
-
-  const ws = wb.addWorksheet('Summary', { properties: { tabColor: { argb: BRAND } } });
-  const width = 2 + (showQuarter ? 1 : 0) + moneyCols.length;
-  ws.addRow([`${exp.label} — Month-wise Report (${range.label})`]);
-  ws.mergeCells(1, 1, 1, Math.max(width, 3));
-  ws.getRow(1).getCell(1).font = { bold: true, size: 14, color: { argb: BRAND } };
-  ws.getRow(1).height = 26;
-  ws.addRow([`Generated ${new Date().toLocaleDateString('en-IN')} · Financial year runs April to March`]);
-  ws.getRow(2).getCell(1).font = { italic: true, color: { argb: 'FF6B7785' } };
-  ws.addRow([]);
-  const header = ['Month', ...(showQuarter ? ['Quarter'] : []), 'Records', ...moneyCols.map((c) => c.header)];
-  const hr = ws.addRow(header);
-  styleHeaderRow(hr);
-  const fmtRow = (row, isMoneyFrom) => row.eachCell((cell, n) => {
-    if (n >= isMoneyFrom) { cell.numFmt = MONEY_FMT; cell.alignment = { horizontal: 'right' }; }
-    if (n === isMoneyFrom - 1) { cell.numFmt = '0'; cell.alignment = { horizontal: 'center' }; }
-  });
-  const moneyFrom = 3 + (showQuarter ? 1 : 0);
-  const grand = { count: 0, totals: Object.fromEntries(moneyCols.map((c) => [c.key, 0])) };
-  let qAcc = null;
-  keys.forEach((key, i) => {
-    const list = groups.get(key) || [];
-    const totals = sumKeys(list, moneyCols.map((c) => c.key));
-    const row = ws.addRow([monthLabelOf(key), ...(showQuarter ? [`Q${quarterOfKey(key)}`] : []), list.length, ...moneyCols.map((c) => totals[c.key])]);
-    fmtRow(row, moneyFrom);
-    row.eachCell((cell) => { cell.border = { top: BORDER, left: BORDER, right: BORDER, bottom: BORDER }; if (list.length === 0) cell.font = { color: { argb: 'FF9AA5B1' } }; });
-    grand.count += list.length;
-    moneyCols.forEach((c) => { grand.totals[c.key] += totals[c.key]; });
-    if (showQuarter) {
-      if (!qAcc) qAcc = { count: 0, totals: Object.fromEntries(moneyCols.map((c) => [c.key, 0])) };
-      qAcc.count += list.length;
-      moneyCols.forEach((c) => { qAcc.totals[c.key] += totals[c.key]; });
-      if (i % 3 === 2) {
-        const qr = ws.addRow([`Quarter ${quarterOfKey(key)} total (${QUARTER_RANGE[quarterOfKey(key) - 1]})`, '', qAcc.count, ...moneyCols.map((c) => qAcc.totals[c.key])]);
-        fmtRow(qr, moneyFrom); shadeRow(qr, 'FFE9EEF5');
-        qr.eachCell((cell, n) => { if (n >= moneyFrom) cell.numFmt = MONEY_FMT; });
-        qAcc = null;
-      }
-    }
-  });
-  const gr = ws.addRow(['GRAND TOTAL', ...(showQuarter ? [''] : []), grand.count, ...moneyCols.map((c) => grand.totals[c.key])]);
-  fmtRow(gr, moneyFrom); shadeRow(gr, 'FFD6E0EE');
-  gr.eachCell((cell, n) => { if (n >= moneyFrom) cell.numFmt = MONEY_FMT; });
-  ws.getColumn(1).width = 30;
-  for (let c = 2; c <= width; c++) ws.getColumn(c).width = 18;
-  ws.views = [{ state: 'frozen', ySplit: 4 }];
-
-  keys.forEach((key) => {
-    const list = groups.get(key);
-    if (!list || !list.length) return;
-    const sheet = wb.addWorksheet(monthLabelOf(key), { properties: { tabColor: { argb: 'FF3B82F6' } } });
-    const cols = exp.columns.map((c) => ({ ...c }));
-    addTable(sheet, cols, list);
-    if (exp.moneyKey) addTotalsRow(sheet, cols, list, cols[0].key);
-  });
-  return wb;
+// Month-wise + quarter-wise summary of any date-based export
+function summaryColumns(exp, first) {
+  const hasTax = exp.columns.some(c => c.key === 'cgst_amount');
+  const cols = [{ header: first, key: 'period' }, { header: 'Quarter', key: 'quarter' }, { header: 'Records', key: 'records' }];
+  if (hasTax) cols.push({ header: 'Taxable Value', key: 'taxable' }, { header: 'CGST', key: 'cgst' }, { header: 'SGST', key: 'sgst' }, { header: 'IGST', key: 'igst' });
+  cols.push({ header: exp.moneyKey === 'amount' ? 'Total Amount' : 'Total', key: 'total' });
+  return { cols, hasTax };
 }
-
-// Quarterly GST workbook: summary by quarter, month-wise table, and the sales/purchase/credit-note registers
-function buildQuarterlyWorkbook(data, sales, purchases, creditNotes) {
-  const wb = new ExcelJS.Workbook();
-  wb.creator = 'Glob ERP'; wb.created = new Date();
-  const dmy = (iso) => new Date(iso + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-
-  // ── Sheet 1: Quarterly Summary ──
-  const ws = wb.addWorksheet('Quarterly Summary', { properties: { tabColor: { argb: BRAND } } });
-  ws.addRow([`Quarterly GST Report — FY ${data.fyLabel}`]);
-  ws.mergeCells('A1:F1');
-  ws.getRow(1).getCell(1).font = { bold: true, size: 14, color: { argb: BRAND } };
-  ws.getRow(1).height = 26;
-  ws.addRow([`Tax is settled once per quarter · quarterly return due on the ${data.dueDay}th of the month after each quarter · ${data.creditNotesApplied ? 'credit notes are deducted from output tax' : 'credit notes NOT applied'}`]);
-  ws.mergeCells('A2:F2');
-  ws.getRow(2).getCell(1).font = { italic: true, color: { argb: 'FF6B7785' } };
-  ws.addRow([]);
-  const hr = ws.addRow(['Particulars', ...data.quarters.map((q) => `${q.label} (${q.range})`), 'FY Total']);
-  styleHeaderRow(hr);
-
-  const section = (title) => { const r = ws.addRow([title]); ws.mergeCells(r.number, 1, r.number, 6); shadeRow(r, 'FFE9EEF5'); };
-  const line = (label, get, { total = 'sum', kind = 'money', bold = false, fill = null } = {}) => {
-    const vals = data.quarters.map(get);
-    let tot = '';
-    if (total === 'sum') tot = vals.reduce((a, b) => a + (Number(b) || 0), 0);
-    else if (total === 'first') tot = vals[0];
-    else if (total === 'last') tot = vals[3];
-    const r = ws.addRow([label, ...vals, tot]);
-    r.eachCell((cell, n) => {
-      cell.border = { top: BORDER, left: BORDER, right: BORDER, bottom: BORDER };
-      if (n > 1) {
-        cell.alignment = { horizontal: 'right' };
-        if (kind === 'money') cell.numFmt = MONEY_FMT; else if (kind === 'count') cell.numFmt = '0';
-      }
-      if (bold) cell.font = { bold: true };
-      if (fill) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fill } };
-    });
-    return r;
+function summarize(rows, exp) {
+  const { hasTax } = summaryColumns(exp, '');
+  const bucket = (map, key, label, quarter, r) => {
+    let a = map.get(key);
+    if (!a) { a = { sort: key, period: label, quarter, records: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0, total: 0 }; map.set(key, a); }
+    a.records += 1; a.total += Number(r[exp.moneyKey]) || 0;
+    if (hasTax) { a.taxable += Number(r.subtotal) || 0; a.cgst += Number(r.cgst_amount) || 0; a.sgst += Number(r.sgst_amount) || 0; a.igst += Number(r.igst_amount) || 0; }
   };
-  section('OUTPUT TAX — SALES');
-  line('Sales invoices (count)', (q) => q.output.count, { kind: 'count' });
-  line('Taxable sales (net of credit notes)', (q) => q.output.taxable);
-  line('Output CGST', (q) => q.output.cgst);
-  line('Output SGST', (q) => q.output.sgst);
-  line('Output IGST', (q) => q.output.igst);
-  line('TOTAL OUTPUT TAX', (q) => q.output.total, { bold: true, fill: 'FFF4F7FB' });
-  line('  of which reduced by credit notes', (q) => q.creditNotes.total);
-  section('INPUT TAX CREDIT — PURCHASES');
-  line('Purchase bills (count)', (q) => q.input.count, { kind: 'count' });
-  line('Taxable purchases', (q) => q.input.taxable);
-  line('ITC — CGST', (q) => q.input.cgst);
-  line('ITC — SGST', (q) => q.input.sgst);
-  line('ITC — IGST', (q) => q.input.igst);
-  line('TOTAL ITC AVAILABLE', (q) => q.input.total, { bold: true, fill: 'FFF4F7FB' });
-  section('SET-OFF & PAYMENT');
-  line('Credit brought forward from previous quarter', (q) => q.opening.total, { total: 'first' });
-  line('Tax payable in cash — CGST', (q) => q.payable.cgst);
-  line('Tax payable in cash — SGST', (q) => q.payable.sgst);
-  line('Tax payable in cash — IGST', (q) => q.payable.igst);
-  line('TOTAL TAX PAYABLE (CASH)', (q) => q.payable.total, { bold: true, fill: 'FFFDE8E8' });
-  line('Credit carried forward to next quarter', (q) => q.closing.total, { total: 'last', bold: true, fill: 'FFE8F7EE' });
-  const due = ws.addRow(['Return / payment due date', ...data.quarters.map((q) => dmy(q.dueDate)), '']);
-  due.eachCell((cell, n) => { cell.border = { top: BORDER, left: BORDER, right: BORDER, bottom: BORDER }; if (n > 1) cell.alignment = { horizontal: 'right' }; });
-  ws.addRow([]);
-  const note = ws.addRow(['Set-off follows CGST Act §49 / Rule 88A (IGST credit first, CGST↔IGST and SGST↔IGST only; never CGST↔SGST). Due dates are the standard dates — check the GST portal for any extension. Verify against GSTR-3B before filing.']);
-  ws.mergeCells(note.number, 1, note.number, 6);
-  note.getCell(1).alignment = { wrapText: true, vertical: 'top' }; note.height = 44;
-  note.getCell(1).font = { italic: true, color: { argb: 'FF6B7785' } };
-  ws.getColumn(1).width = 46;
-  for (let c = 2; c <= 6; c++) ws.getColumn(c).width = 19;
-  ws.views = [{ state: 'frozen', ySplit: 4, xSplit: 1 }];
+  const months = new Map(), quarters = new Map();
+  rows.forEach(r => {
+    const k = monthKeyOf(r[exp.dateKey]); if (!k) return;
+    bucket(months, k, monthLabel(k), quarterLabel(k), r);
+    const qk = `${fyOfKey(k)}-${quarterOf(k)}`;
+    bucket(quarters, qk, `${quarterLabel(k)} (${QSPAN[quarterOf(k)]})`, quarterLabel(k), r);
+  });
+  const sorted = m => [...m.values()].sort((a, b) => a.sort.localeCompare(b.sort)).map(({ sort, ...x }) => x);
+  return { monthly: sorted(months), quarterly: sorted(quarters) };
+}
 
-  // ── Sheet 2: Month-wise ──
-  const wm = wb.addWorksheet('Month-wise', { properties: { tabColor: { argb: 'FF3B82F6' } } });
-  const mcols = [
-    { header: 'Month', key: 'month' }, { header: 'Quarter', key: 'quarter' },
-    { header: 'Invoices', key: 'inv' }, { header: 'Taxable Sales', key: 'o_tax' },
-    { header: 'Output CGST', key: 'o_c' }, { header: 'Output SGST', key: 'o_s' }, { header: 'Output IGST', key: 'o_i' }, { header: 'Total Output', key: 'o_t' },
-    { header: 'Bills', key: 'bills' }, { header: 'Taxable Purchases', key: 'i_tax' },
-    { header: 'ITC CGST', key: 'i_c' }, { header: 'ITC SGST', key: 'i_s' }, { header: 'ITC IGST', key: 'i_i' }, { header: 'Total ITC', key: 'i_t' },
+// Sheet listing every month with data + per-quarter totals underneath
+function addSummarySheet(wb, exp, rows, fy) {
+  const ws = wb.addWorksheet('Month-wise Summary', { properties: { tabColor: { argb: 'FF2E8B57' } } });
+  const { monthly, quarterly } = summarize(rows, exp);
+  const { cols } = summaryColumns(exp, 'Month');
+  const title = ws.addRow([`${exp.label} — month-wise report${fy != null ? ' · ' + fyLabel(fy) : ' · all time'}`]);
+  title.getCell(1).font = { bold: true, size: 14, color: { argb: BRAND } }; title.height = 26;
+  ws.addRow([]);
+  const hdr = ws.addRow(cols.map(c => c.header)); styleHeaderRow(hdr);
+  monthly.forEach((m, i) => { const r = ws.addRow(cols.map(c => m[c.key])); styleDataRow(r, i, cols); });
+  const tot = {}; cols.forEach(c => { if (CURRENCY_COLS.has(c.key) || COUNT_COLS.has(c.key)) tot[c.key] = monthly.reduce((s, m) => s + (m[c.key] || 0), 0); });
+  const trow = ws.addRow(cols.map(c => c.key === 'period' ? 'TOTAL' : tot[c.key]));
+  trow.eachCell((cell, n) => { const k = cols[n - 1].key; cell.font = { bold: true }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE9EEF5' } }; cell.border = { top: { style: 'double', color: { argb: BRAND } }, left: BORDER, right: BORDER, bottom: BORDER }; if (CURRENCY_COLS.has(k)) cell.numFmt = MONEY_FMT; });
+  ws.addRow([]);
+  const qt = ws.addRow(['Quarter-wise totals (for quarterly GST filers)']); qt.getCell(1).font = { bold: true, size: 12, color: { argb: BRAND } };
+  const qh = ws.addRow(cols.map(c => c.key === 'period' ? 'Quarter' : c.header)); styleHeaderRow(qh);
+  quarterly.forEach((m, i) => { const r = ws.addRow(cols.map(c => m[c.key])); styleDataRow(r, i, cols); });
+  cols.forEach((c, i) => { ws.getColumn(i + 1).width = c.key === 'period' ? 34 : 16; });
+  ws.views = [{ state: 'frozen', ySplit: 3 }];
+  return ws;
+}
+
+// One sheet per month that has data, each with its own total row
+function addMonthSheets(wb, exp, rows) {
+  const keys = [...new Set(rows.map(r => monthKeyOf(r[exp.dateKey])).filter(Boolean))].sort();
+  keys.forEach(k => {
+    const ws = wb.addWorksheet(monthLabel(k), { properties: { tabColor: { argb: BRAND } } });
+    const mr = rows.filter(r => monthKeyOf(r[exp.dateKey]) === k).sort((a, b) => new Date(a[exp.dateKey]) - new Date(b[exp.dateKey]));
+    addTable(ws, exp.columns, mr);
+    if (exp.moneyKey) addTotalsRow(ws, exp.columns, mr, exp.columns[0].key);
+  });
+}
+
+// ─── GST report workbook: monthly + quarterly (QRMP) + one sheet per month with the bills ───
+const GST_MONTH_COLS = [
+  { header: 'Month', key: 'month' }, { header: 'Quarter', key: 'quarter' },
+  { header: 'Sales Invoices', key: 'sales_count' }, { header: 'Sales Taxable Value', key: 'sales_taxable' },
+  { header: 'Output CGST', key: 'out_cgst' }, { header: 'Output SGST', key: 'out_sgst' }, { header: 'Output IGST', key: 'out_igst' },
+  { header: 'Total Output GST', key: 'output_gst' },
+  { header: 'Purchase Bills', key: 'purchase_count' }, { header: 'Purchase Taxable Value', key: 'pur_taxable' },
+  { header: 'Input CGST', key: 'in_cgst' }, { header: 'Input SGST', key: 'in_sgst' }, { header: 'Input IGST', key: 'in_igst' },
+  { header: 'Total Input GST (ITC)', key: 'input_gst' },
+  { header: 'Net GST (Output − Input)', key: 'net_gst' },
+];
+const GST_QUARTER_COLS = [
+  { header: 'Quarter', key: 'quarter' }, { header: 'Period', key: 'period' },
+  { header: 'Sales Taxable Value', key: 'sales_taxable' }, { header: 'Output GST', key: 'output_gst' }, { header: 'Input GST (ITC)', key: 'input_gst' },
+  { header: 'Credit Brought Forward', key: 'opening_credit' },
+  { header: 'Cash Payable CGST', key: 'pay_cgst' }, { header: 'Cash Payable SGST', key: 'pay_sgst' }, { header: 'Cash Payable IGST', key: 'pay_igst' },
+  { header: 'TOTAL GST PAYABLE', key: 'pay_total' }, { header: 'Credit Carried Forward', key: 'closing_credit' },
+  { header: 'GSTR-1 Due', key: 'gstr1_due' }, { header: 'GSTR-3B Due', key: 'gstr3b_due' },
+];
+const fmtDue = iso => { const [y, m, d] = iso.split('-'); return `${d}-${MON[+m - 1]}-${y}`; };
+
+function gstMonthlyRows(g) {
+  return g.quarters.flatMap(q => q.months.map(m => ({
+    month: m.label, quarter: q.label,
+    sales_count: m.sales.count, sales_taxable: m.sales.taxable, out_cgst: m.sales.cgst, out_sgst: m.sales.sgst, out_igst: m.sales.igst, output_gst: m.outputGST,
+    purchase_count: m.purchases.count, pur_taxable: m.purchases.taxable, in_cgst: m.purchases.cgst, in_sgst: m.purchases.sgst, in_igst: m.purchases.igst, input_gst: m.inputGST,
+    net_gst: Math.round((m.outputGST - m.inputGST) * 100) / 100,
+  })));
+}
+function gstQuarterRows(g) {
+  return g.quarters.map(q => ({
+    quarter: q.label, period: q.name.replace(/^Q\d /, '').replace(/[()]/g, ''),
+    sales_taxable: q.output.taxable, output_gst: q.output.gst, input_gst: q.input.gst, opening_credit: q.openingCredit,
+    pay_cgst: q.payable.cgst, pay_sgst: q.payable.sgst, pay_igst: q.payable.igst, pay_total: q.payable.total, closing_credit: q.closingCredit,
+    gstr1_due: fmtDue(q.due.gstr1), gstr3b_due: fmtDue(q.due.gstr3b),
+  }));
+}
+function gstPmtRows(g) {
+  return g.quarters.flatMap(q => q.due.pmt06.map(p => ({ quarter: q.label, month: p.month, due: fmtDue(p.due), fixed_sum: p.fixedSum, self_estimate: p.selfAssessmentEstimate })));
+}
+
+async function buildGstWorkbook(db, orgId, fy) {
+  const g = await computeQuarterly(db, orgId, fy);
+  const wb = new ExcelJS.Workbook(); wb.creator = 'Glob ERP'; wb.created = new Date();
+
+  // Sheet 1 — month by month
+  const ws1 = wb.addWorksheet('Monthly GST', { properties: { tabColor: { argb: 'FF2E8B57' } } });
+  const mrows = gstMonthlyRows(g);
+  addTable(ws1, GST_MONTH_COLS, mrows);
+  addTotalsRow(ws1, GST_MONTH_COLS, mrows, 'month');
+
+  // Sheet 2 — quarter by quarter (what you actually file and pay)
+  const ws2 = wb.addWorksheet('Quarterly GST (QRMP)', { properties: { tabColor: { argb: 'FFC0392B' } } });
+  const qrows = gstQuarterRows(g);
+  addTable(ws2, GST_QUARTER_COLS, qrows);
+  addTotalsRow(ws2, GST_QUARTER_COLS, qrows, 'quarter', new Set(['opening_credit', 'closing_credit']));
+  ws2.autoFilter = undefined;
+  ws2.addRow([]);
+  const t = ws2.addRow(['Monthly tax deposit (PMT-06) — first two months of every quarter, due by the 25th of the next month']);
+  t.getCell(1).font = { bold: true, size: 12, color: { argb: BRAND } };
+  const pcols = [{ header: 'Quarter', key: 'quarter' }, { header: 'Month', key: 'month' }, { header: 'Due Date', key: 'due' }, { header: '35% Fixed-Sum Amount', key: 'fixed_sum' }, { header: 'Self-Assessment Estimate', key: 'self_estimate' }];
+  styleHeaderRow(ws2.addRow(pcols.map(c => c.header)));
+  gstPmtRows(g).forEach((r, i) => { const row = ws2.addRow(pcols.map(c => r[c.key])); styleDataRow(row, i, pcols); });
+  ws2.addRow([]);
+  [
+    `Registration: GSTIN ${g.registration.gstin || '—'} · State code ${g.registration.stateCode} (category ${g.registration.category}) · ${g.registration.scheme}`,
+    `GSTR-1 is due on the 13th and GSTR-3B on the ${g.registration.gstr3bDay}th of the month after each quarter. Tax for month 1 and 2 is paid via PMT-06 by the 25th.`,
+    'Fixed-sum method = 35% of the cash tax paid in the previous quarter (only if the last return was filed quarterly). Self-assessment = estimate from your own bills, after available credit.',
+    'ITC is set off per CGST Act §49 (IGST first, then CGST, then SGST; CGST and SGST credit never cross-pay). Credit carries forward between quarters.',
+    'Figures are computed from the invoices and purchase bills recorded in Glob ERP. Please confirm with your CA before filing.',
+  ].forEach(n => { const r = ws2.addRow([n]); r.getCell(1).font = { italic: true, size: 10, color: { argb: 'FF5A6573' } }; });
+  [12, 22, 18, 16, 16, 18, 16, 16, 16, 20, 20, 16, 16].forEach((w, i) => { ws2.getColumn(i + 1).width = w; });
+
+  // Sheets 3+ — one sheet per month: sales invoices, then purchase bills
+  const start = `${fy}-04-01`, end = `${fy + 1}-03-31`;
+  const inv = normalizeRows(await db('invoices').where({ 'invoices.organization_id': orgId }).whereBetween('invoices.invoice_date', [start, end])
+    .leftJoin('customers', 'invoices.customer_id', 'customers.id')
+    .select('invoices.invoice_number as doc_no', 'invoices.invoice_date as date', 'customers.name as party', 'invoices.subtotal', 'invoices.cgst_amount', 'invoices.sgst_amount', 'invoices.igst_amount', 'invoices.total_amount', 'invoices.payment_status')
+    .orderBy('invoices.invoice_date'));
+  const pur = normalizeRows(await db('purchase_bills').where({ organization_id: orgId }).whereBetween('bill_date', [start, end])
+    .select('bill_number as doc_no', 'bill_date as date', 'supplier_name as party', 'subtotal', 'cgst_amount', 'sgst_amount', 'igst_amount', 'total_amount', 'payment_status')
+    .orderBy('bill_date'));
+  const keys = [...new Set([...inv, ...pur].map(r => monthKeyOf(r.date)).filter(Boolean))].sort();
+  const mk = (first, second) => [
+    { header: first, key: 'doc_no' }, { header: 'Date', key: 'date' }, { header: second, key: 'party' },
+    { header: 'Taxable Value', key: 'subtotal' }, { header: 'CGST', key: 'cgst_amount' }, { header: 'SGST', key: 'sgst_amount' }, { header: 'IGST', key: 'igst_amount' },
+    { header: 'Total', key: 'total_amount' }, { header: 'Payment', key: 'payment_status' },
   ];
-  wm.columns = mcols;
-  styleHeaderRow(wm.getRow(1));
-  wm.views = [{ state: 'frozen', ySplit: 1, xSplit: 1 }];
-  const moneyKeys = new Set(['o_tax', 'o_c', 'o_s', 'o_i', 'o_t', 'i_tax', 'i_c', 'i_s', 'i_i', 'i_t']);
-  const mrow = (label, q, o, i, bold, fill) => {
-    const r = wm.addRow({ month: label, quarter: q, inv: o.count, o_tax: o.taxable, o_c: o.cgst, o_s: o.sgst, o_i: o.igst, o_t: o.total, bills: i.count, i_tax: i.taxable, i_c: i.cgst, i_s: i.sgst, i_i: i.igst, i_t: i.total });
-    r.eachCell((cell, n) => {
-      const key = mcols[n - 1].key;
-      cell.border = { top: BORDER, left: BORDER, right: BORDER, bottom: BORDER };
-      if (moneyKeys.has(key)) { cell.numFmt = MONEY_FMT; cell.alignment = { horizontal: 'right' }; }
-      if (bold) cell.font = { bold: true };
-      if (fill) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fill } };
-    });
+  const block = (ws, title, cols, rows) => {
+    const tr = ws.addRow([title]); tr.getCell(1).font = { bold: true, size: 12, color: { argb: BRAND } };
+    styleHeaderRow(ws.addRow(cols.map(c => c.header)));
+    rows.forEach((r, i) => { const row = ws.addRow(cols.map(c => r[c.key])); styleDataRow(row, i, cols); });
+    if (rows.length) addTotalsRow(ws, cols, rows, 'doc_no');
+    else { const e = ws.addRow(['No entries']); e.getCell(1).font = { italic: true, color: { argb: 'FF8A94A0' } }; }
+    ws.addRow([]);
   };
-  const zero = () => ({ taxable: 0, cgst: 0, sgst: 0, igst: 0, total: 0, count: 0 });
-  const addH = (a, b) => ({ taxable: a.taxable + b.taxable, cgst: a.cgst + b.cgst, sgst: a.sgst + b.sgst, igst: a.igst + b.igst, total: a.total + b.total, count: a.count + b.count });
-  let fyO = zero(), fyI = zero();
-  data.quarters.forEach((q) => {
-    q.months.forEach((m) => mrow(`${m.fullName} ${m.key.slice(0, 4)}`, q.label, m.output, m.input, false, null));
-    mrow(`${q.label} total`, '', q.output, q.input, true, 'FFE9EEF5');
-    fyO = addH(fyO, q.output); fyI = addH(fyI, q.input);
+  keys.forEach(k => {
+    const ws = wb.addWorksheet(monthLabel(k), { properties: { tabColor: { argb: BRAND } } });
+    block(ws, `Sales invoices — ${monthLabel(k)}`, mk('Invoice #', 'Customer'), inv.filter(r => monthKeyOf(r.date) === k));
+    block(ws, `Purchase bills — ${monthLabel(k)}`, mk('Bill #', 'Supplier'), pur.filter(r => monthKeyOf(r.date) === k));
+    [16, 14, 30, 16, 14, 14, 14, 16, 14].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
   });
-  mrow('FY TOTAL', '', fyO, fyI, true, 'FFD6E0EE');
-  mcols.forEach((c, i) => { wm.getColumn(i + 1).width = i === 0 ? 24 : 16; });
-
-  // ── Registers ──
-  const regCols = (first) => [
-    { header: 'Quarter', key: 'quarter' }, { header: 'Month', key: 'month' },
-    { header: first.header, key: first.key }, { header: 'Date', key: first.date },
-    { header: first.party, key: 'party' }, { header: 'GSTIN', key: 'gstin' },
-    { header: 'Taxable', key: 'subtotal' }, { header: 'CGST', key: 'cgst_amount' }, { header: 'SGST', key: 'sgst_amount' },
-    { header: 'IGST', key: 'igst_amount' }, { header: 'Total', key: 'total_amount' },
-  ];
-  const decorate = (list, dateKey) => list.map((r) => { const k = monthKeyOf(r[dateKey]); return { ...r, quarter: k ? `Q${quarterOfKey(k)}` : '', month: k ? monthLabelOf(k) : '' }; });
-  const addRegister = (name, cols, list, dateKey, labelKey, tab) => {
-    const sheet = wb.addWorksheet(name, { properties: { tabColor: { argb: tab } } });
-    const rows = decorate(list, dateKey);
-    addTable(sheet, cols, rows);
-    if (rows.length) addTotalsRow(sheet, cols, rows, labelKey);
-  };
-  const salesCols = regCols({ header: 'Invoice #', key: 'invoice_number', date: 'invoice_date', party: 'Customer' });
-  addRegister('Sales Register', salesCols, sales, 'invoice_date', 'quarter', 'FF1E9E5A');
-  const purCols = regCols({ header: 'Bill #', key: 'bill_number', date: 'bill_date', party: 'Supplier' });
-  addRegister('Purchase Register', purCols, purchases, 'bill_date', 'quarter', 'FFF97316');
-  if (creditNotes.length) {
-    const cnCols = regCols({ header: 'Credit Note #', key: 'credit_note_number', date: 'credit_date', party: 'Customer' });
-    addRegister('Credit Notes', cnCols, creditNotes, 'credit_date', 'quarter', 'FFEF4444');
-  }
-  return wb;
+  return { wb, g };
 }
 
 // ─── Export definitions: one place, drives both the .xlsx file and the JSON preview ──
@@ -421,8 +361,8 @@ const EXPORTS = {
     ],
     moneyKey: 'total_amount',
     dateKey: 'invoice_date',
-    async fetch(db, orgId, range) {
-      return db('invoices').where({ 'invoices.organization_id': orgId }).whereRaw("COALESCE(invoices.status, '') NOT ILIKE 'cancel%'").modify(qb => applyRange(qb, 'invoices.invoice_date', range))
+    async fetch(db, orgId) {
+      return db('invoices').where({ 'invoices.organization_id': orgId })
         .leftJoin('customers', 'invoices.customer_id', 'customers.id')
         .select('invoices.invoice_number', 'invoices.invoice_date', 'customers.name as customer_name',
           'invoices.subtotal', 'invoices.cgst_amount', 'invoices.sgst_amount', 'invoices.igst_amount',
@@ -468,8 +408,8 @@ const EXPORTS = {
     ],
     moneyKey: 'total_amount',
     dateKey: 'bill_date',
-    async fetch(db, orgId, range) {
-      return db('purchase_bills').where({ organization_id: orgId }).modify(qb => applyRange(qb, 'bill_date', range))
+    async fetch(db, orgId) {
+      return db('purchase_bills').where({ organization_id: orgId })
         .select('bill_number', 'bill_date', 'supplier_name', 'supplier_gstin', 'subtotal',
           'cgst_amount', 'sgst_amount', 'igst_amount', 'total_amount', 'payment_status')
         .orderBy('bill_date', 'desc');
@@ -489,8 +429,8 @@ const EXPORTS = {
     ],
     moneyKey: 'amount',
     dateKey: 'payment_date',
-    async fetch(db, orgId, range) {
-      return db('payments').where({ 'payments.organization_id': orgId }).modify(qb => applyRange(qb, 'payments.payment_date', range))
+    async fetch(db, orgId) {
+      return db('payments').where({ 'payments.organization_id': orgId })
         .leftJoin('customers', 'payments.customer_id', 'customers.id')
         .select('payments.payment_number', 'payments.payment_date', 'payments.type', 'customers.name as customer_name',
           'payments.amount', 'payments.payment_mode', 'payments.reference', 'payments.bank_name')
@@ -501,70 +441,45 @@ const EXPORTS = {
 
 // ─── Routes ────────────────────────────────────────────────────────
 
-// Quarterly GST workbook (Indian FY, tax settled per quarter) — must be registered before /:key.xlsx
-router.get('/gst-quarterly.xlsx', auth, async (req, res) => {
+// JSON preview — same data, same shape, powers the in-app table before download.
+// ?fy=2026 limits to FY 2026-27, ?fy=all (default) = everything.
+router.get('/:key/preview', auth, async (req, res) => {
   try {
-    if (!ExcelJS) return res.status(501).json({ success: false, msg: 'Excel library not installed on the server yet' });
-    const { computeQuarterly, currentFy } = require('./reportRoutes');   // loaded lazily so the other exports never depend on it
     const db = getDb();
     const orgId = req.user.organization_id;
-    const fy = parseInt(req.query.fy, 10) || currentFy();
-    const data = await computeQuarterly(db, orgId, fy, { creditNotes: req.query.cn !== '0' });
-    const from = `${fy}-04-01`, to = `${fy + 1}-03-31`;
 
-    const sales = await db('invoices').where({ 'invoices.organization_id': orgId })
-      .whereBetween('invoices.invoice_date', [from, to]).whereRaw("COALESCE(invoices.status, '') NOT ILIKE 'cancel%'")
-      .leftJoin('customers', 'invoices.customer_id', 'customers.id')
-      .select('invoices.invoice_number', 'invoices.invoice_date', 'customers.name as party', 'customers.gstin as gstin',
-        'invoices.subtotal', 'invoices.cgst_amount', 'invoices.sgst_amount', 'invoices.igst_amount', 'invoices.total_amount')
-      .orderBy('invoices.invoice_date');
-    const purchases = await db('purchase_bills').where({ organization_id: orgId }).whereBetween('bill_date', [from, to])
-      .select('bill_number', 'bill_date', 'supplier_name as party', 'supplier_gstin as gstin',
-        'subtotal', 'cgst_amount', 'sgst_amount', 'igst_amount', 'total_amount')
-      .orderBy('bill_date');
-    let creditNotes = [];
-    if (data.creditNotesApplied) {
-      try {
-        creditNotes = await db('credit_notes').where({ 'credit_notes.organization_id': orgId }).whereBetween('credit_notes.credit_date', [from, to])
-          .leftJoin('customers', 'credit_notes.customer_id', 'customers.id')
-          .select('credit_notes.credit_note_number', 'credit_notes.credit_date', 'customers.name as party', 'customers.gstin as gstin',
-            'credit_notes.subtotal', 'credit_notes.cgst_amount', 'credit_notes.sgst_amount', 'credit_notes.igst_amount', 'credit_notes.total_amount')
-          .orderBy('credit_notes.credit_date');
-      } catch (e) { creditNotes = []; }
+    if (req.params.key === 'gst-report') {
+      const fy = parseFy(req.query.fy) ?? currentFyStart();
+      const g = await computeQuarterly(db, orgId, fy);
+      const rows = gstMonthlyRows(g);
+      return res.json({
+        success: true, label: `GST Report — ${fyLabel(fy)}`, fy,
+        columns: GST_MONTH_COLS, rows,
+        sections: [
+          { title: 'Quarter-wise GST (what you file and pay)', columns: GST_QUARTER_COLS, rows: gstQuarterRows(g) },
+          { title: 'Monthly tax deposit (PMT-06) — due 25th of next month', columns: [{ header: 'Quarter', key: 'quarter' }, { header: 'Month', key: 'month' }, { header: 'Due Date', key: 'due' }, { header: '35% Fixed-Sum Amount', key: 'fixed_sum' }, { header: 'Self-Assessment Estimate', key: 'self_estimate' }], rows: gstPmtRows(g) },
+        ],
+        registration: g.registration,
+        insights: { count: rows.filter(r => r.sales_count || r.purchase_count).length, total: g.totals.payable, average: null, totalLabel: 'GST payable (cash)' },
+      });
     }
 
-    const wb = buildQuarterlyWorkbook(data, sales, purchases, creditNotes);
-    const buf = await wb.xlsx.writeBuffer();
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="gst-quarterly-FY${data.fyLabel}.xlsx"`);
-    res.send(buf);
-  } catch (err) {
-    console.error('Quarterly export error:', err);
-    res.status(500).json({ success: false, msg: 'Export failed' });
-  }
-});
-
-// JSON preview — same data, same shape, powers the in-app table before download
-router.get('/:key/preview', auth, async (req, res) => {
-  const exp = EXPORTS[req.params.key];
-  if (!exp) return res.status(404).json({ success: false, msg: 'Unknown export' });
-  try {
-    const db = getDb();
-    const range = exp.dateKey ? parseRange(req.query) : parseRange({});
-    const rows = await exp.fetch(db, req.user.organization_id, range);
+    const exp = EXPORTS[req.params.key];
+    if (!exp) return res.status(404).json({ success: false, msg: 'Unknown export' });
+    const fy = parseFy(req.query.fy);
+    const rows = await loadRows(exp, db, orgId, fy);
     const total = exp.moneyKey ? rows.reduce((s, r) => s + (Number(r[exp.moneyKey]) || 0), 0) : null;
+    const sections = [];
+    if (exp.dateKey) {
+      const { monthly, quarterly } = summarize(rows, exp);
+      const { cols } = summaryColumns(exp, 'Month');
+      sections.push({ title: 'Month-wise', columns: cols, rows: monthly });
+      sections.push({ title: 'Quarter-wise', columns: cols.map(c => c.key === 'period' ? { ...c, header: 'Quarter' } : c), rows: quarterly });
+    }
     res.json({
-      success: true,
-      label: exp.label,
-      columns: exp.columns,
-      rows,
-      range: { scope: range.scope, label: range.label },
-      monthly: exp.dateKey ? monthlySummary(exp, rows, range) : [],
-      insights: {
-        count: rows.length,
-        total,
-        average: total !== null && rows.length ? total / rows.length : null,
-      },
+      success: true, label: exp.label, fy,
+      columns: exp.columns, rows, sections,
+      insights: { count: rows.length, total, average: total !== null && rows.length ? total / rows.length : null },
     });
   } catch (err) {
     console.error('Preview error:', err);
@@ -572,39 +487,56 @@ router.get('/:key/preview', auth, async (req, res) => {
   }
 });
 
-// One route generates every .xlsx export — month-wise (Summary sheet + one sheet per month)
+// One route generates every .xlsx export — month-wise sheets for anything with a date
 router.get('/:key.xlsx', auth, async (req, res) => {
-  const exp = EXPORTS[req.params.key];
-  if (!exp) return res.status(404).json({ success: false, msg: 'Unknown export' });
+  const key = req.params.key;
   try {
     const db = getDb();
-    const range = exp.dateKey ? parseRange(req.query) : parseRange({});
-    const rows = await exp.fetch(db, req.user.organization_id, range);
-    const fileTag = exp.dateKey ? `-${range.tag}` : '';
+    const orgId = req.user.organization_id;
+    const send = async (wb, name) => {
+      const buf = await wb.xlsx.writeBuffer();
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${name}.xlsx"`);
+      res.send(buf);
+    };
+
+    if (key === 'gst-report') {
+      if (!ExcelJS) return res.status(503).json({ success: false, msg: 'Excel library not installed on the server (run npm install in backend)' });
+      const fy = parseFy(req.query.fy) ?? currentFyStart();
+      const { wb } = await buildGstWorkbook(db, orgId, fy);
+      return send(wb, `GST-Report_${fyLabel(fy).replace(/\s/g, '')}`);
+    }
+
+    const exp = EXPORTS[key];
+    if (!exp) return res.status(404).json({ success: false, msg: 'Unknown export' });
+    const fy = parseFy(req.query.fy);
+    const rows = await loadRows(exp, db, orgId, fy);
 
     if (!ExcelJS) {
-      // Fallback path — no styling, but never a hard failure
       const csv = toCsv(exp.columns, rows);
       res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', `attachment; filename="${req.params.key}${fileTag}.csv"`);
+      res.setHeader('Content-Disposition', `attachment; filename="${key}.csv"`);
       return res.send(csv);
     }
 
-    let wb;
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Glob ERP';
+    wb.created = new Date();
+
     if (exp.dateKey) {
-      wb = buildMonthWiseWorkbook(exp, rows, range);
+      addSummarySheet(wb, exp, rows, fy);                                   // 1. month-wise + quarter-wise totals
+      const all = wb.addWorksheet(`All ${exp.label}`, { properties: { tabColor: { argb: BRAND } } });
+      addTable(all, exp.columns, rows);                                      // 2. everything in one list
+      if (exp.moneyKey) addTotalsRow(all, exp.columns, rows, exp.columns[0].key);
+      addMonthSheets(wb, exp, rows);                                         // 3. one sheet per month
     } else {
-      wb = new ExcelJS.Workbook();
-      wb.creator = 'Glob ERP';
-      wb.created = new Date();
       const ws = wb.addWorksheet(exp.label, { properties: { tabColor: { argb: BRAND } } });
       addTable(ws, exp.columns, rows);
+      if (exp.moneyKey) addTotalsRow(ws, exp.columns, rows, exp.columns[0].key);
     }
+    addInsightsSheet(wb, exp.label, rows, exp.moneyKey, exp.dateKey);
 
-    const buf = await wb.xlsx.writeBuffer();
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="${req.params.key}${fileTag}.xlsx"`);
-    res.send(buf);
+    await send(wb, `${key}${fy != null ? '_' + fyLabel(fy).replace(/\s/g, '') : ''}`);
   } catch (err) {
     console.error('Export error:', err);
     res.status(500).json({ success: false, msg: 'Export failed' });

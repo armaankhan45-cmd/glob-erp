@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import api from '../api/client'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell } from 'recharts'
 import { formatCurrency, formatDate } from '../utils'
+import GSTQuarterly from './GSTQuarterly'
 import { ChevronDown, ChevronRight, ChevronLeft, FileText, ShoppingCart, ArrowRight, RefreshCw, Calendar, TrendingUp, TrendingDown, Info } from 'lucide-react'
 
 const COLORS = ['#3b82f6', '#f97316', '#ef4444', '#22c55e', '#8b5cf6', '#06b6d4']
@@ -29,7 +30,7 @@ function monthKeyToFyYear(monthStr) {
 export default function GSTReports() {
   // ═══ View mode: 'year' (default — matches the totals you're used to seeing immediately)
   // shows the full FY table, 'month' shows one month clearly ═══
-  const [viewMode, setViewMode] = useState('year')
+  const [viewMode, setViewMode] = useState('quarter')
   const [selectedMonth, setSelectedMonth] = useState(currentMonthStr())
   const [year, setYear] = useState(monthKeyToFyYear(currentMonthStr()))
 
@@ -125,7 +126,7 @@ export default function GSTReports() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white">GST Reports</h1>
-          <p className="text-white/40 text-sm">What you owe, what you can claim back, and every bill behind the number</p>
+          <p className="text-white/40 text-sm">Quarterly GST for your firm — what to file, what to pay, and every bill behind the number</p>
         </div>
         <button onClick={() => loadData(true)} className="btn-secondary flex items-center gap-2 text-sm"><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /></button>
       </div>
@@ -157,9 +158,10 @@ export default function GSTReports() {
               </button>
             </div>
           )}
+          <button onClick={() => setViewMode('quarter')} className={`chip ${viewMode === 'quarter' ? 'active' : ''}`}>Quarterly</button>
           <button onClick={() => setViewMode('year')} className={`chip ${viewMode === 'year' ? 'active' : ''}`}>Full Year</button>
-          {viewMode === 'year' && (
-            <select value={year} onChange={e => setYear(parseInt(e.target.value))} className="input-field w-auto">
+          {(viewMode === 'year' || viewMode === 'quarter') && (
+            <select value={year} onChange={e => setYear(parseInt(e.target.value))} className="input-field" style={{ width: "auto" }}>
               {years.map(y => <option key={y} value={y}>FY {y}-{String(y + 1).slice(2)}</option>)}
             </select>
           )}
@@ -169,7 +171,7 @@ export default function GSTReports() {
       {/* ═══════════════════════════════════════════
           ALWAYS-VISIBLE FY TOTALS — the headline numbers, regardless of which view is open below
           ═══════════════════════════════════════════ */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {viewMode !== 'quarter' && <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="gst-card" style={{ background: 'rgba(59,130,246,0.06)', borderLeft: '3px solid #3b82f6' }}>
           <p className="text-xs text-blue-400 font-medium">Output GST (Sales) — FY {year}-{String(year + 1).slice(2)}</p>
           <p className="text-xl font-bold text-blue-300">{formatCurrency(g3b.outputTotal || 0)}</p>
@@ -185,9 +187,11 @@ export default function GSTReports() {
           <p className="text-xl font-bold text-red-300">{formatCurrency(totalActualPayable)}</p>
           <p className="text-xs text-white/30 mt-1">After carry-forward · {formatCurrency(g3b.finalCarryForward || 0)} credit remaining</p>
         </div>
-      </div>
+      </div>}
 
-      {viewMode === 'month' ? (
+      {viewMode === 'quarter' ? (
+        <GSTQuarterly year={year} />
+      ) : viewMode === 'month' ? (
         <MonthView
           monthFullName={monthFullName}
           entry={selectedEntry}
