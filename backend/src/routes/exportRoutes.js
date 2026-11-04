@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router();
 const getDb = require('../config/db');
 const { auth } = require('../middleware/auth');
-const { computeQuarterly, currentFy, MONTHS, QUARTER_RANGE, monthKeyFor } = require('../utils/gstQuarterly');
+const QUARTER_RANGE = ['Apr – Jun', 'Jul – Sep', 'Oct – Dec', 'Jan – Mar'];
+const monthKeyFor = (fy, i) => (i < 9 ? `${fy}-${String(i + 4).padStart(2, '0')}` : `${fy + 1}-${String(i - 8).padStart(2, '0')}`);
 
 // Self-healing require: if exceljs isn't installed yet on this server
 // (e.g. package.json was updated but `npm install` hasn't run there),
@@ -504,6 +505,7 @@ const EXPORTS = {
 router.get('/gst-quarterly.xlsx', auth, async (req, res) => {
   try {
     if (!ExcelJS) return res.status(501).json({ success: false, msg: 'Excel library not installed on the server yet' });
+    const { computeQuarterly, currentFy } = require('./reportRoutes');   // loaded lazily so the other exports never depend on it
     const db = getDb();
     const orgId = req.user.organization_id;
     const fy = parseInt(req.query.fy, 10) || currentFy();
