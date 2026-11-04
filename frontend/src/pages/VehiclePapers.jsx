@@ -188,11 +188,11 @@ export default function VehiclePapers() {
           <Truck size={24} style={{ color: 'var(--accent)' }} /> Vehicle Papers
         </h1>
         <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
-          Enter the party and vehicle once, pick the paper — it fills itself in, ready to download, print or share.
+          Enter the party and vehicle once, pick one or more papers — they fill themselves in, ready to download, print or share.
         </p>
       </div>
 
-      <PaperWizard groups={groups} papers={papers} onCreated={(id) => navigate(`/app/vehicle-papers/${id}?view=preview`)} />
+      <PaperWizard groups={groups} papers={papers} onCreated={(list) => { if (list.length === 1) navigate(`/app/vehicle-papers/${list[0].id}?view=preview`); else load() }} onOpen={(id) => navigate(`/app/vehicle-papers/${id}?view=preview`)} />
 
       <div className="flex flex-wrap items-center gap-3 pt-2">
         <h2 className="text-lg font-bold text-white flex-1">Saved papers</h2>
@@ -249,13 +249,14 @@ export default function VehiclePapers() {
 // 3-step wizard:  1 Party  →  2 Chassis / Engine / Model  →  3 Pick the paper
 // Creating saves the paper (auto-filled) and opens it ready to download/print/share.
 // ═══════════════════════════════════════════════════════════════
-function PaperWizard({ groups, papers, onCreated }) {
+function PaperWizard({ groups, papers, onCreated, onOpen }) {
   const [step, setStep] = useState(1)
   const [party, setParty] = useState('')
   const [chassis, setChassis] = useState('')
   const [engine, setEngine] = useState('')
   const [model, setModel] = useState('')
-  const [type, setType] = useState('')
+  const [types, setTypes] = useState([])
+  const [created, setCreated] = useState([])
   const [amount, setAmount] = useState('')
   const [bank, setBank] = useState('')
   const [customers, setCustomers] = useState([])
@@ -286,28 +287,34 @@ function PaperWizard({ groups, papers, onCreated }) {
   const canNext2 = chassis.trim() && engine.trim()
   const steps = [['1', 'Party'], ['2', 'Vehicle'], ['3', 'Paper']]
 
-  const reset = () => { setStep(1); setParty(''); setChassis(''); setEngine(''); setModel(''); setType(''); setAmount(''); setBank(''); setErr('') }
+  const reset = () => { setStep(1); setParty(''); setChassis(''); setEngine(''); setModel(''); setTypes([]); setCreated([]); setAmount(''); setBank(''); setErr('') }
+
+  const toggleType = (k) => setTypes(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k])
+  const ORDER = ['form_22a', 'vahan', 'form_17', 'money_receipt']
 
   const create = async () => {
-    if (!type) return
+    if (!types.length) return
     setBusy(true); setErr('')
-    try {
-      const c = customers.find(x => (x.name || '').trim().toLowerCase() === party.trim().toLowerCase())
-      let paper_no = ''
-      try { paper_no = (await api.get('/vehicle-papers/next-number', { params: { type } })).data.nextNumber || '' } catch { /* optional */ }
-      const payload = {
-        type, paper_no, paper_date: new Date().toISOString().slice(0, 10),
-        customer_id: c?.id || null, customer_name: party.trim(),
-        customer_address: c?.address || '', customer_gstin: c?.gstin || '', customer_phone: c?.phone || '',
-        chassis_no: chassis.trim(), engine_no: engine.trim(), model: model.trim(), vehicle_no: '',
-        amount: type === 'money_receipt' && amount ? Number(amount) : null,
-        data: type === 'money_receipt' ? { hypothecation: bank.trim() } : {},
-      }
-      const res = await api.post('/vehicle-papers', payload)
-      onCreated(res.data.paper.id)
-    } catch (e) {
-      setErr(e.response?.data?.msg || 'Could not create the paper. Please try again.')
-    } finally { setBusy(false) }
+    const c = customers.find(x => (x.name || '').trim().toLowerCase() === party.trim().toLowerCase())
+    const made = []; const failed = []
+    for (const type of ORDER.filter(t => types.includes(t))) {   // one at a time so numbering stays in sequence
+      try {
+        let paper_no = ''
+        try { paper_no = (await api.get('/vehicle-papers/next-number', { params: { type } })).data.nextNumber || '' } catch { /* optional */ }
+        const res = await api.post('/vehicle-papers', {
+          type, paper_no, paper_date: new Date().toISOString().slice(0, 10),
+          customer_id: c?.id || null, customer_name: party.trim(),
+          customer_address: c?.address || '', customer_gstin: c?.gstin || '', customer_phone: c?.phone || '',
+          chassis_no: chassis.trim(), engine_no: engine.trim(), model: model.trim(), vehicle_no: '',
+          amount: type === 'money_receipt' && amount ? Number(amount) : null,
+          data: type === 'money_receipt' ? { hypothecation: bank.trim() } : {},
+        })
+        made.push({ id: res.data.paper.id, type })
+      } catch (e) { failed.push(PAPER_TYPES[type].short) }
+    }
+    setBusy(false)
+    if (failed.length) setErr(`Could not create: ${failed.join(', ')}. Please try again for those.`)
+    if (made.length) { setCreated(made); onCreated(made) }
   }
 
   const inputStyle = { background: 'var(--bg-input)', border: '1px solid var(--border-input)', color: 'var(--text-primary)', outline: 'none' }
@@ -387,19 +394,34 @@ function PaperWizard({ groups, papers, onCreated }) {
         </div>
       )}
 
-      {step === 3 && (
+      {step === 3 && created.length > 0 && (
+        <div className="space-y-4">
+          <p className="text-sm font-semibold text-white flex items-center gap-2"><Check size={16} style={{ color: '#34d399' }} /> {created.length} papers created for {party}</p>
+          <div className="grid sm:grid-cols-2 gap-2">
+            {created.map(c => { const t = PAPER_TYPES[c.type]; const Icon = t.icon; return (
+              <button key={c.id} onClick={() => onOpen(c.id)} className="flex items-center gap-3 p-3 rounded-xl text-left" style={{ background: 'var(--bg-input)', border: `1px solid ${t.accent}55` }}>
+                <Icon size={18} style={{ color: t.accent }} /><span className="flex-1 font-semibold text-white text-sm">{t.label}</span><span className="text-xs" style={{ color: 'var(--accent)' }}>Open · print · share →</span>
+              </button>) })}
+          </div>
+          {err && <p className="text-sm" style={{ color: '#f87171' }}>{err}</p>}
+          <button onClick={reset} className="btn-secondary">Create more papers</button>
+        </div>
+      )}
+
+      {step === 3 && created.length === 0 && (
         <div className="space-y-5">
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
             <b className="text-white">{party}</b> · {model || 'Model —'} · Chassis {chassis} · Engine {engine}
           </p>
           <div>
-            <p className={label} style={{ color: 'var(--text-muted)' }}>Which paper do you want?</p>
+            <p className={label} style={{ color: 'var(--text-muted)' }}>Which papers do you want? Select one or more — all are created together.</p>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               {[['form_22a', 'Form 22'], ['vahan', 'Vahan'], ['form_17', 'Form 17'], ['money_receipt', 'Money Margin']].map(([k, name]) => {
-                const t = PAPER_TYPES[k]; const Icon = t.icon; const on = type === k
+                const t = PAPER_TYPES[k]; const Icon = t.icon; const on = types.includes(k)
                 return (
-                  <button key={k} type="button" onClick={() => setType(k)} className="text-left p-4 rounded-2xl transition-all"
+                  <button key={k} type="button" onClick={() => toggleType(k)} className="text-left p-4 rounded-2xl transition-all relative"
                     style={{ background: on ? `${t.accent}1f` : 'var(--bg-input)', border: `1.5px solid ${on ? t.accent : 'var(--border-input)'}` }}>
+                    <span className="absolute top-3 right-3 w-5 h-5 rounded-md flex items-center justify-center" style={{ background: on ? t.accent : 'transparent', border: `1.5px solid ${on ? t.accent : 'var(--text-muted)'}` }}>{on && <Check size={13} color="#fff" />}</span>
                     <Icon size={22} style={{ color: t.accent }} />
                     <div className="font-bold text-white mt-2">{name}</div>
                     <div className="text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--text-muted)' }}>{k === 'form_22a' ? 'Tanker body certificate' : k === 'vahan' ? 'Vahan paper + chassis/engine' : k === 'form_17' ? 'Form 17 + chassis/engine' : 'Margin money receipt'}</div>
@@ -409,7 +431,7 @@ function PaperWizard({ groups, papers, onCreated }) {
             </div>
           </div>
 
-          {type === 'money_receipt' && (
+          {types.includes('money_receipt') && (
             <div className="grid sm:grid-cols-2 gap-3 max-w-xl">
               <div>
                 <label className={label} style={{ color: 'var(--text-muted)' }}>Amount received (Rs.)</label>
@@ -425,8 +447,8 @@ function PaperWizard({ groups, papers, onCreated }) {
           {err && <p className="text-sm" style={{ color: '#f87171' }}>{err}</p>}
           <div className="flex flex-wrap items-center gap-2">
             <button onClick={() => setStep(2)} className="btn-secondary flex items-center gap-2"><ArrowLeft size={16} /> Back</button>
-            <button disabled={!type || busy} onClick={create} className="btn-primary btn-shine flex items-center gap-2 disabled:opacity-40">
-              {busy ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />} {busy ? 'Filling in…' : 'Create paper'}
+            <button disabled={!types.length || busy} onClick={create} className="btn-primary btn-shine flex items-center gap-2 disabled:opacity-40">
+              {busy ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />} {busy ? 'Filling in…' : types.length > 1 ? `Create ${types.length} papers` : 'Create paper'}
             </button>
             <button onClick={reset} className="text-xs underline ml-2" style={{ color: 'var(--text-muted)' }}>Start over</button>
           </div>
