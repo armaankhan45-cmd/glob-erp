@@ -4,6 +4,7 @@ import Sidebar from '../components/Sidebar'
 import TopBar from '../components/TopBar'
 import { Menu, Bot, X, Send } from 'lucide-react'
 import api from '../api/client'
+import ServerWakeGate from '../components/ServerWakeGate'
 import { motion } from 'framer-motion'
 
 function MiniMarkdown({ text }) {
@@ -137,12 +138,14 @@ export default function MainLayout() {
         <div className="lg:hidden"><button onClick={() => setSidebarOpen(true)} className="p-4" style={{ color: 'var(--text-secondary)' }}><Menu size={24} /></button></div>
         <TopBar />
         <main className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth" style={{ background: 'var(--bg-primary)' }}>
-          <Suspense fallback={<PageLoader />}>
-            <motion.div key={location.pathname} className="page-shell"
-              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}>
-              <Outlet />
-            </motion.div>
-          </Suspense>
+          <ServerWakeGate>
+            <Suspense fallback={<PageLoader />}>
+              <motion.div key={location.pathname} className="page-shell"
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}>
+                <Outlet />
+              </motion.div>
+            </Suspense>
+          </ServerWakeGate>
         </main>
       </div>
       {!location.pathname.includes('ai-assistant') && (
