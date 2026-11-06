@@ -72,9 +72,11 @@ export function AuthProvider({ children }) {
       setUser(safeUser(user))
       return { success: true }
     } catch (err) {
-      const msg = err.response?.data?.msg || err.message || 'Login failed'
+      // No response / 5xx = the server (still waking), not a wrong password
+      const network = !err.response || err.response.status >= 500
+      const msg = err.response?.data?.msg || (network ? 'The server is still starting up' : (err.message || 'Login failed'))
       setError(msg)
-      return { success: false, msg }
+      return { success: false, msg, network }
     }
   }, [])
 
