@@ -73,15 +73,19 @@ api.interceptors.response.use(
 function rawPing(timeoutMs) {
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), timeoutMs)
-  // mode: 'no-cors' — the browser sends the request and RESOLVES as soon as
-  // the server responds, WITHOUT requiring an Access-Control-Allow-Origin
-  // header. (The backend's /api/ping route is registered before the CORS
-  // middleware, so its response has no CORS header — a normal fetch would be
-  // blocked by the browser and the page would think the server is asleep
-  // forever, stuck at "Waking server…".) We only need "did it respond?", so
-  // the unreadable "opaque" response is exactly what we want.
-  return fetch(`${API_URL}/ping`, { method: 'GET', cache: 'no-store', mode: 'no-cors', signal: ctrl.signal })
-    .then(() => { clearTimeout(timer); return true })
+  // The backend registers CORS BEFORE /api/ping, so we can read the real answer.
+  // We only report "awake" for a genuine 200 + { ok: true }. The old opaque (no-cors) ping
+  // resolved for ANY reply — including the 502/503 pages Render serves while the instance is
+  // still booting — so the app believed the server was awake, fired real requests into it
+  // and they failed. That is why the installed app only worked after the site had been
+  // opened in Chrome (which woke the server for it).
+  return fetch(`${API_URL}/ping`, { method: 'GET', cache: 'no-store', signal: ctrl.signal })
+    .then(async (res) => {
+      clearTimeout(timer)
+      if (!res.ok) return false
+      const body = await res.json().catch(() => null)
+      return !!(body && body.ok)
+    })
     .catch(() => { clearTimeout(timer); return false })
 }
 
@@ -94,7 +98,7 @@ api.wakeServer = async function (onStatus) {
   // Server is asleep — Render free-tier cold start takes ~30–60s.
   // Poll every 3s so we catch it the instant it comes up.
   const startedAt = Date.now()
-  const MAX_WAIT = 75000
+  const MAX_WAIT = 90000
   for (;;) {
     const elapsed = Math.round((Date.now() - startedAt) / 1000)
     if (onStatus) onStatus(`Waking server… ${elapsed}s (free tier cold start)`)
