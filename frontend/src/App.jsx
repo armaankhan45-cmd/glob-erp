@@ -103,34 +103,24 @@ function LoginPage() {
     if (!password.trim()) { setError('Please enter your password'); return }
     setLoading(true)
 
-    // ═══ WAKE FIRST, THEN LOGIN ═══
-    // Fast fetch-based wake check (returns in ~1-4s when the server is awake,
-    // ≤90s when the free-tier server is cold-starting). Firing the login
-    // request into a sleeping server is what used to hang for minutes — so we
-    // make sure it's awake BEFORE sending credentials.
-    setRetrying(true)
-    const wake = await api.wakeServer((msg) => setServerStatus(msg))
-    setRetrying(false)
-    if (wake.awake) setServerStatus('')
-
-    let result = await login(email, password)
-    if (result.success) {
-      setServerStatus(''); setLoading(false)
-      navigate('/app/dashboard')
-      return
-    }
-
-    // One fast retry — covers the rare case where the server came up
-    // mid-login but the database connection wasn't ready yet.
-    const wake2 = await api.wakeServer((msg) => setServerStatus(msg))
-    if (wake2.awake) {
-      setServerStatus('')
+    // ═══ WAKE FIRST, THEN LOGIN — and keep retrying while the failure is the server ═══
+    // wakeServer only returns "awake" after a real 200 from /api/ping, so credentials are
+    // never fired into a cold instance. If the server still drops the request (it can come
+    // up before its database is ready) we wake + retry instead of showing "wrong password".
+    let result = { success: false, network: true }
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      setRetrying(true)
+      const wake = await api.wakeServer((msg) => setServerStatus(msg))
+      setRetrying(false)
+      if (!wake.awake) break
+      setServerStatus(attempt === 1 ? 'Signing in…' : `Signing in… (try ${attempt})`)
       result = await login(email, password)
+      if (result.success || !result.network) break
     }
 
     setServerStatus(''); setLoading(false)
     if (result.success) navigate('/app/dashboard')
-    else setError(result.msg || 'Invalid email or password')
+    else setError(result.network ? 'The server is still starting up. Please wait a few seconds and tap Sign In again.' : (result.msg || 'Invalid email or password'))
   }
 
   return (
