@@ -60,7 +60,11 @@ export function defaultData(type) {
     modeText: 'NEFT',              // word printed in the sentence ("… 500000/- NEFT RECEIVED")
     wordsOverride: '',             // blank = auto "(FIVE LAKH ONLY )" from the amount
     hypothecation: '',             // e.g. STATE BANK OF INDIA
-    customParagraph: '',           // optional full override of the sentence
+    mrMode: 'quick',               // 'quick' = ready-made wording, just add money + details · 'custom' = write the whole receipt yourself
+    customParagraph: '',           // custom mode: the full text of the receipt (edited freely)
+    customAlign: 'center',         // custom mode: center | left
+    customSize: 13.5,              // custom mode: font size (pt)
+    customBold: true,
     showDetailsBox: false,         // extra box with UTR / bank / vehicle / chassis etc.
 
     // ── Form 22-A ──
@@ -251,6 +255,22 @@ function PlainSignature({ org }) {
 //   AND WITH HYPOTHECATION :- STATE BANK OF INDIA
 //                                    SIGNATURE :
 // ═══════════════════════════════════════════════════════════════
+const mrModeOf = (opts) => opts.mrMode || ((opts.customParagraph || '').trim() ? 'custom' : 'quick')
+
+// The standard wording as plain text — used to pre-fill the "write my own" editor so you start from it
+export function buildMoneyText(rec, opts = {}) {
+  const amt = amountText(rec.amount)
+  const w = (opts.wordsOverride || '').trim() ||
+    (parseFloat(rec.amount) > 0 ? numberToWordsCaps(parseFloat(rec.amount)).replace(' RUPEES', '').replace('RUPEES ', '') : '')
+  const vehicle = [rec.model, rec.vehicle_no].filter(Boolean).join(' ').toUpperCase()
+  return [
+    `WE ARE ACCOUNTING A SUM OF RS:- ${amt}/- ${(opts.modeText || '').trim() || 'NEFT'} RECEIVED`,
+    `(${w}${w ? ' ' : ''}) ON DATE ${fmtDate(rec.paper_date)} OF PAYMENT TO US FROM`,
+    `${(rec.customer_name || '').toUpperCase()}${vehicle ? ' ON ACCOUNT OF ' + vehicle : ''}`,
+    `AND WITH HYPOTHECATION :- ${(opts.hypothecation || '').toUpperCase()}`,
+  ].join('\n')
+}
+
 export function MoneyReceiptPaper({ rec, org, opts }) {
   const hasLH = opts.useLetterhead !== false
   const amount = amountText(rec.amount)
@@ -261,7 +281,8 @@ export function MoneyReceiptPaper({ rec, org, opts }) {
   const vehicle = [rec.model, rec.vehicle_no].filter(Boolean).join(' ').toUpperCase()
   const bank = (opts.hypothecation || '').toUpperCase()
 
-  const custom = (opts.customParagraph || '').trim()
+  const isCustom = mrModeOf(opts) === 'custom'
+  const custom = isCustom ? (opts.customParagraph || '') : ''
 
   const L = { fontWeight: 800, fontSize: '13.5pt', textAlign: 'center', lineHeight: 1.5, marginBottom: '5.5mm', letterSpacing: '0.2px' }
 
@@ -273,8 +294,9 @@ export function MoneyReceiptPaper({ rec, org, opts }) {
           {opts.heading || 'MARGIN MONEY RECEIPT'}
         </div>
 
-        {custom ? (
-          <div style={{ ...L, whiteSpace: 'pre-line' }}>{custom}</div>
+        {isCustom ? (
+          <div style={{ ...L, whiteSpace: 'pre-wrap', textAlign: opts.customAlign === 'left' ? 'left' : 'center',
+            fontSize: (Number(opts.customSize) || 13.5) + 'pt', fontWeight: opts.customBold === false ? 400 : 800 }}>{custom}</div>
         ) : (
           <div>
             <div style={L}>
@@ -498,7 +520,11 @@ export default function VehiclePaperForm() {
           ...p,
           amount: p.amount ?? '',
           balance_amount: p.balance_amount ?? '',
-          data: { ...defaultData(p.type), ...(p.data || {}) },
+          data: (() => {
+            const d = { ...defaultData(p.type), ...(p.data || {}) }
+            if (p.type === 'money_receipt' && d.mrMode === 'custom' && !(d.customParagraph || '').trim()) d.customParagraph = buildMoneyText(p, d)
+            return d
+          })(),
         })
         setRecordId(p.id)
       }).catch(() => { alert('Paper not found'); navigate('/app/vehicle-papers') })
@@ -602,6 +628,15 @@ export default function VehiclePaperForm() {
   const words = (opts.wordsOverride || '').trim() ||
     (parseFloat(rec.amount) > 0 ? numberToWordsCaps(parseFloat(rec.amount)).replace(' RUPEES', '').replace('RUPEES ', '') : '')
 
+  const switchMrMode = (m) => {
+    setRec(prev => {
+      const d = { ...(prev.data || {}), mrMode: m }
+      // first time on "write my own": start from the standard wording so there is something to edit
+      if (m === 'custom' && !(d.customParagraph || '').trim()) d.customParagraph = buildMoneyText(prev, d)
+      return { ...prev, data: d }
+    })
+  }
+
   if (loading) return <div className="flex justify-center py-20"><div className="animate-spin h-8 w-8 border-4 rounded-full" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} /></div>
 
   return (
@@ -681,6 +716,21 @@ export default function VehiclePaperForm() {
           {rec.type === 'money_receipt' && (
             <>
               <div className="pt-1" style={{ borderTop: '1px solid var(--border)' }} />
+
+              {/* Two ways to make this receipt */}
+              <div className="grid grid-cols-2 gap-2">
+                {[['quick', 'Ready-made wording', 'Only add the money and details'], ['custom', 'Write my own', 'Edit the whole receipt text']].map(([m, name, hint]) => {
+                  const on = mrModeOf(opts) === m
+                  return (
+                    <button key={m} type="button" onClick={() => switchMrMode(m)} className="text-left p-3 rounded-xl"
+                      style={{ background: on ? 'rgba(var(--accent-rgb),0.12)' : 'var(--bg-input)', border: `1.5px solid ${on ? 'var(--accent)' : 'var(--border-input)'}` }}>
+                      <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{name}</div>
+                      <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{hint}</div>
+                    </button>
+                  )
+                })}
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Amount (Rs.)" type="number" value={rec.amount} onChange={v => set('amount', v)} placeholder="500000" />
                 <Field label="Mode word in sentence" value={opts.modeText} onChange={v => setD('modeText', v)} placeholder="NEFT" />
@@ -690,6 +740,26 @@ export default function VehiclePaperForm() {
               </div>
               <Field label="Words override (leave blank for auto)" value={opts.wordsOverride} onChange={v => setD('wordsOverride', v)} placeholder="FIVE LAKH ONLY" />
               <Field label="Hypothecation bank (AND WITH HYPOTHECATION :-)" value={opts.hypothecation} onChange={v => setD('hypothecation', v)} placeholder="STATE BANK OF INDIA" />
+
+              {mrModeOf(opts) === 'custom' && (
+                <div className="space-y-3 p-3 rounded-xl" style={{ border: '1px dashed var(--accent)' }}>
+                  <Field label="Heading" value={opts.heading} onChange={v => setD('heading', v)} placeholder="MARGIN MONEY RECEIPT" />
+                  <Area label="Receipt text — write anything you want" value={opts.customParagraph} onChange={v => setD('customParagraph', v)} rows={10}
+                    placeholder="Write the full receipt here…" />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button type="button" className="btn-secondary text-xs" onClick={() => setD('customParagraph', buildMoneyText(rec, opts))}>
+                      Reset to standard wording
+                    </button>
+                    <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Re-fills the box from the amount, party and bank above (your edits are replaced).</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Alignment" options={['center', 'left']} value={opts.customAlign || 'center'} onChange={v => setD('customAlign', v)} />
+                    <Field label="Text size (pt)" type="number" value={opts.customSize} onChange={v => setD('customSize', v)} placeholder="13.5" />
+                  </div>
+                  <Toggle label="Bold text" checked={opts.customBold !== false} onChange={v => setD('customBold', v)} />
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Payment mode detail" options={PAYMENT_MODES} value={rec.payment_mode} onChange={v => set('payment_mode', v)} />
                 <Field label="Cheque / Ref / UTR No." value={rec.reference} onChange={v => set('reference', v)} />
@@ -702,8 +772,6 @@ export default function VehiclePaperForm() {
                 <Toggle label="Extra details box at bottom" checked={!!opts.showDetailsBox} onChange={v => setD('showDetailsBox', v)} />
                 <Toggle label="Stamp / signature block (instead of plain SIGNATURE :)" checked={opts.sigStyle === 'block'} onChange={v => setD('sigStyle', v ? 'block' : 'plain')} />
               </div>
-              <Area label="Custom paragraph (optional — replaces the whole sentence)" value={opts.customParagraph} onChange={v => setD('customParagraph', v)} rows={4}
-                placeholder="Leave blank to auto-fill from the fields above" />
             </>
           )}
 
