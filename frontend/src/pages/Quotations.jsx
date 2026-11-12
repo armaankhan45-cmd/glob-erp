@@ -28,16 +28,16 @@ export default function Quotations() {
     loadQuotations()
   }
 
+  const [dupBusy, setDupBusy] = useState(null)
   const duplicate = async (q) => {
+    if (dupBusy) return
+    setDupBusy(q.id)
     try {
-      await api.post('/quotations', {
-        customer_name: q.customer_name, additional_info: q.additional_info,
-        actual_notes: q.actual_notes, quotation_date: new Date().toISOString().split('T')[0],
-        validity_date: null, subtotal: q.subtotal, cgst_amount: q.cgst_amount,
-        sgst_amount: q.sgst_amount, igst_amount: q.igst_amount, total_amount: q.total_amount, items: []
-      })
-      loadQuotations()
-    } catch (err) { alert('Duplicate failed') }
+      const res = await api.post(`/quotations/${q.id}/duplicate`)
+      // open the copy straight in Edit so the number, date or items can be adjusted
+      navigate(`/app/quotations/${res.data.quotation.id}/edit`)
+    } catch (err) { alert(err.response?.data?.msg || 'Duplicate failed') }
+    finally { setDupBusy(null) }
   }
 
   const filtered = search
@@ -92,7 +92,7 @@ export default function Quotations() {
                       <div className="flex items-center justify-end gap-1">
                         <button onClick={() => navigate(`/app/quotations/${q.id}`)} className="action-icon"><Eye size={16} /></button>
                         <button onClick={() => navigate(`/app/quotations/${q.id}/edit`)} className="action-icon text-blue-400"><Edit size={16} /></button>
-                        <button onClick={() => duplicate(q)} className="action-icon text-green-400"><Copy size={16} /></button>
+                        <button onClick={() => duplicate(q)} disabled={dupBusy === q.id} title="Duplicate" className="action-icon text-green-400"><Copy size={16} /></button>
                         <button onClick={() => deleteQ(q.id)} className="action-icon text-red-400"><Trash2 size={16} /></button>
                       </div>
                     </td>
