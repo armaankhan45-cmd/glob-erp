@@ -259,6 +259,7 @@ function PaperWizard({ groups, papers, onCreated, onOpen }) {
   const [created, setCreated] = useState([])
   const [amount, setAmount] = useState('')
   const [bank, setBank] = useState('')
+  const [mrMode, setMrMode] = useState('quick')
   const [customers, setCustomers] = useState([])
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -307,7 +308,7 @@ function PaperWizard({ groups, papers, onCreated, onOpen }) {
           customer_address: c?.address || '', customer_gstin: c?.gstin || '', customer_phone: c?.phone || '',
           chassis_no: chassis.trim(), engine_no: engine.trim(), model: model.trim(), vehicle_no: '',
           amount: type === 'money_receipt' && amount ? Number(amount) : null,
-          data: type === 'money_receipt' ? { hypothecation: bank.trim() } : {},
+          data: type === 'money_receipt' ? { hypothecation: bank.trim(), mrMode } : {},
         })
         made.push({ id: res.data.paper.id, type })
       } catch (e) { failed.push(PAPER_TYPES[type].short) }
@@ -430,6 +431,21 @@ function PaperWizard({ groups, papers, onCreated, onOpen }) {
               })}
             </div>
           </div>
+
+          {types.includes('money_receipt') && (
+            <div className="max-w-xl space-y-3">
+              <p className={label} style={{ color: 'var(--text-muted)' }}>Money Margin — how do you want to make it?</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[['quick', 'Ready-made wording', 'Just add the money and details'], ['custom', 'Write my own', 'Edit the whole receipt text']].map(([m, name, hint]) => (
+                  <button key={m} type="button" onClick={() => setMrMode(m)} className="text-left p-3 rounded-xl"
+                    style={{ background: mrMode === m ? 'rgba(var(--accent-rgb),0.12)' : 'var(--bg-input)', border: `1.5px solid ${mrMode === m ? 'var(--accent)' : 'var(--border-input)'}` }}>
+                    <div className="text-sm font-bold text-white">{name}</div>
+                    <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{hint}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {types.includes('money_receipt') && (
             <div className="grid sm:grid-cols-2 gap-3 max-w-xl">
