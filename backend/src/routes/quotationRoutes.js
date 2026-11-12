@@ -13,6 +13,21 @@ function getFY(date = new Date()) {
   return `${y % 100}-${(y + 1) % 100}`;
 }
 
+// ── Quotation numbering ──────────────────────────────────────────
+// Stored as  <prefix><number>/<FY>  e.g. Q-12/26-27.  The number part is what people see and edit.
+const numPart = (qn) => (String(qn || '').split('/')[0] || '').replace(/^[A-Za-z\-]+/, '').replace(/^0+/, '');
+const numInt = (qn) => parseInt(numPart(qn), 10) || 0;
+
+async function nextQuotationInt(db, orgId) {
+  const rows = await db('quotations').where({ organization_id: orgId }).select('quotation_number');
+  return rows.reduce((m, r) => Math.max(m, numInt(r.quotation_number)), 0) + 1;
+}
+async function quotationNumberTaken(db, orgId, number, excludeId) {
+  const q = db('quotations').where({ organization_id: orgId, quotation_number: number });
+  if (excludeId) q.whereNot({ id: excludeId });
+  return !!(await q.first('id'));
+}
+
 // Sanitize empty date strings to null
 function sanitizeDates(data) {
   const dateFields = ['quotation_date', 'validity_date'];
@@ -137,15 +152,14 @@ router.post('/', auth, async (req, res) => {
     const fy = getFY(new Date(body.quotation_date || Date.now()));
     
     let quotationNumber;
-    if (body.quotation_number && String(body.quotation_number).trim() !== '') {
-      // User provided a manual number — use it directly with prefix + FY
-      const manualNum = String(body.quotation_number).trim().replace(/[^0-9]/g, '');
-      quotationNumber = `${prefix}${manualNum}/${fy}`;
+    const manualDigits = String(body.quotation_number ?? '').replace(/[^0-9]/g, '').replace(/^0+/, '');
+    if (manualDigits) {
+      quotationNumber = `${prefix}${manualDigits}/${fy}`;
+      if (await quotationNumberTaken(db, orgId, quotationNumber)) {
+        return res.status(409).json({ success: false, msg: `Quotation number ${manualDigits} already exists. Choose another number.` });
+      }
     } else {
-      // Auto-generate from last ID
-      const last = await db('quotations').where({ organization_id: orgId }).orderBy('id', 'desc').first('id');
-      const nextNo = (last?.id || 0) + 1;
-      quotationNumber = `${prefix}${nextNo}/${fy}`;
+      quotationNumber = `${prefix}${await nextQuotationInt(db, orgId)}/${fy}`;
     }
 
     // Build ONLY valid columns for quotations table
@@ -227,6 +241,22 @@ router.put('/:id', auth, async (req, res) => {
       notes
     }, QUOTATION_COLUMNS));
 
+    // Quotation number edited? Rebuild it as <prefix><digits>/<FY> and make sure it isn't already used.
+    const newDigits = String(body.quotation_number ?? '').replace(/[^0-9]/g, '').replace(/^0+/, '');
+    if (body.quotation_number !== undefined && String(body.quotation_number).trim() !== '') {
+      if (!newDigits) return res.status(400).json({ success: false, msg: 'Quotation number must contain digits' });
+      if (newDigits !== numPart(old.quotation_number)) {
+        const org = await db('organizations').where({ id: orgId }).first();
+        const prefixU = org.quotation_prefix || 'Q-';
+        const fyU = getFY(new Date(body.quotation_date || old.quotation_date || Date.now()));
+        const candidate = `${prefixU}${newDigits}/${fyU}`;
+        if (await quotationNumberTaken(db, orgId, candidate, req.params.id)) {
+          return res.status(409).json({ success: false, msg: `Quotation number ${newDigits} already exists. Choose another number.` });
+        }
+        updateData.quotation_number = candidate;
+      }
+    }
+
     await db('quotations').where({ id: req.params.id }).update(updateData);
 
     await db('quotation_items').where({ quotation_id: req.params.id }).del();
@@ -249,10 +279,54 @@ router.put('/:id', auth, async (req, res) => {
       await auditLog(req.user.id, orgId, 'UPDATE', 'quotations', req.params.id, old, updateData, req.ip);
     } catch(e) { console.error('Audit log error:', e.message); }
 
-    res.json({ success: true, msg: 'Quotation updated' });
+    res.json({ success: true, msg: 'Quotation updated', quotation_number: updateData.quotation_number || old.quotation_number });
   } catch (err) {
     console.error('Update quotation error:', err);
     res.status(500).json({ success: false, msg: 'Failed: ' + err.message });
+  }
+});
+
+// Duplicate quotation — full copy (customer, notes, every item) with the next number and today's date
+router.post('/:id/duplicate', auth, async (req, res) => {
+  try {
+    const db = getDb();
+    const orgId = req.user.organization_id;
+    const src = await db('quotations').where({ id: req.params.id, organization_id: orgId }).first();
+    if (!src) return res.status(404).json({ success: false, msg: 'Quotation not found' });
+    const srcItems = await db('quotation_items').where({ quotation_id: src.id });
+    const org = await db('organizations').where({ id: orgId }).first();
+    const prefix = org.quotation_prefix || 'Q-';
+    const today = new Date();
+    const quotationNumber = `${prefix}${await nextQuotationInt(db, orgId)}/${getFY(today)}`;
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+    const newId = await db.transaction(async (trx) => {
+      const [row] = await trx('quotations').insert(cleanForTable({
+        organization_id: orgId, quotation_number: quotationNumber, customer_id: src.customer_id,
+        quotation_date: todayStr, validity_date: null,
+        subtotal: src.subtotal, cgst_amount: src.cgst_amount, sgst_amount: src.sgst_amount,
+        igst_amount: src.igst_amount, total_amount: src.total_amount,
+        status: 'Sent', notes: src.notes,
+      }, QUOTATION_COLUMNS)).returning('id');
+      const id = row.id || row;
+      if (srcItems.length) {
+        await trx('quotation_items').insert(srcItems.map(it => cleanForTable({
+          quotation_id: id, description: it.description, hsn_code: it.hsn_code, quantity: it.quantity,
+          unit: it.unit, rate: it.rate, igst_rate: it.igst_rate, amount: it.amount,
+        }, ITEM_COLUMNS)));
+      }
+      return id;
+    });
+
+    try {
+      const auditLog = require('../middleware/auditLog');
+      await auditLog(req.user.id, orgId, 'CREATE', 'quotations', newId, null, { duplicated_from: src.id, quotation_number: quotationNumber }, req.ip);
+    } catch (e) { console.error('Audit log error:', e.message); }
+
+    res.status(201).json({ success: true, quotation: { id: newId, quotation_number: quotationNumber } });
+  } catch (err) {
+    console.error('Duplicate quotation error:', err);
+    res.status(500).json({ success: false, msg: 'Duplicate failed: ' + err.message });
   }
 });
 
