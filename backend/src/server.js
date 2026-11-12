@@ -29,15 +29,24 @@ try {
 // Auth: 20 per 15 min (was 5 — too strict, users got locked out
 // when retrying during server wake-up)
 // ═══════════════════════════════════════════════════════════════
+// Behind Render's proxy — without this every visitor shares one IP and limits hit everyone at once
+app.set('trust proxy', 1);
+
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: config.AUTH_RATE_LIMIT || 60,
+  max: config.AUTH_RATE_LIMIT || 20,
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true, // only FAILED login attempts count against the limit
   handler: (req, res) => {
     res.status(429).json({ success: false, msg: 'Too many login attempts. Please wait a few minutes and try again.' });
   }
+});
+
+// Password-reset flow: count EVERY request (successful ones too) so the e-mail OTP can't be spammed or brute-forced
+const resetLimiter = (max) => rateLimit({
+  windowMs: 15 * 60 * 1000, max, standardHeaders: true, legacyHeaders: false,
+  handler: (req, res) => res.status(429).json({ success: false, msg: 'Too many attempts. Please wait 15 minutes and try again.' })
 });
 
 const apiLimiter = rateLimit({
@@ -83,9 +92,9 @@ app.use(cors({ origin: ALLOWED_ORIGINS, credentials: true }));
 
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
-app.use('/api/auth/forgot-password', authLimiter);
-app.use('/api/auth/verify-otp', authLimiter);
-app.use('/api/auth/reset-password', authLimiter);
+app.use('/api/auth/forgot-password', resetLimiter(5));
+app.use('/api/auth/verify-otp', resetLimiter(8));
+app.use('/api/auth/reset-password', resetLimiter(8));
 
 // ═══════════════════════════════════════════════════════════════
 // INSTANT PING — no DB, no auth, no rate limit
@@ -118,12 +127,17 @@ const BLOCKED_COLUMNS = [
   'gst_rate', 'bold', 'calculated'
 ];
 
-function sanitize(obj) {
+// Fields a client must never set on a record (ownership / system fields) — always decided by the server
+const PROTECTED_KEYS = new Set(['id', 'organization_id', 'created_at', 'updated_at', 'password_hash',
+  'reset_token', 'reset_token_expires', 'reset_otp', 'reset_expires', 'is_admin', 'isAdmin', 'ownerId']);
+
+function sanitize(obj, top = false) {
   if (!obj || typeof obj !== 'object') return obj;
   if (Array.isArray(obj)) return obj.map(sanitize);
   const clean = {};
   for (const [key, value] of Object.entries(obj)) {
     if (BLOCKED_COLUMNS.includes(key)) continue;
+    if (key === 'organization_id' || (top && PROTECTED_KEYS.has(key))) continue;
     const newKey = COLUMN_RENAMES[key] || key;
     if (DATE_FIELDS.includes(key) && (value === '' || value === undefined)) {
       clean[newKey] = null;
@@ -136,7 +150,8 @@ function sanitize(obj) {
 
 app.use((req, res, next) => {
   if (req.body) {
-    req.body = sanitize(req.body);
+    // auth routes legitimately read their own fields; every data route gets protected fields stripped
+    req.body = sanitize(req.body, !req.path.startsWith('/api/auth'));
     if (req.body.items && Array.isArray(req.body.items)) {
       req.body.items = req.body.items.map(item => sanitize(item));
     }
