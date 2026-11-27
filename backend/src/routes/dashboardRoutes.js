@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const cache = require('../services/cache');
 const getDb = require('../config/db');
 const { auth } = require('../middleware/auth');
 
@@ -33,6 +34,11 @@ router.get('/stats', auth, async (req, res) => {
   try {
     const db = getDb();
     const orgId = req.user.organization_id;
+    const cacheKey = `stats:${req.query.period || 'month'}:${req.query.month || ''}`;
+    const cached = cache.get(orgId, cacheKey);
+    if (cached) return res.json(cached);
+    const _json = res.json.bind(res);
+    res.json = (body) => { if (body?.success) cache.set(orgId, cacheKey, body, 30000); return _json(body); };
     const { period, month, start, end, currentMonth } = parsePeriod(req.query);
 
     // Applies the selected month's date range to a query builder, when period === 'month'.

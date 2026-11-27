@@ -285,6 +285,7 @@ function safe(path) {
   }
 }
 
+app.use('/api', require('./services/cache').bustOnWrite);
 app.use('/api/items', safe('./routes/itemRoutes'));
 app.use('/api/auth', safe('./routes/authRoutes'));
 app.use('/api/customers', safe('./routes/customerRoutes'));
@@ -310,6 +311,12 @@ app.use('/api/export', safe('./routes/exportRoutes'));
 app.use('/api/audit', safe('./routes/auditRoutes'));
 
 app.use(errorTrackerMiddleware);
+// Last-resort JSON error response (malformed JSON bodies, thrown errors)
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  const status = err.status || err.statusCode || 500;
+  res.status(status).json({ success: false, msg: status === 400 ? 'Invalid request body' : (status < 500 ? err.message : 'Something went wrong. Please try again.') });
+});
 
 app.use((req, res) => {
   res.status(404).json({
@@ -319,7 +326,7 @@ app.use((req, res) => {
   });
 });
 
-app.listen(PORT, () => {
+if (require.main === module) app.listen(PORT, () => {
   console.log('🚀 Glob ERP API running on port ' + PORT);
   // ═══════════════════════════════════════════════════════════════
   // PRE-WARM DB — run a simple query immediately so the first
@@ -359,3 +366,5 @@ process.on('unhandledRejection', (err) => {
   console.error('UNHANDLED:', err?.message || err);
   trackError('unhandled', err);
 });
+
+module.exports = app;

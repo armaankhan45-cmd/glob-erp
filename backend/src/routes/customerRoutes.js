@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const getDb = require('../config/db');
 const { auth } = require('../middleware/auth');
+const { validate } = require('../middleware/validate');
 const auditLog = require('../middleware/auditLog');
 
 // List customers
@@ -53,7 +54,7 @@ router.get('/:id', auth, async (req, res) => {
 });
 
 // Create customer — FIX #4: explicit field whitelist to prevent mass-assignment
-router.post('/', auth, async (req, res) => {
+router.post('/', auth, validate('customer'), async (req, res) => {
   try {
     const db = getDb();
     const { name, gstin, address, city, state, state_code, pincode, phone, email } = req.body;
@@ -82,7 +83,7 @@ router.post('/', auth, async (req, res) => {
 });
 
 // Update customer — FIX #4: explicit whitelist, strip id and organization_id
-router.put('/:id', auth, async (req, res) => {
+router.put('/:id', auth, validate('customer', { partial: true }), async (req, res) => {
   try {
     const db = getDb();
     const old = await db('customers').where({ id: req.params.id, organization_id: req.user.organization_id }).first();

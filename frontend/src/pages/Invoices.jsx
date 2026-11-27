@@ -1,136 +1,102 @@
-import { useEffect, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Eye, Download, Trash2, FileText, IndianRupee } from 'lucide-react'
+import { Plus, Eye, Download, Trash2, FileText } from 'lucide-react'
 import api from '../api/client'
 import useCachedApi, { invalidateCache } from '../hooks/useCachedApi'
+import { PageHeader, StatTiles, SearchInput, Chips, DataTable, StatusBadge, EmptyBlock, num, inr, compactInr } from '../components/ui'
+import { formatDate } from '../utils'
+
+const gstOf = (i) => num(i.cgst_amount) + num(i.sgst_amount) + num(i.igst_amount)
+const today = () => new Date().toISOString().slice(0, 10)
+const quarterRange = (d = new Date()) => {
+  const m = d.getMonth(), y = d.getFullYear()
+  const q = m >= 3 ? Math.floor((m - 3) / 3) : 3
+  const startM = [3, 6, 9, 0][q], startY = q === 3 ? y : y
+  const s = new Date(startY, startM, 1), e = new Date(startY, startM + 3, 0)
+  const iso = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
+  return [iso(s), iso(e), `Q${q + 1}`]
+}
+const isOverdue = (i) => i.payment_status !== 'Paid' && i.due_date && String(i.due_date).slice(0, 10) < today()
 
 export default function Invoices() {
-  const [search, setSearch] = useState('')
-  const [filterStatus, setFilterStatus] = useState('All')
   const navigate = useNavigate()
+  const [search, setSearch] = useState('')
+  const [filter, setFilter] = useState('all')
   const { data, loading, refetch } = useCachedApi('/invoices', { maxAge: 30000 })
-  const invoices = data && data.invoices ? data.invoices : []
-  const load = () => { invalidateCache('/invoices'); refetch() }
+  const invoices = data?.invoices || []
+  const [qFrom, qTo, qLabel] = quarterRange()
 
-  const del = async (id, num, e) => {
-    if (e) e.stopPropagation()
-    if (!confirm('Delete invoice ' + num + '?')) return
-    try { await api.delete('/invoices/' + id); load() } catch (err) { alert('Delete failed') }
+  const del = async (inv, e) => {
+    e.stopPropagation()
+    if (!confirm(`Delete invoice ${inv.invoice_number}? This cannot be undone.`)) return
+    try { await api.delete('/invoices/' + inv.id); invalidateCache('/invoices'); refetch() } catch { alert('Delete failed') }
   }
 
-  // PDF from the list: open the invoice and let it download itself (same sharp PDF as the detail page)
-  const download = (inv, e) => {
-    if (e) e.stopPropagation()
-    navigate(`/app/invoices/${inv.id}?download=pdf`)
+  const tests = {
+    all: () => true,
+    unpaid: (i) => i.payment_status !== 'Paid',
+    overdue: isOverdue,
+    paid: (i) => i.payment_status === 'Paid',
+    quarter: (i) => { const d = String(i.invoice_date || '').slice(0, 10); return d >= qFrom && d <= qTo },
   }
+  const counts = useMemo(() => Object.fromEntries(Object.entries(tests).map(([k, t]) => [k, invoices.filter(t).length])), [invoices])
 
-  const openInvoice = (inv) => navigate('/app/invoices/' + inv.id)
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return invoices.filter(tests[filter]).filter(i => !q || i.invoice_number?.toLowerCase().includes(q) || i.customer_name?.toLowerCase().includes(q))
+  }, [invoices, filter, search])
 
-  const filtered = invoices.filter(i => {
-    const matchSearch = !search || i.invoice_number?.toLowerCase().includes(search.toLowerCase()) || i.customer_name?.toLowerCase().includes(search.toLowerCase())
-    const matchStatus = filterStatus === 'All' || i.payment_status === filterStatus
-    return matchSearch && matchStatus
-  })
+  const sum = (f, list = rows) => list.reduce((s, i) => s + f(i), 0)
+  const outstanding = sum(i => (i.payment_status === 'Paid' ? 0 : num(i.total_amount) - num(i.amount_paid)))
 
-  const stats = {
-    total: filtered.length,
-    totalAmount: filtered.reduce((s, i) => s + (parseFloat(i.total_amount) || 0), 0),
-    paid: filtered.filter(i => i.payment_status === 'Paid').reduce((s, i) => s + (parseFloat(i.total_amount) || 0), 0),
-    unpaid: filtered.filter(i => i.payment_status !== 'Paid').reduce((s, i) => s + (parseFloat(i.total_amount) || 0), 0)
-  }
-
-  const fmt = (n) => '₹' + Math.round(n).toLocaleString('en-IN')
+  const columns = [
+    { key: 'invoice_number', label: 'Invoice', mobile: 'sub', render: i => <span className="ui-link">{i.invoice_number || '—'}</span>, sortValue: i => i.id },
+    { key: 'invoice_date', label: 'Date', render: i => formatDate(i.invoice_date), sortValue: i => String(i.invoice_date || '') },
+    { key: 'customer_name', label: 'Customer', mobile: 'title', render: i => <b style={{ color: 'var(--text-bright)' }}>{i.customer_name || 'Walk-in'}</b> },
+    { key: 'subtotal', label: 'Taxable', align: 'right', render: i => inr(i.subtotal), sortValue: i => num(i.subtotal) },
+    { key: 'gst', label: 'GST', align: 'right', render: i => <span className="ui-muted">{inr(gstOf(i))}</span>, sortValue: gstOf },
+    { key: 'total_amount', label: 'Total', align: 'right', mobile: 'amount', render: i => <b>{inr(i.total_amount)}</b>, sortValue: i => num(i.total_amount) },
+    { key: 'payment_status', label: 'Status', align: 'center', mobile: 'badge', render: i => <StatusBadge status={isOverdue(i) ? 'Overdue' : i.payment_status} /> },
+    { key: 'actions', label: '', align: 'right', sortable: false, render: i => (
+      <span className="inline-flex gap-1" onClick={e => e.stopPropagation()}>
+        <button className="ui-icon-btn" title="View" onClick={() => navigate(`/app/invoices/${i.id}`)}><Eye size={15} /></button>
+        <button className="ui-icon-btn" title="Download PDF" onClick={() => navigate(`/app/invoices/${i.id}?download=pdf`)}><Download size={15} /></button>
+        <button className="ui-icon-btn danger" title="Delete" onClick={(e) => del(i, e)}><Trash2 size={15} /></button>
+      </span>
+    ) },
+  ]
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between flex-wrap gap-3" style={{ animation: 'entranceUp 0.5s cubic-bezier(0.16,1,0.3,1) both' }}>
-        <div>
-          <h1 className="text-2xl font-bold text-white">GST Tax Invoices</h1>
-          <p className="text-white/35 text-sm">Manage all your tax invoices</p>
-        </div>
-        <button onClick={() => navigate('/app/invoices/new')} className="btn-primary flex items-center gap-2 btn-shine">
-          <Plus size={18} />Create New Invoice
-        </button>
+      <PageHeader title="Invoices" subtitle="GST tax invoices"
+        actions={<button onClick={() => navigate('/app/invoices/new')} className="btn-primary flex items-center gap-2"><Plus size={17} />New invoice</button>} />
+
+      <StatTiles items={[
+        { label: 'Invoices', value: rows.length, sub: filter === 'all' ? 'All time' : 'In this view' },
+        { label: 'Billed', value: compactInr(sum(i => num(i.total_amount))), title: inr(sum(i => num(i.total_amount)), 2), tone: 'info', sub: `GST ${compactInr(sum(gstOf))}` },
+        { label: 'Received', value: compactInr(sum(i => (i.payment_status === 'Paid' ? num(i.total_amount) : num(i.amount_paid)))), tone: 'pos' },
+        { label: 'Outstanding', value: compactInr(outstanding), title: inr(outstanding, 2), tone: 'neg', sub: `${counts.overdue} overdue` },
+      ]} />
+
+      <div className="ui-toolbar">
+        <SearchInput value={search} onChange={setSearch} placeholder="Search invoice no. or customer" />
+        <Chips value={filter} onChange={setFilter} options={[
+          { value: 'all', label: 'All', count: counts.all },
+          { value: 'unpaid', label: 'Unpaid', count: counts.unpaid },
+          { value: 'overdue', label: 'Overdue', count: counts.overdue },
+          { value: 'paid', label: 'Paid', count: counts.paid },
+          { value: 'quarter', label: `This quarter (${qLabel})`, count: counts.quarter },
+        ]} />
       </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 stagger">
-        {[
-          { label: 'Total Invoices', value: stats.total, color: '#3b82f6', icon: FileText },
-          { label: 'Total Amount', value: fmt(stats.totalAmount), color: '#8b5cf6', icon: IndianRupee },
-          { label: 'Paid Amount', value: fmt(stats.paid), color: '#22c55e', icon: IndianRupee },
-          { label: 'Outstanding', value: fmt(stats.unpaid), color: '#ef4444', icon: IndianRupee },
-        ].map((s, i) => (
-          <div key={i} className="stat-card card-premium" style={{ animationDelay: `${i * 0.08}s` }}>
-            <div className="shimmer"></div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-white/30">{s.label}</span>
-              <s.icon size={16} style={{ color: s.color }} />
-            </div>
-            <p className="text-xl font-extrabold text-white">{s.value}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Search + Filter */}
-      <div className="card card-premium">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/25" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search invoice or customer..." className="input-field pl-10" />
-          </div>
-          <div className="flex gap-1.5">
-            {['All','Paid','Unpaid','Partial'].map(s => (
-              <button key={s} onClick={() => setFilterStatus(s)}
-                className={`chip btn-shine ${filterStatus === s ? 'active' : ''}`}>{s}</button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="card card-premium overflow-hidden">
-        {loading ? (
-          <div className="p-12 text-center"><div className="w-10 h-10 border-4 rounded-full mx-auto" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent', animation: 'spin 1s linear infinite' }}></div></div>
-        ) : filtered.length === 0 ? (
-          <div className="p-12 text-center">
-            <FileText size={48} className="mx-auto text-white/15 mb-3" />
-            <h3 className="text-lg font-bold text-white/60">No Invoices Yet</h3>
-            <p className="text-sm text-white/25 mt-1 mb-4">Create your first invoice</p>
-            <button onClick={() => navigate('/app/invoices/new')} className="btn-primary inline-flex items-center gap-2 btn-shine"><Plus size={16} />Create First Invoice</button>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="nebula-table">
-              <thead><tr>
-                <th>Invoice No</th><th>Date</th><th>Customer</th><th className="text-right">Subtotal</th><th className="text-right">GST</th><th className="text-right">Total</th><th className="text-center">Status</th><th className="text-right">Actions</th>
-              </tr></thead>
-              <tbody>
-                {filtered.map((inv, i) => (
-                  <tr key={inv.id} className="anim-row cursor-pointer" style={{ animationDelay: `${i * 0.03}s` }} onClick={() => openInvoice(inv)}>
-                    <td className="font-semibold accent-text font-mono">{inv.invoice_number || '-'}</td>
-                    <td className="text-white/50">{inv.invoice_date || '-'}</td>
-                    <td className="text-white font-medium">{inv.customer_name || '-'}</td>
-                    <td className="text-right text-white/60">{fmt(inv.subtotal || 0)}</td>
-                    <td className="text-right accent-text">{fmt((inv.cgst_amount || 0) + (inv.sgst_amount || 0) + (inv.igst_amount || 0))}</td>
-                    <td className="text-right font-bold text-white">{fmt(inv.total_amount || 0)}</td>
-                    <td className="text-center">
-                      <span className={`status-badge ${inv.payment_status === 'Paid' ? 'status-paid' : inv.payment_status === 'Partial' ? 'status-pending' : 'status-overdue'}`}>{inv.payment_status || 'Unpaid'}</span>
-                    </td>
-                    <td className="text-right" onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openInvoice(inv)} className="action-icon" title="View"><Eye size={14} /></button>
-                        <button onClick={(e) => download(inv, e)} className="action-icon" title="Download PDF"><Download size={14} /></button>
-                        <button onClick={(e) => del(inv.id, inv.invoice_number, e)} className="action-icon text-red-400" title="Delete"><Trash2 size={14} /></button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <DataTable columns={columns} rows={rows} loading={loading} initialSort={{ key: 'invoice_number', dir: 'desc' }}
+        onRowClick={i => navigate(`/app/invoices/${i.id}`)}
+        empty={invoices.length
+          ? <EmptyBlock icon={FileText} title="No matching invoices" text="Try another filter or search." />
+          : <EmptyBlock icon={FileText} title="No invoices yet" text="Create your first GST invoice." action={<button onClick={() => navigate('/app/invoices/new')} className="btn-primary inline-flex items-center gap-2"><Plus size={16} />New invoice</button>} />}
+        footer={rows.length > 1 && <>
+          <td colSpan={3}>{rows.length} invoices</td><td className="al-right">{inr(sum(i => num(i.subtotal)))}</td><td className="al-right">{inr(sum(gstOf))}</td><td className="al-right">{inr(sum(i => num(i.total_amount)))}</td><td colSpan={2} />
+        </>} />
     </div>
   )
 }
