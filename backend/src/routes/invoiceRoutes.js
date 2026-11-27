@@ -107,7 +107,7 @@ router.get('/', auth, async (req, res) => {
   try {
     const db = getDb();
     const { status, search, from, to } = req.query;
-    let query = db('invoices').where({ 'invoices.organization_id': req.user.organization_id }).leftJoin('customers', 'invoices.customer_id', 'customers.id').select('invoices.*', 'customers.name as customer_name');
+    let query = db('invoices').where({ 'invoices.organization_id': req.user.organization_id }).leftJoin('customers', 'invoices.customer_id', 'customers.id').select('invoices.*', 'customers.name as customer_name', db.raw("(SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE p.invoice_id = invoices.id AND COALESCE(p.type, 'Received') = 'Received') AS amount_paid"));
     if (status && status !== 'All') query = query.where('invoices.status', status);
     if (search) query = query.where(function() { this.where('invoices.invoice_number', 'ilike', `%${search}%`).orWhere('customers.name', 'ilike', `%${search}%`); });
     if (from) query = query.where('invoices.invoice_date', '>=', from);

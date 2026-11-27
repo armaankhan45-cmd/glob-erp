@@ -5,6 +5,7 @@ import api from '../api/client'
 import BoldToggle from '../components/BoldToggle'
 import { downloadPdf, printElement, safeFileName } from '../utils'
 import DownloadMenu from '../components/DownloadMenu'
+import PaymentsPanel from '../components/PaymentsPanel'
 
 function fmt(n) {
   return new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0)
@@ -286,15 +287,7 @@ export default function InvoiceDetail() {
         <button onClick={del} className="btn-danger flex items-center gap-2"><Trash2 size={16} /> Delete</button>
       </div>
 
-      {/* Payment status */}
-      <div className="glass rounded-2xl p-3 no-print">
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-slate-400">Payment:</span>
-          <select value={inv.payment_status || 'Unpaid'} onChange={e => updateStatus(e.target.value)} className={"px-4 py-2 rounded-xl text-sm font-bold border-2 bg-slate-800/80 " + (inv.payment_status === 'Paid' ? 'text-emerald-400 border-emerald-500/30' : inv.payment_status === 'Partial' ? 'text-amber-400 border-amber-500/30' : 'text-red-400 border-red-500/30')}>
-            <option>Unpaid</option><option>Partial</option><option>Paid</option>
-          </select>
-        </div>
-      </div>
+      <PaymentsPanel invoice={inv} onChange={() => load(parseInt(id))} />
 
       {/* ═══════════════════════════════════════
           LAYOUT SWITCH

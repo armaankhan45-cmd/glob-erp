@@ -179,7 +179,7 @@ export default class AutoHealErrorBoundary extends Component {
               {!isAuthError && (
                 <button onClick={this.handleRetry}
                   className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold transition-all"
-                  style={{ background: 'linear-gradient(135deg, #06b6d4, #4f8fff)', color: '#fff', boxShadow: '0 4px 15px rgba(6,182,212,0.3)' }}>
+                  style={{ background: 'var(--accent)', color: '#fff', boxShadow: '0 4px 15px rgba(6,182,212,0.3)' }}>
                   <RefreshCw size={16} /> Try Again
                 </button>
               )}
@@ -187,7 +187,7 @@ export default class AutoHealErrorBoundary extends Component {
               {isAuthError ? (
                 <button onClick={() => { localStorage.clear(); window.location.href = '/login' }}
                   className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold"
-                  style={{ background: 'linear-gradient(135deg, #06b6d4, #4f8fff)', color: '#fff' }}>
+                  style={{ background: 'var(--accent)', color: '#fff' }}>
                   <Home size={16} /> Log In Again
                 </button>
               ) : (

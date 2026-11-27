@@ -328,12 +328,12 @@ export default function AIAssistant() {
       <div className="flex items-center justify-between mb-4 relative z-10">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-2xl flex items-center justify-center shadow-lg relative overflow-hidden"
-            style={{ background: 'linear-gradient(135deg, var(--accent), #a855f7)' }}>
+            style={{ background: 'var(--accent)' }}>
             <Bot size={22} className="text-white" />
             <span className="absolute inset-0" style={{ background: 'linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.35) 50%, transparent 70%)', animation: 'sheen 3.5s ease-in-out infinite' }} />
           </div>
           <div>
-            <h1 className="text-xl font-bold" style={{ fontFamily: '"Space Grotesk", sans-serif', background: 'linear-gradient(135deg, var(--accent), #a855f7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Glob ERP Copilot</h1>
+            <h1 className="text-xl font-bold" style={{ fontFamily: '"Space Grotesk", sans-serif', background: 'var(--accent)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Glob ERP Copilot</h1>
             <div className="flex items-center gap-2 mt-0.5">
               <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#22c55e' }} />
               <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>
@@ -432,7 +432,7 @@ export default function AIAssistant() {
             <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               {msg.role === 'assistant' && (
                 <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mr-3 mt-1"
-                  style={{ background: 'linear-gradient(135deg, var(--accent), #a855f7)' }}>
+                  style={{ background: 'var(--accent)' }}>
                   <Bot size={16} className="text-white" />
                 </div>
               )}
@@ -512,7 +512,7 @@ export default function AIAssistant() {
         </div>
         <button onClick={() => sendMessage(input)} disabled={loading || !input.trim()}
           className="p-3 text-white rounded-2xl disabled:opacity-40 transition-all flex items-center justify-center hover:scale-[1.03] active:scale-95"
-          style={{ minWidth: '48px', height: '48px', background: 'linear-gradient(135deg, var(--accent), #a855f7)', boxShadow: '0 4px 18px rgba(var(--accent-rgb),0.3)' }}>
+          style={{ minWidth: '48px', height: '48px', background: 'var(--accent)', boxShadow: '0 4px 18px rgba(var(--accent-rgb),0.3)' }}>
           <Send size={19} />
         </button>
       </div>

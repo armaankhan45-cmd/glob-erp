@@ -10,7 +10,9 @@
     "migrate:rollback": "knex migrate:rollback",
     "seed": "knex seed:run",
     "migrate:make": "knex migrate:make",
-    "test": "jest"
+    "test": "jest",
+    "e2e:api": "node e2e/api-smoke.js",
+    "e2e:ui": "node e2e/ui-crawl.js && node e2e/ui-flows.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

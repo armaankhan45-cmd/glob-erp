@@ -142,7 +142,7 @@ export default function CustomerDetail() {
             <div>
               <div className="flex justify-between items-center mb-3">
                 <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>All Invoices</h3>
-                <button onClick={() => navigate('/app/invoices/new?customer=' + id)} className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1" style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent2))', color: '#fff' }}>
+                <button onClick={() => navigate('/app/invoices/new?customer=' + id)} className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1" style={{ background: 'var(--accent)', color: '#fff' }}>
                   <Plus size={12} />New Invoice
                 </button>
               </div>

@@ -21,3 +21,32 @@ jobs:
         with: { node-version: 20 }
       - run: npm install
       - run: npm run build
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_PASSWORD: postgres, POSTGRES_DB: glob_erp }
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/glob_erp
+      JWT_SECRET: ci-secret-ci-secret-ci-secret-ci-secret
+      PORT: 5055
+      ALLOW_PUBLIC_REGISTRATION: 'true'
+      API_RATE_LIMIT: 100000
+      AUTH_RATE_LIMIT: 1000
+      API: http://localhost:5055
+      WEB: http://localhost:4173
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: cd backend && npm install && npx knex migrate:latest
+      - run: cd backend && (nohup node src/server.js > api.log 2>&1 &) && sleep 8
+      - run: cd frontend && npm install && npm run build && (nohup npx vite preview --port 4173 > /dev/null 2>&1 &) && sleep 3
+      - run: cd backend && npm install --no-save playwright && npx playwright install --with-deps chromium
+      - run: cd backend && npm run e2e:api && npm run e2e:ui
+      - if: failure()
+        run: tail -100 backend/api.log

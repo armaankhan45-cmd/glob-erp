@@ -243,7 +243,7 @@ export default function CustomerNew() {
                 onClick={fetchGST}
                 disabled={gstLoading || gstin.length !== 15}
                 className="px-6 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50"
-                style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent2))', color: '#fff' }}
+                style={{ background: 'var(--accent)', color: '#fff' }}
               >
                 {gstLoading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
                 {gstLoading ? 'Fetching...' : 'Validate GSTIN'}
@@ -370,7 +370,7 @@ export default function CustomerNew() {
           <button type="button" onClick={() => navigate('/app/customers')} className="flex-1 py-3 rounded-xl text-sm font-bold transition"
             style={{ background: 'var(--bg-glass)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>Cancel</button>
           <button type="submit" disabled={loading} className="flex-1 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50 transition"
-            style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent2))', color: '#fff' }}>
+            style={{ background: 'var(--accent)', color: '#fff' }}>
             {loading ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
             {loading ? 'Saving...' : 'Save Customer'}
           </button>

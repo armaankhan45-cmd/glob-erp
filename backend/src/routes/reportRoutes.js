@@ -203,8 +203,8 @@ router.get('/ageing', auth, async (req, res) => {
   try {
     const db = getDb();
     const invoices = await db('invoices')
-      .where({ organization_id: req.user.organization_id })
-      .whereNot({ payment_status: 'Paid' })
+      .where({ 'invoices.organization_id': req.user.organization_id })
+      .whereNot({ 'invoices.payment_status': 'Paid' })
       .leftJoin('customers', 'invoices.customer_id', 'customers.id')
       .select('invoices.*', 'customers.name as customer_name');
 

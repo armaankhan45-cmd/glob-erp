@@ -183,7 +183,7 @@ router.get('/next-number', auth, async (req, res) => {
     const db = getDb();
     const type = req.query.type || 'money_receipt';
     const prefix = TYPE_PREFIX[type] || 'VP';
-    const fx = fyLabel(type);
+    const fx = fyLabel();
     const last = await withTable(db, () => db('vehicle_papers')
       .where({ organization_id: req.user.organization_id, type })
       .orderBy('id', 'desc')
