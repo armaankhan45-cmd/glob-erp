@@ -1,108 +1,78 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { Plus, Eye, Edit, Trash2, Copy, FileSpreadsheet } from 'lucide-react'
 import api from '../api/client'
-import { Plus, Search, Eye, Edit, Trash2, Copy, FileSpreadsheet } from 'lucide-react'
-import { formatDate, formatCurrency } from '../utils'
+import { PageHeader, StatTiles, SearchInput, Chips, DataTable, StatusBadge, EmptyBlock, num, inr, compactInr } from '../components/ui'
+import { formatDate } from '../utils'
 
 export default function Quotations() {
-  const [quotations, setQuotations] = useState([])
-  const [search, setSearch] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [boldOn, setBoldOn] = useState(() => localStorage.getItem('quotBold') === 'true')
   const navigate = useNavigate()
-
-  useEffect(() => { loadQuotations() }, [])
-
-  const loadQuotations = async () => {
-    try {
-      const res = await api.get('/quotations')
-      setQuotations(res.data.quotations || [])
-    } catch {} finally { setLoading(false) }
-  }
-
-  const toggleBold = () => { const val = !boldOn; setBoldOn(val); localStorage.setItem('quotBold', val) }
-
-  const deleteQ = async (id) => {
-    if (!confirm('Delete this quotation?')) return
-    await api.delete(`/quotations/${id}`)
-    loadQuotations()
-  }
-
+  const [quotations, setQuotations] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [filter, setFilter] = useState('all')
   const [dupBusy, setDupBusy] = useState(null)
+
+  const load = async () => {
+    try { const res = await api.get('/quotations'); setQuotations(res.data.quotations || []) }
+    catch { setQuotations([]) } finally { setLoading(false) }
+  }
+  useEffect(() => { load() }, [])
+
+  const del = async (q) => {
+    if (!confirm(`Delete quotation ${q.quotation_number}?`)) return
+    try { await api.delete(`/quotations/${q.id}`); load() } catch { alert('Delete failed') }
+  }
   const duplicate = async (q) => {
     if (dupBusy) return
     setDupBusy(q.id)
-    try {
-      const res = await api.post(`/quotations/${q.id}/duplicate`)
-      // open the copy straight in Edit so the number, date or items can be adjusted
-      navigate(`/app/quotations/${res.data.quotation.id}/edit`)
-    } catch (err) { alert(err.response?.data?.msg || 'Duplicate failed') }
-    finally { setDupBusy(null) }
+    try { const res = await api.post(`/quotations/${q.id}/duplicate`); navigate(`/app/quotations/${res.data.quotation.id}/edit`) }
+    catch (err) { alert(err.response?.data?.msg || 'Duplicate failed') } finally { setDupBusy(null) }
   }
 
-  const filtered = search
-    ? quotations.filter(q => q.quotation_number?.toLowerCase().includes(search.toLowerCase()) || q.customer_name?.toLowerCase().includes(search.toLowerCase()))
-    : quotations
+  const statuses = useMemo(() => ['all', ...new Set(quotations.map(q => q.status || 'Draft'))], [quotations])
+  const rows = useMemo(() => {
+    const s = search.trim().toLowerCase()
+    return quotations.filter(q => filter === 'all' || (q.status || 'Draft') === filter)
+      .filter(q => !s || q.quotation_number?.toLowerCase().includes(s) || q.customer_name?.toLowerCase().includes(s))
+  }, [quotations, filter, search])
+  const sum = f => rows.reduce((t, q) => t + f(q), 0)
+  const converted = quotations.filter(q => q.status === 'Converted').length
+
+  const columns = [
+    { key: 'quotation_number', label: 'Quote no.', mobile: 'sub', render: q => <span className="ui-link">{q.quotation_number}</span>, sortValue: q => q.id },
+    { key: 'customer_name', label: 'Customer', mobile: 'title', render: q => <b style={{ color: 'var(--text-bright)' }}>{q.customer_name || '—'}</b> },
+    { key: 'quotation_date', label: 'Date', render: q => formatDate(q.quotation_date), sortValue: q => String(q.quotation_date || '') },
+    { key: 'total_amount', label: 'Amount', align: 'right', mobile: 'amount', render: q => <b>{inr(q.total_amount)}</b>, sortValue: q => num(q.total_amount) },
+    { key: 'status', label: 'Status', align: 'center', mobile: 'badge', render: q => <StatusBadge status={q.status || 'Draft'} /> },
+    { key: 'actions', label: '', align: 'right', sortable: false, render: q => (
+      <span className="inline-flex gap-1" onClick={e => e.stopPropagation()}>
+        <button className="ui-icon-btn" title="View" onClick={() => navigate(`/app/quotations/${q.id}`)}><Eye size={15} /></button>
+        <button className="ui-icon-btn" title="Edit" onClick={() => navigate(`/app/quotations/${q.id}/edit`)}><Edit size={15} /></button>
+        <button className="ui-icon-btn" title="Duplicate" disabled={dupBusy === q.id} onClick={() => duplicate(q)}><Copy size={15} /></button>
+        <button className="ui-icon-btn danger" title="Delete" onClick={() => del(q)}><Trash2 size={15} /></button>
+      </span>
+    ) },
+  ]
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4" style={{ animation: 'entranceUp 0.5s cubic-bezier(0.16,1,0.3,1) both' }}>
-        <div>
-          <h1 className="text-2xl font-bold text-white">Quotations</h1>
-          <p className="text-white/35 text-sm">Manage your quotations</p>
-        </div>
-        <div className="flex gap-3">
-          <button onClick={toggleBold} className={`px-4 py-2 rounded-xl font-medium text-sm transition-all btn-shine ${boldOn ? 'btn-primary' : 'btn-secondary'}`}>
-            Bold {boldOn ? 'ON' : 'OFF'}
-          </button>
-          <Link to="/app/quotations/new" className="btn-primary flex items-center gap-2 btn-shine"><Plus size={18} /> New Quotation</Link>
-        </div>
+    <div className="space-y-5">
+      <PageHeader title="Quotations" subtitle="Estimates you can convert to invoices"
+        actions={<Link to="/app/quotations/new" className="btn-primary flex items-center gap-2"><Plus size={17} />New quotation</Link>} />
+      <StatTiles items={[
+        { label: 'Quotations', value: rows.length },
+        { label: 'Quoted value', value: compactInr(sum(q => num(q.total_amount))), title: inr(sum(q => num(q.total_amount)), 2), tone: 'info' },
+        { label: 'Converted', value: converted, tone: 'pos', sub: quotations.length ? `${Math.round((converted / quotations.length) * 100)}% win rate` : '' },
+        { label: 'Open', value: quotations.filter(q => !['Converted', 'Rejected'].includes(q.status)).length, tone: 'warn' },
+      ]} />
+      <div className="ui-toolbar">
+        <SearchInput value={search} onChange={setSearch} placeholder="Search quote no. or customer" />
+        <Chips value={filter} onChange={setFilter} options={statuses.map(s => ({ value: s, label: s === 'all' ? 'All' : s, count: s === 'all' ? quotations.length : quotations.filter(q => (q.status || 'Draft') === s).length }))} />
       </div>
-
-      <div className="card card-premium">
-        <div className="relative mb-4">
-          <Search size={18} className="absolute left-3 top-2.5 text-white/25" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search quotations..." className="input-field pl-10" />
-        </div>
-
-        {loading ? (
-          <div className="flex justify-center py-12"><div className="w-10 h-10 border-4 rounded-full" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent', animation: 'spin 1s linear infinite' }}></div></div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-12">
-            <FileSpreadsheet size={48} className="mx-auto text-white/15 mb-3" />
-            <p className="text-white/25">No quotations found</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="nebula-table">
-              <thead><tr>
-                <th>Quotation #</th><th>Customer</th><th>Date</th><th className="text-right">Amount</th><th className="text-center">Status</th><th className="text-right">Actions</th>
-              </tr></thead>
-              <tbody>
-                {filtered.map((q, i) => (
-                  <tr key={q.id} className="anim-row cursor-pointer" style={{ animationDelay: `${i * 0.03}s` }} onClick={() => navigate(`/app/quotations/${q.id}`)}>
-                    <td className="font-semibold accent-text">{q.quotation_number}</td>
-                    <td className="text-white font-medium" style={{ fontWeight: boldOn ? 'bold' : '500' }}>{q.customer_name || 'N/A'}</td>
-                    <td className="text-white/50">{formatDate(q.quotation_date)}</td>
-                    <td className="text-right font-semibold text-white">{formatCurrency(q.total_amount)}</td>
-                    <td className="text-center">
-                      <span className={`status-badge ${q.status === 'Converted' ? 'status-paid' : q.status === 'Sent' ? 'status-sent' : 'status-draft'}`}>{q.status}</span>
-                    </td>
-                    <td className="text-right" onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => navigate(`/app/quotations/${q.id}`)} className="action-icon"><Eye size={16} /></button>
-                        <button onClick={() => navigate(`/app/quotations/${q.id}/edit`)} className="action-icon text-blue-400"><Edit size={16} /></button>
-                        <button onClick={() => duplicate(q)} disabled={dupBusy === q.id} title="Duplicate" className="action-icon text-green-400"><Copy size={16} /></button>
-                        <button onClick={() => deleteQ(q.id)} className="action-icon text-red-400"><Trash2 size={16} /></button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <DataTable columns={columns} rows={rows} loading={loading} initialSort={{ key: 'quotation_number', dir: 'desc' }}
+        onRowClick={q => navigate(`/app/quotations/${q.id}`)}
+        empty={<EmptyBlock icon={FileSpreadsheet} title={quotations.length ? 'No matching quotations' : 'No quotations yet'}
+          action={!quotations.length && <Link to="/app/quotations/new" className="btn-primary inline-flex items-center gap-2"><Plus size={16} />New quotation</Link>} />} />
     </div>
   )
 }

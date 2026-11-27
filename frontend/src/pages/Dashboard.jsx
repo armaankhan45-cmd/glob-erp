@@ -5,6 +5,7 @@ import { FileText, UserPlus, Plus, Calculator, CreditCard, ChevronLeft, ChevronR
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import GSTCalcModal from '../components/GSTCalcModal'
 import { formatCurrency, formatDate } from '../utils'
+import { StatusBadge } from '../components/ui'
 
 const pad = (n) => String(n).padStart(2, '0')
 const currentMonthStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}` }
@@ -196,7 +197,7 @@ export default function Dashboard() {
             {recent.length ? recent.slice(0, 6).map(inv => (
               <Link key={inv.id} to={`/app/invoices/${inv.id}`} className="db-row">
                 <div className="db-row-main"><div className="db-row-title">{inv.customer_name || 'Walk-in'}</div><div className="db-row-sub">{inv.invoice_number} · {formatDate(inv.invoice_date)}</div></div>
-                <div className="flex items-center gap-3"><span className={`status-badge status-${inv.payment_status || 'pending'}`}>{inv.payment_status || 'pending'}</span><span className="db-amt">{formatCurrency(inv.total_amount)}</span></div>
+                <div className="flex items-center gap-3"><StatusBadge status={inv.payment_status} /><span className="db-amt">{formatCurrency(inv.total_amount)}</span></div>
               </Link>
             )) : <div className="db-empty">No invoices yet. <Link to="/app/invoices/new" className="db-link">Create your first</Link></div>}
           </Widget>
