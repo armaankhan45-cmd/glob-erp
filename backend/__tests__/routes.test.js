@@ -28,7 +28,7 @@ describe('AI assistant', () => {
   });
 
   test('defaults Groq to a model that exists (not a retired one)', () => {
-    const src = fs.readFileSync(path.join(dir, 'aiAssistantRoutes.js'), 'utf8');
+    const src = fs.readFileSync(path.join(__dirname, '../src/ai/providers.js'), 'utf8') + fs.readFileSync(path.join(dir, 'aiAssistantRoutes.js'), 'utf8');
     const groqDefaults = [...src.matchAll(/GROQ_MODEL \|\| '([^']+)'/g)].map(m => m[1]);
     expect(groqDefaults.length).toBeGreaterThan(0);
     groqDefaults.forEach(m => expect(m).toBe('openai/gpt-oss-20b'));
@@ -39,5 +39,15 @@ describe('GST routes', () => {
   test('quarterly and monthly-bills endpoints exist', () => {
     const list = endpoints(require('../src/routes/gstRoutes'));
     expect(list).toEqual(expect.arrayContaining(['GET /quarterly', 'GET /summary', 'GET /monthly-bills']));
+  });
+});
+
+describe('AI modules', () => {
+  test.each(['prompts', 'tools', 'providers', 'replies'])('src/ai/%s loads', (m) => {
+    expect(Object.keys(require(`../src/ai/${m}`)).length).toBeGreaterThan(0);
+  });
+  test('rule-based replies still answer without any AI key', () => {
+    const { businessIntent } = require('../src/ai/replies');
+    expect(() => businessIntent('show sales this month')).not.toThrow();
   });
 });

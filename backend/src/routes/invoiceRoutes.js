@@ -4,6 +4,7 @@ const router = express.Router();
 const getDb = require('../config/db');
 const { auth } = require('../middleware/auth');
 const auditLog = require('../middleware/auditLog');
+const { validate } = require('../middleware/validate');
 
 function getFY(date = new Date()) {
   const m = date.getMonth();
@@ -130,7 +131,7 @@ router.get('/:id', auth, async (req, res) => {
 });
 
 // Create invoice
-router.post('/', auth, async (req, res) => {
+router.post('/', auth, validate('invoice'), async (req, res) => {
   try {
     const db = getDb();
     const { items, ...invoiceData } = req.body;
@@ -139,17 +140,25 @@ router.post('/', auth, async (req, res) => {
     let invoiceNumber;
     if (invoiceData.invoice_number && invoiceData.invoice_number.trim()) { invoiceNumber = invoiceData.invoice_number.trim(); }
     else { const prefix = org.invoice_prefix || 'GST-'; const last = await db('invoices').where({ organization_id: orgId }).orderBy('id', 'desc').first('id'); const nextNo = (last?.id || 0) + 1; const fy = getFY(new Date(invoiceData.invoice_date)); invoiceNumber = `${prefix}${String(nextNo).padStart(4, '0')}/${fy}`; }
+    if (invoiceData.customer_id) {
+      const owns = await db('customers').where({ id: invoiceData.customer_id, organization_id: orgId }).first('id');
+      if (!owns) return res.status(400).json({ success: false, msg: 'Customer not found in your organisation' });
+    }
     const data = sanitizeDates(sanitizeInvoiceData({ ...invoiceData, organization_id: orgId, invoice_number: invoiceNumber }));
-    const [invoice] = await db('invoices').insert(data).returning('id');
-    const invoiceId = invoice.id || invoice;
-    if (items && items.length > 0) { await db('invoice_items').insert(items.map(item => sanitizeItem(item, invoiceId))); }
+    // Invoice + items are saved together: if any item fails, nothing is saved.
+    const invoiceId = await db.transaction(async trx => {
+      const [invoice] = await trx('invoices').insert(data).returning('id');
+      const id = invoice.id || invoice;
+      if (items && items.length > 0) { await trx('invoice_items').insert(items.map(item => sanitizeItem(item, id))); }
+      return id;
+    });
     await auditLog(req.user.id, orgId, 'CREATE', 'invoices', invoiceId, null, data, req.ip);
     res.status(201).json({ success: true, invoice: { id: invoiceId, invoice_number: invoiceNumber } });
   } catch (err) { console.error('Create invoice error:', err); res.status(500).json({ success: false, msg: 'Failed to create invoice: ' + err.message }); }
 });
 
 // Full update
-router.put('/:id/full', auth, async (req, res) => {
+router.put('/:id/full', auth, validate('invoice'), async (req, res) => {
   try {
     const db = getDb();
     const { items, ...invoiceData } = req.body;
@@ -157,9 +166,11 @@ router.put('/:id/full', auth, async (req, res) => {
     const old = await db('invoices').where({ id: req.params.id, organization_id: orgId }).first();
     if (!old) return res.status(404).json({ success: false, msg: 'Invoice not found' });
     const cleanData = sanitizeInvoiceData(invoiceData);
-    await db('invoices').where({ id: req.params.id }).update(cleanData);
-    await db('invoice_items').where({ invoice_id: req.params.id }).del();
-    if (items && items.length > 0) { await db('invoice_items').insert(items.map(item => sanitizeItem(item, req.params.id))); }
+    await db.transaction(async trx => {
+      await trx('invoices').where({ id: req.params.id, organization_id: orgId }).update(cleanData);
+      await trx('invoice_items').where({ invoice_id: req.params.id }).del();
+      if (items && items.length > 0) { await trx('invoice_items').insert(items.map(item => sanitizeItem(item, req.params.id))); }
+    });
     await auditLog(req.user.id, orgId, 'UPDATE', 'invoices', req.params.id, old, cleanData, req.ip);
     res.json({ success: true, msg: 'Invoice updated' });
   } catch (err) { console.error('Update invoice error:', err); res.status(500).json({ success: false, msg: 'Failed to update: ' + err.message }); }
