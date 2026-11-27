@@ -32,5 +32,11 @@
   "devDependencies": {
     "nodemon": "^3.0.2",
     "jest": "^29.7.0"
+  },
+  "jest": {
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/__tests__/helpers/"
+    ]
   }
 }

@@ -1,639 +1,221 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
 import api from '../api/client'
-import { Plus, Users, CreditCard, FileText, Calculator, TrendingUp, IndianRupee, AlertCircle, UserPlus, ArrowUpRight, ArrowDownRight, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell } from 'recharts'
+import { FileText, UserPlus, Plus, Calculator, CreditCard, ChevronLeft, ChevronRight, RefreshCw, Package } from 'lucide-react'
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import GSTCalcModal from '../components/GSTCalcModal'
-import BorderGlow from '../components/BorderGlow'
-import SplitText from '../components/SplitText'
-import AnimatedList from '../components/AnimatedList'
 import { formatCurrency, formatDate } from '../utils'
 
-const CHART_COLORS = ['#06b6d4', '#4f8fff', '#a855f7', '#22c55e', '#ef4444', '#f59e0b', '#ec4899']
-
-// ═══════════════════════════════════════════
-// ANIMATED COUNTER — counts up on mount
-// ═══════════════════════════════════════════
-function useAnimatedCounter(target, duration = 1500) {
-  const [value, setValue] = useState(0)
-  const prevTarget = useRef(0)
-  useEffect(() => {
-    if (target === prevTarget.current) return
-    prevTarget.current = target
-    const start = performance.now()
-    const startVal = value
-    function update(now) {
-      const elapsed = now - start
-      const progress = Math.min(elapsed / duration, 1)
-      const eased = 1 - Math.pow(1 - progress, 4) // quartic ease-out
-      setValue(Math.floor(startVal + (target - startVal) * eased))
-      if (progress < 1) requestAnimationFrame(update)
-    }
-    requestAnimationFrame(update)
-  }, [target, duration])
-  return value
+const pad = (n) => String(n).padStart(2, '0')
+const currentMonthStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}` }
+const shiftMonth = (m, delta) => { const [y, mo] = m.split('-').map(Number); const d = new Date(y, mo - 1 + delta, 1); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}` }
+const fyOf = (d = new Date()) => (d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1)
+const compact = (n) => {
+  const v = Math.abs(n || 0), s = n < 0 ? '−' : ''
+  if (v >= 1e7) return `${s}₹${(v / 1e7).toFixed(2)} Cr`
+  if (v >= 1e5) return `${s}₹${(v / 1e5).toFixed(2)} L`
+  if (v >= 1e3) return `${s}₹${(v / 1e3).toFixed(1)}K`
+  return `${s}₹${Math.round(v)}`
 }
 
-// ═══════════════════════════════════════════
-// TILT CARD — simple, no 3D transform (removed 3D tilt for stability)
-// ═══════════════════════════════════════════
-function TiltCard({ children, className, style }) {
+function Widget({ title, sub, action, className = '', children }) {
   return (
-    <div className={className} style={style}>
-      {children}
-    </div>
-  )
-}
-
-// ═══════════════════════════════════════════
-// SKELETON LOADING — shimmer effect
-// ═══════════════════════════════════════════
-function SkeletonBlock({ w, h, radius = '12px', className = '' }) {
-  return (
-    <div className={className} style={{
-      width: w, height: h, borderRadius: radius,
-      background: 'linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%)',
-      backgroundSize: '200% 100%',
-      animation: 'shimmer 1.5s ease-in-out infinite'
-    }} />
-  )
-}
-
-function SkeletonMetricCard() {
-  return (
-    <div className="stat-card" style={{ animation: 'entranceScale 0.6s cubic-bezier(0.16,1,0.3,1) both' }}>
-      <div className="shimmer"></div>
-      <div className="flex items-center justify-between mb-3">
-        <SkeletonBlock w="80px" h="14px" radius="6px" />
-        <SkeletonBlock w="40px" h="40px" radius="10px" />
-      </div>
-      <SkeletonBlock w="120px" h="28px" radius="6px" />
-      <SkeletonBlock w="100px" h="12px" radius="4px" className="mt-2" />
-    </div>
-  )
-}
-
-function SkeletonChart() {
-  return (
-    <div className="card">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <SkeletonBlock w="160px" h="18px" radius="6px" />
-          <SkeletonBlock w="120px" h="12px" radius="4px" className="mt-2" />
+    <section className={`db-widget ${className}`}>
+      {(title || action) && (
+        <div className="db-widget-head">
+          <div><div className="db-widget-title">{title}</div>{sub && <div className="db-widget-sub">{sub}</div>}</div>
+          {action}
         </div>
-        <SkeletonBlock w="120px" h="32px" radius="8px" />
-      </div>
-      <div style={{ height: 256, display: 'flex', alignItems: 'flex-end', gap: 8, padding: '0 10px' }}>
-        {Array.from({length: 12}).map((_, i) => (
-          <div key={i} style={{
-            flex: 1,
-            height: `${30 + Math.random() * 70}%`,
-            borderRadius: '6px 6px 0 0',
-            background: 'linear-gradient(180deg, rgba(var(--accent-rgb),0.15), rgba(var(--accent-rgb),0.03))',
-            animation: `entranceScale 0.5s cubic-bezier(0.16,1,0.3,1) ${i * 0.04}s both`
-          }} />
-        ))}
-      </div>
-    </div>
+      )}
+      {children}
+    </section>
   )
 }
 
-function SkeletonList() {
+function Kpi({ label, value, color, foot, delta }) {
   return (
-    <div className="card">
-      <div className="flex items-center justify-between mb-4">
-        <SkeletonBlock w="140px" h="18px" radius="6px" />
-        <SkeletonBlock w="70px" h="14px" radius="4px" />
+    <section className="db-widget db-kpi db-span-3">
+      <div className="db-kpi-label"><span className="db-kpi-dot" style={{ background: color }} />{label}</div>
+      <div className="db-kpi-value" title={formatCurrency(value)}>{typeof value === 'number' && label !== 'Customers' ? compact(value) : value}</div>
+      <div className="db-kpi-foot">
+        {delta != null && <span className={`db-delta ${delta >= 0 ? 'up' : 'down'}`}>{delta >= 0 ? '▲' : '▼'} {Math.abs(delta)}%</span>}
+        <span>{foot}</span>
       </div>
-      <div className="space-y-3">
-        {Array.from({length: 4}).map((_, i) => (
-          <div key={i} className="flex items-center justify-between p-3">
-            <div className="flex items-center gap-3">
-              <SkeletonBlock w="36px" h="36px" radius="8px" />
-              <div>
-                <SkeletonBlock w="100px" h="14px" radius="4px" />
-                <SkeletonBlock w="140px" h="10px" radius="3px" className="mt-1" />
-              </div>
-            </div>
-            <div className="text-right">
-              <SkeletonBlock w="80px" h="14px" radius="4px" />
-              <SkeletonBlock w="50px" h="10px" radius="3px" className="mt-1" />
-            </div>
-          </div>
-        ))}
-      </div>
+    </section>
+  )
+}
+
+function ChartTip({ active, payload, label }) {
+  if (!active || !payload?.length) return null
+  return (
+    <div className="db-widget" style={{ padding: '10px 12px', fontSize: 12 }}>
+      <div style={{ fontWeight: 800, color: 'var(--text-bright)', marginBottom: 4 }}>{label}</div>
+      {payload.map(p => <div key={p.dataKey} style={{ color: 'var(--text-secondary)' }}><span style={{ color: p.stroke, fontWeight: 800 }}>●</span> {p.name}: <b style={{ color: 'var(--text-bright)' }}>{formatCurrency(p.value)}</b></div>)}
     </div>
   )
 }
 
-// Current calendar month as 'YYYY-MM', used as the dashboard's default view.
-function currentMonthStr() {
-  const now = new Date()
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-}
-
-function shiftMonth(monthStr, delta) {
-  const [y, m] = monthStr.split('-').map(Number)
-  const d = new Date(Date.UTC(y, m - 1 + delta, 1))
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
-}
+const Skel = ({ h, span = 12 }) => <div className={`db-span-${span} db-skel`} style={{ height: h }} />
 
 export default function Dashboard() {
-  const { user } = useAuth()
-  const [stats, setStats] = useState({})
-  const [recentInvoices, setRecentInvoices] = useState([])
-  const [topCustomers, setTopCustomers] = useState([])
-  const [chartData, setChartData] = useState([])
-  const [chartType, setChartType] = useState('bar')
+  const [data, setData] = useState(null)
+  const [gstQ, setGstQ] = useState(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-
-  // ═══ Period selector: 'month' shows one calendar month, 'all' shows everything ═══
   const [period, setPeriod] = useState('month')
-  const [selectedMonth, setSelectedMonth] = useState(currentMonthStr())
-  const [periodMeta, setPeriodMeta] = useState({ periodLabel: '', isCurrentMonth: true, momGrowth: null, momCompareLabel: '' })
+  const [month, setMonth] = useState(currentMonthStr())
 
-  useEffect(() => { loadDashboard() }, [period, selectedMonth])
-
-  const loadDashboard = async () => {
-    const isFirstLoad = Object.keys(stats).length === 0
-    if (isFirstLoad) setLoading(true); else setRefreshing(true)
+  const load = async () => {
+    if (data) setRefreshing(true)
     try {
-      const params = period === 'all' ? { period: 'all' } : { period: 'month', month: selectedMonth }
-      const statsRes = await api.get('/dashboard/stats', { params })
-      setStats(statsRes.data.stats || {})
-      setRecentInvoices(statsRes.data.recentInvoices || [])
-      // The backend already computes top customers with a single grouped query —
-      // no need to loop over /customers/:id client-side like before.
-      setTopCustomers(statsRes.data.topCustomers || [])
-      setChartData(statsRes.data.chartData || [])
-      setPeriodMeta({
-        periodLabel: statsRes.data.periodLabel || '',
-        isCurrentMonth: !!statsRes.data.isCurrentMonth,
-        momGrowth: statsRes.data.momGrowth,
-        momCompareLabel: statsRes.data.momCompareLabel || ''
-      })
-    } catch (err) { console.error('Dashboard error:', err) }
+      const params = period === 'all' ? { period: 'all' } : { period: 'month', month }
+      const res = await api.get('/dashboard/stats', { params })
+      setData(res.data || {})
+    } catch (e) { console.error('Dashboard error:', e) }
     finally { setLoading(false); setRefreshing(false) }
   }
+  useEffect(() => { load() }, [period, month])
+  useEffect(() => { api.get('/gst/quarterly', { params: { year: fyOf() } }).then(r => setGstQ(r.data)).catch(() => setGstQ(null)) }, [])
 
-  const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+  const s = data?.stats || {}
+  const chart = data?.chartData || []
+  const recent = data?.recentInvoices || []
+  const top = data?.topCustomers || []
+  const lowStock = data?.lowStockItems || []
+  const periodLabel = period === 'all' ? 'All time' : (data?.periodLabel || 'This month')
+  const gstNet = (s.netPayable?.cgst || 0) + (s.netPayable?.sgst || 0) + (s.netPayable?.igst || 0)
+  const topMax = Math.max(1, ...top.map(c => Number(c.totalBusiness) || 0))
+  const nowQ = useMemo(() => { const m = new Date().getMonth(); return m >= 3 ? Math.floor((m - 3) / 3) + 1 : 4 }, [])
 
-  const quickActions = [
-    { label: 'New Invoice', path: '/app/invoices/new', icon: FileText, color: 'var(--accent-ink)', bg: 'var(--bg-glass-md)' },
-    { label: 'Add Customer', path: '/app/customers', icon: UserPlus, color: 'var(--accent-ink)', bg: 'var(--bg-glass-md)' },
-    { label: 'New Quote', path: '/app/quotations/new', icon: Plus, color: 'var(--accent-ink)', bg: 'var(--bg-glass-md)' },
-    { label: 'GST Reports', path: '/app/gst', icon: Calculator, color: 'var(--accent-ink)', bg: 'var(--bg-glass-md)' },
-    { label: 'Record Purchase', path: '/app/purchases/new', icon: CreditCard, color: 'var(--accent-ink)', bg: 'var(--bg-glass-md)' },
+  const aging = [
+    { label: 'Current', amt: Math.max(0, (s.pendingAmount || 0) - (s.overdue30?.amount || 0)), color: 'var(--info)' },
+    { label: '30–60 days', amt: Math.max(0, (s.overdue30?.amount || 0) - (s.overdue60?.amount || 0)), color: 'var(--warn)' },
+    { label: '60–90 days', amt: Math.max(0, (s.overdue60?.amount || 0) - (s.overdue90?.amount || 0)), color: 'var(--neg)' },
+    { label: '90+ days', amt: s.overdue90?.amount || 0, color: '#7f1d1d' },
   ]
+  const agingTotal = aging.reduce((a, b) => a + b.amt, 0)
 
-  const pendingAmount = stats.pendingAmount || 0
-  const netPayable = (stats.netPayable?.cgst || 0) + (stats.netPayable?.sgst || 0) + (stats.netPayable?.igst || 0)
-  const periodSub = period === 'all' ? 'All time' : periodMeta.periodLabel || 'This month'
-
-  const metricCards = [
-    { label: 'Total Revenue', value: stats.totalRevenue || 0, icon: IndianRupee, color: '#22c55e', bg: 'rgba(34,197,94,0.12)', sub: periodSub, isCurrency: true },
-    { label: 'Outstanding', value: pendingAmount || 0, icon: AlertCircle, color: '#ef4444', bg: 'rgba(239,68,68,0.12)', sub: `${stats.pendingInvoices || 0} unpaid invoices`, isCurrency: true },
-    { label: 'GST Payable', value: netPayable || 0, icon: TrendingUp, color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', sub: `${periodSub} · Output − Input`, isCurrency: true },
-    { label: 'Customers', value: stats.customerCount || 0, icon: Users, color: '#4f8fff', bg: 'rgba(79,143,255,0.12)', sub: 'In your database', isCurrency: false },
+  const actions = [
+    { label: 'New invoice', to: '/app/invoices/new', icon: FileText, primary: true },
+    { label: 'Record purchase', to: '/app/purchases/new', icon: CreditCard },
+    { label: 'New quotation', to: '/app/quotations/new', icon: Plus },
+    { label: 'Add customer', to: '/app/customers/new', icon: UserPlus },
+    { label: 'GST reports', to: '/app/gst', icon: Calculator },
   ]
-
-  const gstPie = [
-    { name: 'CGST', value: Math.max(0, stats.netPayable?.cgst || 0) },
-    { name: 'SGST', value: Math.max(0, stats.netPayable?.sgst || 0) },
-    { name: 'IGST', value: Math.max(0, stats.netPayable?.igst || 0) },
-  ].filter(d => d.value > 0)
-
-  const monthGrowth = periodMeta.momGrowth
-  const chartHasData = chartData.some(d => (d.revenue || 0) > 0 || (d.expenses || 0) > 0)
-
-  // ═══ SKELETON LOADING ═══
-  if (loading) return (
-    <div className="space-y-6">
-      <div className="card" style={{ height: 120, animation: 'entranceScale 0.6s cubic-bezier(0.16,1,0.3,1) both' }}>
-        <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 80% 50%, rgba(255,255,255,0.3), transparent 50%)' }}></div>
-        <SkeletonBlock w="220px" h="28px" radius="6px" style={{ background: 'rgba(255,255,255,0.2)' }} />
-        <SkeletonBlock w="300px" h="16px" radius="4px" className="mt-3" />
-      </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-        {Array.from({length: 5}).map((_, i) => (
-          <div key={i} className="action-card" style={{ padding: '16px', animation: `entranceScale 0.5s cubic-bezier(0.16,1,0.3,1) ${i * 0.06}s both` }}>
-            <SkeletonBlock w="40px" h="40px" radius="8px" />
-            <SkeletonBlock w="70px" h="14px" radius="4px" className="mt-2" />
-          </div>
-        ))}
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 stagger">
-        <SkeletonMetricCard /><SkeletonMetricCard /><SkeletonMetricCard /><SkeletonMetricCard />
-      </div>
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2"><SkeletonChart /></div>
-        <div className="space-y-4">
-          <div className="card">
-            <SkeletonBlock w="120px" h="18px" radius="6px" className="mb-4" />
-            <div className="space-y-3">
-              {[1,2,3].map(i => (
-                <div key={i} style={{ background: 'rgba(var(--accent-rgb),0.04)', border: '1px solid rgba(var(--accent-rgb),0.08)', borderRadius: 12, padding: 12 }}>
-                  <SkeletonBlock w="120px" h="14px" radius="4px" />
-                  <SkeletonBlock w="100px" h="22px" radius="4px" className="mt-2" />
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className="grid lg:grid-cols-2 gap-6"><SkeletonList /><SkeletonList /></div>
-      <GSTCalcModal />
-    </div>
-  )
-
-  const fmtTooltip = (val) => formatCurrency(val)
-
-  // ═══ AnimatedList item renderers ═══
-  const invoiceListItem = (inv, index, isSelected) => (
-    <Link to={`/app/invoices/${inv.id}`} style={{ textDecoration: 'none' }}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(var(--accent-rgb),0.08)' }}>
-            <FileText size={16} style={{ color: 'var(--accent)' }} />
-          </div>
-          <div>
-            <p className="font-semibold text-sm" style={{ color: isSelected ? 'var(--accent)' : 'var(--text-primary)' }}>{inv.invoice_number}</p>
-            <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{inv.customer_name || 'N/A'} • {formatDate(inv.invoice_date)}</p>
-          </div>
-        </div>
-        <div className="text-right">
-          <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>{formatCurrency(inv.total_amount)}</p>
-          <span className={`status-badge text-[10px] ${inv.payment_status === 'Paid' ? 'status-paid' : inv.payment_status === 'Partial' ? 'status-pending' : 'status-overdue'}`}
-            style={{ padding: '2px 8px' }}>
-            {inv.payment_status}
-          </span>
-        </div>
-      </div>
-    </Link>
-  )
-
-  const customerListItem = (c, index, isSelected) => (
-    <Link to={`/app/customers/${c.id}`} style={{ textDecoration: 'none' }}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center font-extrabold text-sm"
-            style={{ background: `${CHART_COLORS[index % CHART_COLORS.length]}18`, color: CHART_COLORS[index % CHART_COLORS.length] }}>
-            #{index + 1}
-          </div>
-          <div>
-            <p className="font-semibold text-sm" style={{ color: isSelected ? 'var(--accent)' : 'var(--text-primary)' }}>{c.name}</p>
-            <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{c.gstin ? `${c.gstin.substring(0,2)}...` : 'No GSTIN'} • {c.city || c.state || '—'}</p>
-          </div>
-        </div>
-        <div className="text-right">
-          <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>{formatCurrency(c.totalBusiness)}</p>
-          <span className={`status-badge text-[10px] ${!c.state_code || c.state_code === '27' ? 'status-sent' : 'status-pending'}`}
-            style={{ padding: '2px 8px' }}>
-            {!c.state_code || c.state_code === '27' ? 'Intra' : 'Inter'}
-          </span>
-        </div>
-      </div>
-    </Link>
-  )
 
   return (
-    <div className="space-y-6">
-
-      {/* ═══════════════════════════════════════════
-          WELCOME BANNER — SplitText animated heading
-          ═══════════════════════════════════════════ */}
-      <div className="card">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
-          <div>
-            {/* SplitText — animated letter-by-letter welcome */}
-            <h1 className="text-2xl font-semibold mb-1">
-              <SplitText
-                text={`Welcome, ${user?.name || 'User'}!`}
-                tag="span"
-                splitType="words"
-                delay={60}
-                duration={0.6}
-                from={{ opacity: 0, y: 15 }}
-                to={{ opacity: 1, y: 0 }}
-              />
-            </h1>
-            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{user?.organization?.name} • GSTIN: {user?.organization?.gstin || 'N/A'}</p>
-            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{today}</p>
-          </div>
-          {monthGrowth !== null && (
-            <div className="flex items-center gap-3 px-5 py-3 rounded-2xl" style={{ background: 'var(--bg-glass-md)', border: '1px solid var(--border)' }}>
-              {monthGrowth >= 0 ? <ArrowUpRight size={22} /> : <ArrowDownRight size={22} />}
-              <div>
-                <p className="text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>vs {periodMeta.momCompareLabel || 'Last Month'}</p>
-                <p className="font-extrabold text-xl">{monthGrowth >= 0 ? '+' : ''}{monthGrowth}%</p>
-              </div>
-            </div>
-          )}
+    <div className="space-y-5">
+      <GSTCalcModal />
+      <div className="db-hero">
+        <div>
+          <div className="db-widget-sub">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
+          <h1>Overview</h1>
+        </div>
+        <div className="db-period" role="group" aria-label="Period">
+          {period === 'month' && <button className="db-icon-btn" onClick={() => setMonth(m => shiftMonth(m, -1))} aria-label="Previous month"><ChevronLeft size={16} /></button>}
+          <button className={period === 'month' ? 'on' : ''} onClick={() => setPeriod('month')}>{period === 'month' ? (data?.periodLabel || 'This month') : 'Month'}</button>
+          {period === 'month' && <button className="db-icon-btn" disabled={month >= currentMonthStr()} style={{ opacity: month >= currentMonthStr() ? .35 : 1 }} onClick={() => setMonth(m => shiftMonth(m, 1))} aria-label="Next month"><ChevronRight size={16} /></button>}
+          <button className={period === 'all' ? 'on' : ''} onClick={() => setPeriod('all')}>All time</button>
+          <button className="db-icon-btn" onClick={load} aria-label="Refresh"><RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} /></button>
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════════
-          QUICK ACTIONS — Staggered entrance
-          ═══════════════════════════════════════════ */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-        {quickActions.map((a, i) => (
-          <Link key={i} to={a.path} className="action-card card-premium"
-            style={{ padding: '16px', animation: `entranceScale 0.5s cubic-bezier(0.16,1,0.3,1) ${0.08 + i * 0.06}s both` }}>
-            <div className="action-icon w-10 h-10 rounded-lg flex items-center justify-center text-white flex-shrink-0"
-              style={{ background: a.bg, color: a.color }}>
-              <a.icon size={20} />
-            </div>
-            <span className="text-sm font-semibold text-white/70">{a.label}</span>
-          </Link>
-        ))}
+      <div className="db-actions">
+        {actions.map(a => <Link key={a.label} to={a.to} className={`db-action ${a.primary ? 'primary' : ''}`}><a.icon size={15} />{a.label}</Link>)}
       </div>
 
-      {/* ═══════════════════════════════════════════
-          PERIOD SELECTOR — drives stat cards + Sales Performance chart below
-          ═══════════════════════════════════════════ */}
-      <div className="card card-premium flex flex-wrap items-center justify-between gap-3" style={{ padding: '12px 16px' }}>
-        <div className="flex items-center gap-2 text-white/40 text-xs font-semibold uppercase tracking-wider">
-          <Calendar size={14} />
-          Viewing
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => { setPeriod('month'); setSelectedMonth(currentMonthStr()) }}
-            className={`chip btn-shine ${period === 'month' && periodMeta.isCurrentMonth ? 'active' : ''}`}
-          >
-            This Month
-          </button>
+      {loading ? (
+        <div className="db-grid"><Skel h={120} span={3} /><Skel h={120} span={3} /><Skel h={120} span={3} /><Skel h={120} span={3} /><Skel h={320} span={8} /><Skel h={320} span={4} /></div>
+      ) : (
+        <div className="db-grid">
+          <Kpi label="Revenue" value={s.totalRevenue || 0} color="var(--pos)" foot={data?.momGrowth != null ? `vs ${data.momCompareLabel}` : periodLabel} delta={period === 'month' ? data?.momGrowth : null} />
+          <Kpi label="Receivable" value={s.pendingAmount || 0} color="var(--warn)" foot={`${s.pendingInvoices || 0} unpaid invoices`} />
+          <Kpi label="Net profit" value={s.netProfit || 0} color="var(--accent)" foot={`Expenses ${compact(s.totalExpenses || 0)}`} />
+          <Kpi label="GST payable" value={gstNet} color="var(--neg)" foot={`${periodLabel} · output − input`} />
 
-          <div className="flex items-center gap-1 rounded-xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', padding: '2px' }}>
-            <button
-              onClick={() => { setPeriod('month'); setSelectedMonth(m => shiftMonth(m, -1)) }}
-              className="p-1.5 rounded-lg hover:bg-white/10 transition"
-              title="Previous month"
-            >
-              <ChevronLeft size={16} className="text-white/50" />
-            </button>
-            <input
-              type="month"
-              value={selectedMonth}
-              max={currentMonthStr()}
-              onChange={e => { if (e.target.value) { setPeriod('month'); setSelectedMonth(e.target.value) } }}
-              className="bg-transparent text-sm font-semibold text-white/80 outline-none"
-              style={{ colorScheme: 'dark', border: 'none', padding: '4px 6px' }}
-            />
-            <button
-              onClick={() => { setPeriod('month'); setSelectedMonth(m => shiftMonth(m, 1)) }}
-              disabled={selectedMonth >= currentMonthStr()}
-              className="p-1.5 rounded-lg hover:bg-white/10 transition disabled:opacity-20 disabled:cursor-not-allowed"
-              title="Next month"
-            >
-              <ChevronRight size={16} className="text-white/50" />
-            </button>
-          </div>
-
-          <button
-            onClick={() => setPeriod('all')}
-            className={`chip btn-shine ${period === 'all' ? 'active' : ''}`}
-          >
-            All Time
-          </button>
-        </div>
-      </div>
-
-      {/* ═══════════════════════════════════════════
-          STAT CARDS — BorderGlow premium hover effect
-          ═══════════════════════════════════════════ */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4" style={{ opacity: refreshing ? 0.6 : 1, transition: 'opacity 0.2s' }}>
-        {metricCards.map((m, i) => (
-          <BorderGlow
-            key={i}
-            borderRadius={16}
-            glowRadius={35}
-            glowIntensity={0.7}
-            edgeSensitivity={40}
-            animated={true}
-          >
-            <TiltCard className="stat-card card-premium"
-              style={{ animation: `entranceScale 0.6s cubic-bezier(0.16,1,0.3,1) ${0.15 + i * 0.1}s both` }}>
-              <div className="shimmer"></div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold uppercase tracking-wider text-white/35">{m.label}</span>
-                <div className="stat-icon w-11 h-11 rounded-xl flex items-center justify-center relative"
-                  style={{ background: m.bg, color: m.color }}>
-                  <m.icon size={20} />
-                  <div className="stat-pulse-ring" style={{ color: m.color }}></div>
-                </div>
-              </div>
-              <p className="text-[26px] font-extrabold text-white" style={{ fontFamily: '"Space Grotesk", sans-serif', letterSpacing: '-0.5px' }}>
-                {m.isCurrency ? formatCurrency(m.value) : m.value}
-              </p>
-              <p className="text-[11px] text-white/25 mt-1.5">{m.sub}</p>
-            </TiltCard>
-          </BorderGlow>
-        ))}
-      </div>
-
-      {/* ═══ Glow Line Separator ═══ */}
-      <div className="glow-line"></div>
-
-      {/* ═══════════════════════════════════════════
-          CHARTS + GST SUMMARY
-          ═══════════════════════════════════════════ */}
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 card card-premium" style={{ animation: 'entranceUp 0.7s cubic-bezier(0.16,1,0.3,1) 0.4s both' }}>
-          <div className="shimmer"></div>
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <h3 className="font-bold text-white text-[15px]">Sales Performance</h3>
-              <p className="text-xs text-white/25 mt-0.5">
-                {period === 'all' ? 'Monthly revenue vs expenses — trailing 12 months' : `Daily revenue vs expenses — ${periodMeta.periodLabel}`}
-              </p>
-            </div>
-            <div className="flex gap-1.5">
-              {[['bar','Bar'],['line','Line'],['area','Area']].map(([val, label]) => (
-                <button key={val} onClick={() => setChartType(val)}
-                  className={`chip btn-shine ${chartType === val ? 'active' : ''}`}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="flex items-center gap-4 mb-3 text-xs">
-            <span className="flex items-center gap-1.5 text-white/50"><span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--accent)', display: 'inline-block' }}></span>Revenue: <b className="text-white/80">{formatCurrency(chartData.reduce((s, d) => s + (d.revenue || 0), 0))}</b></span>
-            <span className="flex items-center gap-1.5 text-white/50"><span style={{ width: 8, height: 8, borderRadius: 2, background: '#ef4444', display: 'inline-block' }}></span>Expenses: <b className="text-white/80">{formatCurrency(chartData.reduce((s, d) => s + (d.expenses || 0), 0))}</b></span>
-          </div>
-          <div className="h-64">
-            {!chartHasData ? (
-              <div className="h-full flex flex-col items-center justify-center text-center gap-2">
-                <TrendingUp size={28} className="text-white/15" />
-                <p className="text-sm text-white/30">No invoices or expenses recorded {period === 'all' ? 'in the last 12 months' : `in ${periodMeta.periodLabel}`}</p>
-              </div>
-            ) : <>
-            {chartType === 'bar' && (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.3)' }} interval={period === 'month' ? Math.ceil(chartData.length / 12) - 1 : 0} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} width={70} tickFormatter={(v) => v >= 100000 ? `₹${(v/100000).toFixed(1)}L` : v >= 1000 ? `₹${(v/1000).toFixed(0)}k` : `₹${v}`} axisLine={false} tickLine={false} />
-                  <Tooltip formatter={fmtTooltip} contentStyle={{ background: 'rgba(12,16,32,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff', backdropFilter: 'blur(20px)' }} />
-                  <Bar dataKey="revenue" fill="var(--accent)" radius={[4,4,0,0]} name="Revenue" />
-                  <Bar dataKey="expenses" fill="#ef4444" radius={[4,4,0,0]} name="Expenses" fillOpacity={0.65} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-            {chartType === 'line' && (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.3)' }} interval={period === 'month' ? Math.ceil(chartData.length / 12) - 1 : 0} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} width={70} tickFormatter={(v) => v >= 100000 ? `₹${(v/100000).toFixed(1)}L` : v >= 1000 ? `₹${(v/1000).toFixed(0)}k` : `₹${v}`} axisLine={false} tickLine={false} />
-                  <Tooltip formatter={fmtTooltip} contentStyle={{ background: 'rgba(12,16,32,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} />
-                  <Line type="monotone" dataKey="revenue" stroke="#4f8fff" strokeWidth={2.5} name="Revenue" dot={chartData.length <= 15} />
-                  <Line type="monotone" dataKey="expenses" stroke="#ef4444" strokeWidth={2} name="Expenses" dot={chartData.length <= 15} strokeDasharray="4 3" />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
-            {chartType === 'area' && (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.3)' }} interval={period === 'month' ? Math.ceil(chartData.length / 12) - 1 : 0} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} width={70} tickFormatter={(v) => v >= 100000 ? `₹${(v/100000).toFixed(1)}L` : v >= 1000 ? `₹${(v/1000).toFixed(0)}k` : `₹${v}`} axisLine={false} tickLine={false} />
-                  <Tooltip formatter={fmtTooltip} contentStyle={{ background: 'rgba(12,16,32,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} />
-                  <defs>
-                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--accent)" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="var(--accent)" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="colorExpenses" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <Area type="monotone" dataKey="revenue" stroke="var(--accent)" strokeWidth={2.5} fill="url(#colorRevenue)" name="Revenue" />
-                  <Area type="monotone" dataKey="expenses" stroke="#ef4444" strokeWidth={2} fill="url(#colorExpenses)" name="Expenses" />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
-            </>}
-          </div>
-        </div>
-
-        <div className="space-y-4" style={{ animation: 'entranceUp 0.7s cubic-bezier(0.16,1,0.3,1) 0.5s both' }}>
-          {/* GST Summary */}
-          <div className="card card-premium">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-white text-[15px]">GST Summary</h3>
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-white/25">{periodSub}</span>
-            </div>
-            <div className="space-y-3">
-              <div className="gst-card cgst rounded-xl p-4 relative overflow-hidden">
-                <p className="text-sm font-semibold text-blue-400 mb-1">Output GST (Sales)</p>
-                <p className="text-xl font-extrabold text-blue-300" style={{ fontFamily: '"Space Grotesk", sans-serif' }}>{formatCurrency(stats.outputGST?.total || 0)}</p>
-                <div className="flex gap-3 mt-2 text-[10px] text-white/30">
-                  <span>CGST: {formatCurrency(stats.outputGST?.cgst || 0)}</span>
-                  <span>SGST: {formatCurrency(stats.outputGST?.sgst || 0)}</span>
-                  <span>IGST: {formatCurrency(stats.outputGST?.igst || 0)}</span>
-                </div>
-              </div>
-              <div className="gst-card sgst rounded-xl p-4 relative overflow-hidden">
-                <p className="text-sm font-semibold text-cyan-400 mb-1">Input GST (Purchases)</p>
-                <p className="text-xl font-extrabold text-cyan-300" style={{ fontFamily: '"Space Grotesk", sans-serif' }}>{formatCurrency(stats.inputGST?.total || 0)}</p>
-                <div className="flex gap-3 mt-2 text-[10px] text-white/30">
-                  <span>CGST: {formatCurrency(stats.inputGST?.cgst || 0)}</span>
-                  <span>SGST: {formatCurrency(stats.inputGST?.sgst || 0)}</span>
-                  <span>IGST: {formatCurrency(stats.inputGST?.igst || 0)}</span>
-                </div>
-              </div>
-              <div className="gst-card igst rounded-xl p-4 relative overflow-hidden">
-                <p className="text-sm font-semibold text-red-400 mb-1">Net Payable</p>
-                <p className="text-xl font-extrabold text-red-300" style={{ fontFamily: '"Space Grotesk", sans-serif' }}>{formatCurrency(netPayable)}</p>
-                <div className="flex gap-3 mt-2 text-[10px] text-white/30">
-                  <span>CGST: {formatCurrency(stats.netPayable?.cgst || 0)}</span>
-                  <span>SGST: {formatCurrency(stats.netPayable?.sgst || 0)}</span>
-                  <span>IGST: {formatCurrency(stats.netPayable?.igst || 0)}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* GST Pie */}
-          {gstPie.length > 0 && (
-            <div className="card card-premium">
-              <h3 className="font-bold text-white mb-2 text-[15px]">GST Split</h3>
-              <div style={{ height: 120 }}>
+          <Widget className="db-span-8" title="Cash flow" sub="Revenue vs expenses">
+            {chart.some(d => d.revenue || d.expenses) ? (
+              <div style={{ height: 260 }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={gstPie} cx="50%" cy="50%" outerRadius={50} innerRadius={25} dataKey="value" strokeWidth={0}>
-                      {gstPie.map((_, idx) => <Cell key={idx} fill={CHART_COLORS[idx % CHART_COLORS.length]} />)}
-                    </Pie>
-                    <Tooltip formatter={fmtTooltip} contentStyle={{ background: 'rgba(12,16,32,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} />
-                  </PieChart>
+                  <AreaChart data={chart} margin={{ top: 6, right: 6, left: -8, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="gRev" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="var(--accent)" stopOpacity={0.28} /><stop offset="1" stopColor="var(--accent)" stopOpacity={0} /></linearGradient>
+                    </defs>
+                    <CartesianGrid stroke="var(--border)" vertical={false} />
+                    <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis tickFormatter={compact} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} width={64} />
+                    <Tooltip content={<ChartTip />} />
+                    <Area type="monotone" dataKey="revenue" name="Revenue" stroke="var(--accent)" strokeWidth={2.5} fill="url(#gRev)" />
+                    <Area type="monotone" dataKey="expenses" name="Expenses" stroke="var(--text-muted)" strokeWidth={2} strokeDasharray="5 4" fill="none" />
+                  </AreaChart>
                 </ResponsiveContainer>
               </div>
-              <div className="flex justify-center gap-3 mt-1">
-                {gstPie.map((d, i) => <span key={i} className="text-xs flex items-center gap-1.5 text-white/40"><span style={{ width: 8, height: 8, borderRadius: '50%', background: CHART_COLORS[i], display: 'inline-block' }}></span>{d.name}</span>)}
+            ) : <div className="db-empty">No sales or expenses in this period yet.</div>}
+          </Widget>
+
+          <Widget className="db-span-4" title={`GST · FY ${gstQ?.fy || ''}`} sub="Quarterly return (QRMP)" action={<Link to="/app/gst" className="db-link">Details</Link>}>
+            {gstQ?.quarters?.length ? (
+              <>
+                <div className="db-qtrs">
+                  {gstQ.quarters.map(q => (
+                    <div key={q.quarter} className={`db-qtr ${q.quarter === nowQ ? 'now' : ''}`}>
+                      <div className="db-qtr-label">{q.label}</div>
+                      <div className="db-qtr-val">{compact(q.payable?.total || 0)}</div>
+                      <div className="db-qtr-due">{q.due?.gstr3b ? `Due ${formatDate(q.due.gstr3b)}` : ''}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="db-legend">
+                  <div className="db-legend-item">Output GST<b>{compact(gstQ.totals?.outputGST)}</b></div>
+                  <div className="db-legend-item">Input credit<b>{compact(gstQ.totals?.inputGST)}</b></div>
+                  <div className="db-legend-item">Payable<b>{compact(gstQ.totals?.payable)}</b></div>
+                </div>
+              </>
+            ) : <div className="db-empty">Quarterly GST will appear once invoices are added.</div>}
+          </Widget>
+
+          <Widget className="db-span-6" title="Receivables ageing" sub={`${compact(s.pendingAmount || 0)} outstanding`} action={<Link to="/app/invoices" className="db-link">Collect</Link>}>
+            {agingTotal > 0 ? (
+              <>
+                <div className="db-aging">{aging.filter(a => a.amt > 0).map(a => <span key={a.label} style={{ width: `${(a.amt / agingTotal) * 100}%`, background: a.color }} />)}</div>
+                <div className="db-legend">{aging.map(a => <div key={a.label} className="db-legend-item"><span className="db-kpi-dot" style={{ background: a.color, display: 'inline-block', marginRight: 6 }} />{a.label}<b>{compact(a.amt)}</b></div>)}</div>
+              </>
+            ) : <div className="db-empty">Nothing outstanding. 🎉</div>}
+          </Widget>
+
+          <Widget className="db-span-6" title="Top customers" sub={periodLabel} action={<Link to="/app/customers" className="db-link">All</Link>}>
+            {top.length ? top.slice(0, 5).map(c => (
+              <Link key={c.id} to={`/app/customers/${c.id}`} className="db-row" style={{ display: 'block' }}>
+                <div className="flex justify-between gap-3"><span className="db-row-title">{c.name}</span><span className="db-amt">{compact(c.totalBusiness)}</span></div>
+                <div className="db-bar" style={{ marginTop: 6 }}><span style={{ width: `${(Number(c.totalBusiness) / topMax) * 100}%`, background: 'var(--accent)' }} /></div>
+              </Link>
+            )) : <div className="db-empty">No customer sales yet.</div>}
+          </Widget>
+
+          <Widget className="db-span-8" title="Recent invoices" action={<Link to="/app/invoices" className="db-link">View all</Link>}>
+            {recent.length ? recent.slice(0, 6).map(inv => (
+              <Link key={inv.id} to={`/app/invoices/${inv.id}`} className="db-row">
+                <div className="db-row-main"><div className="db-row-title">{inv.customer_name || 'Walk-in'}</div><div className="db-row-sub">{inv.invoice_number} · {formatDate(inv.invoice_date)}</div></div>
+                <div className="flex items-center gap-3"><span className={`status-badge status-${inv.payment_status || 'pending'}`}>{inv.payment_status || 'pending'}</span><span className="db-amt">{formatCurrency(inv.total_amount)}</span></div>
+              </Link>
+            )) : <div className="db-empty">No invoices yet. <Link to="/app/invoices/new" className="db-link">Create your first</Link></div>}
+          </Widget>
+
+          <Widget className="db-span-4" title="Low stock" sub="Below minimum quantity">
+            {lowStock.length ? lowStock.slice(0, 6).map(it => (
+              <div key={it.id} className="db-row">
+                <div className="db-row-main flex items-center gap-2"><Package size={14} style={{ color: 'var(--neg)' }} /><span className="db-row-title">{it.item_name}</span></div>
+                <span className="db-amt" style={{ color: 'var(--neg)' }}>{Number(it.quantity)} / {Number(it.min_quantity)} {it.unit || ''}</span>
               </div>
+            )) : <div className="db-empty">All items are stocked.</div>}
+            <div className="db-legend" style={{ borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+              <div className="db-legend-item">Customers<b>{s.customerCount || 0}</b></div>
+              <div className="db-legend-item">Quotes<b>{s.quotationCount || 0}</b></div>
+              <div className="db-legend-item">Purchases<b>{compact(s.purchaseTotal || 0)}</b></div>
             </div>
-          )}
+          </Widget>
         </div>
-      </div>
-
-      {/* ═══════════════════════════════════════════
-          RECENT INVOICES + TOP CUSTOMERS — AnimatedList
-          ═══════════════════════════════════════════ */}
-      <div className="grid lg:grid-cols-2 gap-6">
-        <BorderGlow borderRadius={18} glowRadius={25} glowIntensity={0.5} animated={true}>
-          <div className="card card-premium" style={{ animation: 'entranceUp 0.6s cubic-bezier(0.16,1,0.3,1) 0.5s both' }}>
-            <div className="shimmer"></div>
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="font-bold text-white text-[15px]">Recent Invoices</h3>
-              <Link to="/app/invoices" className="text-sm font-semibold accent-text btn-shine" style={{ padding: '4px 10px', borderRadius: 8 }}>View All →</Link>
-            </div>
-            {recentInvoices.length === 0 ? (
-              <p className="text-center py-8 text-white/25">No invoices yet. Create your first invoice!</p>
-            ) : (
-              <div style={{ height: 320 }}>
-                <AnimatedList
-                  items={recentInvoices.slice(0, 6)}
-                  renderItem={invoiceListItem}
-                  keyExtractor={(inv) => inv.id}
-                  showGradients={true}
-                  enableArrowNavigation={false}
-                  displayScrollbar={false}
-                />
-              </div>
-            )}
-          </div>
-        </BorderGlow>
-
-        <BorderGlow borderRadius={18} glowRadius={25} glowIntensity={0.5} animated={true}>
-          <div className="card card-premium" style={{ animation: 'entranceUp 0.6s cubic-bezier(0.16,1,0.3,1) 0.6s both' }}>
-            <div className="shimmer"></div>
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="font-bold text-white text-[15px]">Top Customers</h3>
-              <Link to="/app/customers" className="text-sm font-semibold accent-text btn-shine" style={{ padding: '4px 10px', borderRadius: 8 }}>View All →</Link>
-            </div>
-            {topCustomers.length === 0 ? (
-              <p className="text-center py-8 text-white/25">No customer data yet</p>
-            ) : (
-              <div style={{ height: 320 }}>
-                <AnimatedList
-                  items={topCustomers}
-                  renderItem={customerListItem}
-                  keyExtractor={(c) => c.id}
-                  showGradients={true}
-                  enableArrowNavigation={false}
-                  displayScrollbar={false}
-                />
-              </div>
-            )}
-          </div>
-        </BorderGlow>
-      </div>
-
-      <GSTCalcModal />
+      )}
     </div>
   )
 }
