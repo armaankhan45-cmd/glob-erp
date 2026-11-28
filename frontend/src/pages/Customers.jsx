@@ -13,8 +13,8 @@ export default function Customers() {
   const customers = data?.customers || []
 
   const del = async (c) => {
-    if (!confirm(`Delete customer ${c.name}? Their invoices stay.`)) return
-    try { await api.delete('/customers/' + c.id); invalidateCache('/customers'); refetch() } catch { alert('Delete failed') }
+    if (!confirm(`Delete customer ${c.name}?`)) return
+    try { await api.delete('/customers/' + c.id); invalidateCache('/customers'); refetch() } catch (e) { alert(e.response?.data?.msg || 'Delete failed') }
   }
 
   const tests = { all: () => true, outstanding: c => num(c.outstanding) > 0, gst: c => !!c.gstin, nogst: c => !c.gstin }

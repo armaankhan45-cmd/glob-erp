@@ -105,7 +105,7 @@ app.get('/api/ping', (req, res) => {
   res.json({ ok: true, ts: Date.now() });
 });
 
-app.use(express.json({ limit: '10mb' }));
+app.use((req, res, next) => req.path === '/api/backups/restore-file' ? next() : express.json({ limit: '10mb' })(req, res, next));
 app.use(express.urlencoded({ extended: true }));
 
 app.use('/api/', apiLimiter);
@@ -286,6 +286,7 @@ function safe(path) {
 }
 
 app.use('/api', require('./services/cache').bustOnWrite);
+app.use('/api/backups', safe('./routes/backupRoutes'));
 app.use('/api/items', safe('./routes/itemRoutes'));
 app.use('/api/auth', safe('./routes/authRoutes'));
 app.use('/api/customers', safe('./routes/customerRoutes'));
@@ -334,6 +335,7 @@ if (require.main === module) app.listen(PORT, () => {
   // ═══════════════════════════════════════════════════════════════
   try { db?.raw('SELECT 1').then(() => console.log('⚡ DB pre-warmed')).catch(() => {}); } catch(e) {}
   setupDB();
+  try { require('./services/backup').startScheduler(db); console.log('💾 Daily auto-backup scheduler on'); } catch (e) { console.error('Backup scheduler not started:', e.message); }
 });
 
 async function setupDB() {

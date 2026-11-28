@@ -74,6 +74,29 @@ const ok = (cond, label) => { if (!cond) fails.push(label); console.log((cond ? 
   await page.getByRole('tab', { name: /Paid/ }).click();
   ok(await page.getByText('Ravi Transport').first().isVisible(), 'invoice shows under the Paid filter');
 
+  // Backups: back up, delete the customer's invoice, restore, invoice is back
+  await page.goto(WEB + '/app/settings?tab=backups'); await page.waitForTimeout(2500);
+  await page.getByRole('button', { name: 'Back up now' }).click();
+  await page.waitForTimeout(2500);
+  ok(await page.getByText(/Backup saved/).isVisible(), 'Back up now saves a backup');
+  await page.screenshot({ path: process.env.SHOTS ? process.env.SHOTS + '/settings-backups.png' : '/dev/null' });
+  await page.goto(WEB + '/app/invoices'); await page.waitForTimeout(2000);
+  await page.locator('button[title=Delete]').first().click();
+  await page.waitForTimeout(2000);
+  ok(!(await page.getByText('Ravi Transport').first().isVisible().catch(() => false)), 'invoice deleted (it had payments)');
+  await page.goto(WEB + '/app/settings?tab=backups'); await page.waitForTimeout(2500);
+  await page.locator('tr', { hasText: 'Manual' }).first().locator('button[title="Restore this backup"]').click();
+  await page.waitForTimeout(4000);
+  ok(await page.getByText(/Restored \d+ records/).isVisible(), 'one-click restore reports success');
+  await page.goto(WEB + '/app/invoices'); await page.waitForTimeout(2000);
+  ok(await page.getByText('Ravi Transport').first().isVisible(), 'deleted invoice is back after restore');
+
+  for (const [path, name] of [['reports', 'reports'], ['gst', 'gst'], ['vehicle-papers', 'vehicle-papers'], ['settings', 'settings']]) {
+    if (!process.env.SHOTS) break;
+    await page.goto(WEB + '/app/' + path); await page.waitForTimeout(3000);
+    await page.screenshot({ path: `${process.env.SHOTS}/${name}.png` });
+  }
+
   await page.goto(WEB + '/app/dashboard'); await page.waitForTimeout(3000);
   ok(crashes.length === 0, 'no crashes during the flow' + (crashes.length ? ': ' + crashes[0] : ''));
   await browser.close();

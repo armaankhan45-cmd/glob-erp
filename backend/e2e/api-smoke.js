@@ -66,6 +66,30 @@ const call = async (method, url, body, expect = [200, 201]) => {
   const ageing = await call('GET', '/reports/ageing');
   check('ageing has the unpaid invoice', Object.values(ageing.buckets || {}).flat().length, 1);
 
+  // Backups: take one, damage data, restore, data comes back
+  const bk = await call('POST', '/backups', { note: 'e2e' });
+  check('backup captured the invoice', bk.backup?.counts?.invoices, 1);
+  const before = (await call('GET', '/customers')).customers?.length;
+  if (custId) { await call('DELETE', `/customers/${cust2.customer?.id || cust2.id}`) }
+  await call('DELETE', `/invoices/${invId}`);
+  const rs = await call('POST', `/backups/${bk.backup?.id}/restore`);
+  check('restore brought invoices back', rs.restored?.invoices, 1);
+  check('restore brought invoice items back', rs.restored?.invoice_items, 1);
+  check('customers after restore', (await call('GET', '/customers')).customers?.length, before);
+  const back = await call('GET', `/invoices/${invId}`);
+  check('restored invoice keeps its items', (back.items || back.invoice?.items || []).length, 1);
+  const list2 = await call('GET', '/backups');
+  check('a safety copy is taken before restoring', (list2.backups || []).some(b => b.kind === 'pre-restore'), true);
+  const dl = await fetch(API + `/api/backups/${bk.backup?.id}/download`, { headers: { Authorization: 'Bearer ' + token } });
+  const file = Buffer.from(await dl.arrayBuffer());
+  check('download is a gzip file', file[0] === 0x1f && file[1] === 0x8b, true);
+  const up = await fetch(API + '/api/backups/restore-file', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/gzip' }, body: file });
+  check('restore from an uploaded file works', up.status, 200);
+  const bad = await fetch(API + '/api/backups/restore-file', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/octet-stream' }, body: 'hello' });
+  check('a non-backup file is rejected', bad.status, 400);
+  const fresh = await call('POST', '/customers', { name: 'After Restore Co' });
+  check('new records still save after restore', !!(fresh.customer?.id || fresh.id), true);
+
   // Every parameter-free GET route
   const routesDir = path.join(__dirname, '../src/routes');
   const mounts = [...fs.readFileSync(path.join(__dirname, '../src/server.js'), 'utf8').matchAll(/app\.use\('(\/api\/[^']+)', safe\('\.\/routes\/(\w+)'\)\)/g)];

@@ -19,7 +19,7 @@ const j = async (method, url, token, body) => (await fetch(API + '/api' + url, {
 
   const pages = ['dashboard', 'invoices', 'invoices/new', `invoices/${ids.inv}`, `invoices/${ids.inv}/edit`, 'quotations', 'quotations/new', `quotations/${ids.quo}`, `quotations/${ids.quo}/edit`,
     'customers', 'customers/new', `customers/${custId}`, `customers/${custId}/edit`, 'purchases', 'purchases/new', `purchases/${ids.pur}`, `purchases/${ids.pur}/edit`,
-    'vehicle-papers', 'vehicle-papers/new/money_receipt', 'gst', 'reports', 'ai-assistant', 'settings', 'fonts', 'export', 'deploy', 'diagnostics', 'audit'];
+    'vehicle-papers', 'vehicle-papers/new/money_receipt', 'gst', 'reports', 'ai-assistant', 'settings', 'settings?tab=backups', 'fonts', 'export', 'deploy', 'diagnostics', 'audit'];
 
   const browser = await chromium.launch();
   const problems = []; let apiCalls = 0, opened = 0;

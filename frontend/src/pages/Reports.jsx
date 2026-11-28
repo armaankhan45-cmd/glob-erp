@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../api/client'
+import { PageHeader, Chips, StatTiles } from '../components/ui'
 import { formatCurrency, formatDate } from '../utils'
 import { Download, Loader2, ChevronDown, ChevronRight, CheckCircle2, CalendarClock, Info } from 'lucide-react'
 
@@ -62,19 +63,12 @@ function QuarterlyGst() {
         <div className="card text-center py-10" style={muted}>Couldn't load the quarterly report. Please try again.</div>
       ) : (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            {[
-              ['Output tax (sales)', data.totals.output.total, '#6ea8fe'],
-              ['Input tax credit (purchases)', data.totals.input.total, '#fb923c'],
-              ['Tax payable in cash — full year', data.totals.payable, '#f87171'],
-              ['Credit carried to next year', data.totals.closingCredit, '#4ade80'],
-            ].map(([label, val, color]) => (
-              <div key={label} className="card" style={{ padding: 16, borderLeft: `3px solid ${color}` }}>
-                <p className="text-xs" style={muted}>{label}</p>
-                <p className="text-xl font-bold mt-1" style={{ color }}>{formatCurrency(val)}</p>
-              </div>
-            ))}
-          </div>
+          <StatTiles items={[
+            { label: 'Output tax (sales)', value: formatCurrency(data.totals.output.total), tone: 'info' },
+            { label: 'Input tax credit', value: formatCurrency(data.totals.input.total), tone: 'warn' },
+            { label: 'Payable in cash (year)', value: formatCurrency(data.totals.payable), tone: 'neg' },
+            { label: 'Credit carried forward', value: formatCurrency(data.totals.closingCredit), tone: 'pos' },
+          ]} />
 
           <div className="grid md:grid-cols-2 gap-4">
             {data.quarters.map(q => {
@@ -93,10 +87,10 @@ function QuarterlyGst() {
                   </div>
 
                   <p className="text-xs" style={muted}>{status === 'running' ? 'Tax payable so far' : 'Tax payable (cash)'}</p>
-                  <p className="text-3xl font-extrabold" style={{ color: pays ? '#f87171' : '#4ade80' }}>{formatCurrency(q.payable.total)}</p>
+                  <p className="text-3xl font-extrabold" style={{ color: pays ? 'var(--neg)' : 'var(--pos)' }}>{formatCurrency(q.payable.total)}</p>
                   <p className="text-xs mt-1 flex items-center gap-1.5" style={muted}>
                     {pays ? <><CalendarClock size={13} /> Return &amp; payment due {fmtDue(q.dueDate)}
-                      {status === 'done' && (dueIn >= 0 ? <b style={{ color: dueIn <= 10 ? '#fbbf24' : 'inherit' }}> · in {dueIn} day{dueIn === 1 ? '' : 's'}</b> : <b style={{ color: '#f87171' }}> · date passed</b>)}</>
+                      {status === 'done' && (dueIn >= 0 ? <b style={{ color: dueIn <= 10 ? 'var(--warn)' : 'inherit' }}> · in {dueIn} day{dueIn === 1 ? '' : 's'}</b> : <b style={{ color: 'var(--neg)' }}> · date passed</b>)}</>
                       : <><CheckCircle2 size={13} /> Nothing to pay{q.closing.total > 0 ? ` — ${formatCurrency(q.closing.total)} credit carries forward` : ''}</>}
                   </p>
                   {pays && q.closing.total > 0 && <p className="text-xs mt-0.5" style={muted}>+ {formatCurrency(q.closing.total)} credit carries forward</p>}
@@ -108,10 +102,10 @@ function QuarterlyGst() {
                         {[['CGST', 'cgst'], ['SGST', 'sgst'], ['IGST', 'igst']].map(([lbl, k]) => (
                           <tr key={k}><td className="font-medium text-white">{lbl}</td>
                             <td className="text-right">{formatCurrency(q.output[k])}</td><td className="text-right">{formatCurrency(q.input[k])}</td>
-                            <td className="text-right font-semibold" style={{ color: q.payable[k] > 0 ? '#f87171' : undefined }}>{formatCurrency(q.payable[k])}</td>
-                            <td className="text-right" style={{ color: q.closing[k] > 0 ? '#4ade80' : undefined }}>{formatCurrency(q.closing[k])}</td></tr>
+                            <td className="text-right font-semibold" style={{ color: q.payable[k] > 0 ? 'var(--neg)' : undefined }}>{formatCurrency(q.payable[k])}</td>
+                            <td className="text-right" style={{ color: q.closing[k] > 0 ? 'var(--pos)' : undefined }}>{formatCurrency(q.closing[k])}</td></tr>
                         ))}
-                        <tr style={{ fontWeight: 700 }}><td className="text-white">Total</td><td className="text-right">{formatCurrency(q.output.total)}</td><td className="text-right">{formatCurrency(q.input.total)}</td><td className="text-right">{formatCurrency(q.payable.total)}</td><td className="text-right">{formatCurrency(q.closing.total)}</td></tr>
+                        <tr style={{ fontWeight: 700 }}><td >Total</td><td className="text-right">{formatCurrency(q.output.total)}</td><td className="text-right">{formatCurrency(q.input.total)}</td><td className="text-right">{formatCurrency(q.payable.total)}</td><td className="text-right">{formatCurrency(q.closing.total)}</td></tr>
                       </tbody>
                     </table>
                   </div>
@@ -204,10 +198,10 @@ function ClassicReport({ tab }) {
                 <tbody>
                   {rows.map((row, i) => (
                     <tr key={i}>{tab === 'item-wise'
-                      ? <><td className="text-white">{row.description}</td><td>{row.hsn_code}</td><td className="text-right">{row.total_qty}</td><td className="text-right font-medium">{formatCurrency(row.total_amount)}</td></>
-                      : <><td className="text-white">{row.customer_name || '—'}</td><td className="font-mono text-xs">{row.gstin || '-'}</td><td className="text-right">{row.invoice_count}</td><td className="text-right font-medium">{formatCurrency(row.total_amount)}</td></>}</tr>
+                      ? <><td >{row.description}</td><td>{row.hsn_code}</td><td className="text-right">{row.total_qty}</td><td className="text-right font-medium">{formatCurrency(row.total_amount)}</td></>
+                      : <><td >{row.customer_name || '—'}</td><td className="font-mono text-xs">{row.gstin || '-'}</td><td className="text-right">{row.invoice_count}</td><td className="text-right font-medium">{formatCurrency(row.total_amount)}</td></>}</tr>
                   ))}
-                  {rows.length > 0 && <tr style={{ fontWeight: 700 }}><td colSpan={3} className="text-white">Total</td><td className="text-right">{formatCurrency(total)}</td></tr>}
+                  {rows.length > 0 && <tr style={{ fontWeight: 700 }}><td colSpan={3} >Total</td><td className="text-right">{formatCurrency(total)}</td></tr>}
                 </tbody>
               </table>
               {rows.length === 0 && <p className="text-center py-8" style={muted}>No data for this period</p>}
@@ -229,13 +223,8 @@ export default function Reports() {
   ]
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Reports</h1>
-        <p className="text-sm" style={muted}>Indian financial year (April – March) · GST settled quarterly</p>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {tabs.map(t => <button key={t.id} onClick={() => setTab(t.id)} className={`chip ${tab === t.id ? 'active' : ''}`}>{t.label}</button>)}
-      </div>
+      <PageHeader title="Reports" subtitle="Indian financial year (April – March) · GST settled quarterly" />
+      <Chips value={tab} onChange={setTab} options={tabs.map(t => ({ value: t.id, label: t.label }))} />
       {tab === 'quarterly' ? <QuarterlyGst /> : <ClassicReport key={tab} tab={tab} />}
     </div>
   )

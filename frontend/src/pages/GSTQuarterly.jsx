@@ -4,10 +4,10 @@ import { formatCurrency } from '../utils'
 import { Download, Loader2, CalendarClock, AlertTriangle, CheckCircle2, Clock, Info, FileText, ShoppingCart } from 'lucide-react'
 
 const STATUS = {
-  upcoming:       { text: 'Upcoming',            color: '#64748b' },
-  in_progress:    { text: 'Quarter running',     color: '#3b82f6' },
-  filing_open:    { text: 'Filing window open',  color: '#f59e0b' },
-  past_due_date:  { text: 'Due date passed',     color: '#ef4444' },
+  upcoming:       { text: 'Upcoming',            color: 'var(--text-muted)' },
+  in_progress:    { text: 'Quarter running',     color: 'var(--info)' },
+  filing_open:    { text: 'Filing window open',  color: 'var(--warn)' },
+  past_due_date:  { text: 'Due date passed',     color: 'var(--neg)' },
 }
 const daysUntil = (iso) => {
   if (!iso) return null
@@ -23,9 +23,9 @@ const fmtDate = (iso) => {
 }
 function Countdown({ days }) {
   if (days == null) return null
-  if (days < 0) return <span style={{ color: '#ef4444' }}>{Math.abs(days)} day{Math.abs(days) === 1 ? '' : 's'} overdue</span>
-  if (days === 0) return <span style={{ color: '#f59e0b' }}>due today</span>
-  return <span style={{ color: days <= 7 ? '#f59e0b' : 'var(--text-secondary)' }}>{days} day{days === 1 ? '' : 's'} left</span>
+  if (days < 0) return <span style={{ color: 'var(--neg)' }}>{Math.abs(days)} day{Math.abs(days) === 1 ? '' : 's'} overdue</span>
+  if (days === 0) return <span style={{ color: 'var(--warn)' }}>due today</span>
+  return <span style={{ color: days <= 7 ? 'var(--warn)' : 'var(--text-secondary)' }}>{days} day{days === 1 ? '' : 's'} left</span>
 }
 
 export default function GSTQuarterly({ year }) {
@@ -60,7 +60,7 @@ export default function GSTQuarterly({ year }) {
     } catch { alert('Download failed') } finally { setDownloading(false) }
   }
 
-  if (error) return <div className="card text-sm" style={{ color: '#ef4444' }}>Couldn't load the quarterly report. Try refreshing.</div>
+  if (error) return <div className="card text-sm" style={{ color: 'var(--neg)' }}>Couldn't load the quarterly report. Try refreshing.</div>
   if (!data) return <div className="flex justify-center py-16"><div className="animate-spin h-8 w-8 border-4 rounded-full" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} /></div>
 
   const q = data.quarters.find(x => x.quarter === sel) || data.quarters[0]
@@ -85,10 +85,10 @@ export default function GSTQuarterly({ year }) {
 
       {/* FY headline */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Stat label="Output GST (sales)" value={data.totals.outputGST} color="#3b82f6" />
-        <Stat label="Input GST (ITC)" value={data.totals.inputGST} color="#f97316" />
-        <Stat label="Cash GST payable" value={data.totals.payable} color="#ef4444" sub="after using available credit" />
-        <Stat label="Credit carried forward" value={data.totals.closingCredit} color="#22c55e" sub="into next year" />
+        <Stat label="Output GST (sales)" value={data.totals.outputGST} color="var(--info)" />
+        <Stat label="Input GST (ITC)" value={data.totals.inputGST} color="var(--warn)" />
+        <Stat label="Cash GST payable" value={data.totals.payable} color="var(--neg)" sub="after using available credit" />
+        <Stat label="Credit carried forward" value={data.totals.closingCredit} color="var(--pos)" sub="into next year" />
       </div>
 
       {/* Quarter cards */}
@@ -105,7 +105,7 @@ export default function GSTQuarterly({ year }) {
               </div>
               <p className="text-[11px] text-white/40 mt-0.5">{x.name.replace(/^Q\d\s*/, '').replace(/[()]/g, '')}</p>
               <p className="text-[11px] text-white/40 mt-2">GST payable</p>
-              <p className="text-lg font-bold" style={{ color: x.payable.total > 0 ? '#ef4444' : 'var(--text-primary, inherit)' }}>{formatCurrency(x.payable.total)}</p>
+              <p className="text-lg font-bold" style={{ color: x.payable.total > 0 ? 'var(--neg)' : 'var(--text-primary, inherit)' }}>{formatCurrency(x.payable.total)}</p>
               <p className="text-[11px] text-white/35 mt-1">Out {formatCurrency(x.output.gst)} · In {formatCurrency(x.input.gst)}</p>
             </button>
           )
@@ -121,7 +121,7 @@ export default function GSTQuarterly({ year }) {
           </div>
           <div className="text-right">
             <p className="text-xs text-white/40">{q.payable.total > 0 ? 'Pay with GSTR-3B' : 'Nothing to pay in cash'}</p>
-            <p className="text-2xl font-extrabold" style={{ color: q.payable.total > 0 ? '#ef4444' : '#22c55e' }}>{formatCurrency(q.payable.total)}</p>
+            <p className="text-2xl font-extrabold" style={{ color: q.payable.total > 0 ? 'var(--neg)' : 'var(--pos)' }}>{formatCurrency(q.payable.total)}</p>
           </div>
         </div>
 
@@ -144,7 +144,7 @@ export default function GSTQuarterly({ year }) {
                     <td className="text-right">{formatCurrency(q.output[h])}</td>
                     <td className="text-right">{formatCurrency(q.input[h])}</td>
                     <td className="text-right text-white/30">—</td>
-                    <td className="text-right font-semibold" style={{ color: q.payable[h] > 0 ? '#ef4444' : undefined }}>{formatCurrency(q.payable[h])}</td>
+                    <td className="text-right font-semibold" style={{ color: q.payable[h] > 0 ? 'var(--neg)' : undefined }}>{formatCurrency(q.payable[h])}</td>
                     <td className="text-right">{formatCurrency(q.closingHeads?.[h] ?? 0)}</td>
                   </tr>
                 ))}
@@ -153,7 +153,7 @@ export default function GSTQuarterly({ year }) {
                   <td className="text-right">{formatCurrency(q.output.gst)}</td>
                   <td className="text-right">{formatCurrency(q.input.gst)}</td>
                   <td className="text-right">{formatCurrency(q.openingCredit || 0)}</td>
-                  <td className="text-right" style={{ color: q.payable.total > 0 ? '#ef4444' : undefined }}>{formatCurrency(q.payable.total)}</td>
+                  <td className="text-right" style={{ color: q.payable.total > 0 ? 'var(--neg)' : undefined }}>{formatCurrency(q.payable.total)}</td>
                   <td className="text-right">{formatCurrency(q.closingCredit)}</td>
                 </tr>
               </tbody>
@@ -204,7 +204,7 @@ export default function GSTQuarterly({ year }) {
                       <td className="text-right text-blue-400">{formatCurrency(m.outputGST)}</td>
                       <td className="text-right">{formatCurrency(purAmt)}</td>
                       <td className="text-right text-orange-400">{formatCurrency(m.inputGST)}</td>
-                      <td className="text-right font-semibold" style={{ color: net > 0 ? '#ef4444' : '#22c55e' }}>{net > 0 ? '' : '−'}{formatCurrency(Math.abs(net))}</td>
+                      <td className="text-right font-semibold" style={{ color: net > 0 ? 'var(--neg)' : 'var(--pos)' }}>{net > 0 ? '' : '−'}{formatCurrency(Math.abs(net))}</td>
                     </tr>
                   )
                 })}
@@ -214,7 +214,7 @@ export default function GSTQuarterly({ year }) {
         </div>
       </div>
 
-      <div className="flex items-start gap-2 text-xs rounded-lg p-3" style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)', color: '#d97706' }}>
+      <div className="flex items-start gap-2 text-xs rounded-lg p-3" style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)', color: 'var(--warn)' }}>
         <Info size={14} className="mt-0.5 shrink-0" />
         <p>Calculated from the invoices and purchase bills recorded here. Input credit is set off as per CGST Act §49 (IGST first; CGST and SGST credit never pay each other). Please confirm figures with your CA before filing.</p>
       </div>
@@ -233,7 +233,7 @@ function Stat({ label, value, color, sub }) {
 }
 function Due({ title, date, days }) {
   const Icon = days == null ? CalendarClock : days < 0 ? AlertTriangle : days <= 7 ? Clock : CalendarClock
-  const color = days != null && days < 0 ? '#ef4444' : days != null && days <= 7 ? '#f59e0b' : 'var(--text-secondary)'
+  const color = days != null && days < 0 ? 'var(--neg)' : days != null && days <= 7 ? 'var(--warn)' : 'var(--text-secondary)'
   return (
     <div className="rounded-xl p-3 flex items-center gap-3" style={{ border: '1px solid var(--border, rgba(128,128,128,0.2))' }}>
       <Icon size={18} style={{ color }} />

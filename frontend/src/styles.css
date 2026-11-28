@@ -1060,3 +1060,5 @@ aside {
 .pay-summary b { font-size: 16px; font-weight: 800; color: var(--text-bright); font-variant-numeric: tabular-nums; }
 .pay-form { display: grid; gap: 10px; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; align-items: end; }
 @media (max-width: 760px) { .pay-form { grid-template-columns: 1fr 1fr; } .pay-summary { grid-template-columns: 1fr; } }
+.settings-savebar { position: sticky; bottom: 12px; display: flex; justify-content: flex-end; padding: 10px; border-radius: var(--r-lg); background: color-mix(in srgb, var(--bg-card) 88%, transparent); border: 1px solid var(--border); backdrop-filter: blur(8px); box-shadow: 0 6px 24px rgba(0,0,0,.08); }
+.input-field.w-auto { width: auto !important; }

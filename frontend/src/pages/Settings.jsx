@@ -1,6 +1,13 @@
 import { useState, useEffect } from 'react'
 import api from '../api/client'
 import { useAuth } from '../context/AuthContext'
+import { PageHeader, Chips } from '../components/ui'
+import BackupsPanel from '../components/BackupsPanel'
+
+const SETTINGS_TABS = [
+  { value: 'business', label: 'Business' }, { value: 'branding', label: 'Logo & fonts' }, { value: 'documents', label: 'Invoices & quotes' },
+  { value: 'email', label: 'Email' }, { value: 'users', label: 'Users', admin: true }, { value: 'security', label: 'Password' }, { value: 'backups', label: 'Backups', admin: true },
+]
 import { Save, Upload, Plus, Eye, EyeOff, Trash2, Mail, Send, Pencil, X } from 'lucide-react'
 
 // Complete font name list — 124+ fonts (all categories)
@@ -52,6 +59,8 @@ const SYSTEM_FONT_SET = new Set([
 
 export default function Settings() {
   const { user, refreshUser } = useAuth()
+  const isAdmin = user?.role === 'admin'
+  const [tab, setTab] = useState(() => { try { return new URLSearchParams(window.location.search).get('tab') || 'business' } catch { return 'business' } })
   const [org, setOrg] = useState({})
   const [settings, setSettings] = useState({})
   const [users, setUsers] = useState([])
@@ -299,12 +308,14 @@ export default function Settings() {
   )
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold">Settings</h1>
+    <div className="max-w-4xl mx-auto space-y-5">
+      <PageHeader title="Settings" subtitle="Business details, documents, users and backups" />
+      <Chips value={tab} onChange={setTab} options={SETTINGS_TABS.filter(t => isAdmin || !t.admin)} />
+      {tab === 'backups' && <BackupsPanel />}
       {msg && <div className={`p-3 rounded-lg text-sm font-medium ${msg.includes('✗') ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-green-500/10 text-green-400 border border-green-500/20'}`}>{msg}</div>}
 
       {/* Company Details */}
-      <div className="card space-y-4">
+      <div hidden={tab !== 'business'} className="card space-y-4">
         <h3 className="font-bold text-lg">Company Details</h3>
         <div className="grid md:grid-cols-2 gap-4">
           <div><label className="block text-sm font-medium text-white/70 mb-1">Company Name</label><input value={org.name || ''} onChange={e => update('name', e.target.value)} className="input-field" /></div>
@@ -321,7 +332,7 @@ export default function Settings() {
       </div>
 
       {/* Bank Details */}
-      <div className="card space-y-4">
+      <div hidden={tab !== 'business'} className="card space-y-4">
         <h3 className="font-bold text-lg">Bank Details</h3>
         <div className="grid md:grid-cols-2 gap-4">
           <div><label className="block text-sm font-medium text-white/70 mb-1">Bank Name</label><input value={org.bank_name || ''} onChange={e => update('bank_name', e.target.value)} className="input-field" /></div>
@@ -333,7 +344,7 @@ export default function Settings() {
       </div>
 
       {/* Logo + Stamp + Signature Upload */}
-      <div className="card space-y-5">
+      <div hidden={tab !== 'branding'} className="card space-y-5">
         <h3 className="font-bold text-lg">Images & Signatures</h3>
         <div>
           <label className="block text-sm font-medium text-white/70 mb-2">Business Logo (shows on invoice & sidebar)</label>
@@ -360,7 +371,7 @@ export default function Settings() {
       </div>
 
       {/* Invoice Font & Text Settings */}
-      <div className="card space-y-4">
+      <div hidden={tab !== 'documents'} className="card space-y-4">
         <h3 className="font-bold text-lg">Invoice Text Settings</h3>
         <div className="grid md:grid-cols-2 gap-4">
           <div>
@@ -388,7 +399,7 @@ export default function Settings() {
       </div>
 
       {/* Quotation Font Settings */}
-      <div className="card space-y-4">
+      <div hidden={tab !== 'documents'} className="card space-y-4">
         <h3 className="font-bold text-lg">Quotation Font Settings</h3>
         <div className="grid md:grid-cols-2 gap-4">
           <div>
@@ -408,7 +419,7 @@ export default function Settings() {
       </div>
 
       {/* App Font Settings */}
-      <div className="card space-y-4">
+      <div hidden={tab !== 'branding'} className="card space-y-4">
         <h3 className="font-bold text-lg">App Font Settings</h3>
         <select value={settings.app_font_family || 'Inter'} onChange={e => updateSetting('app_font_family', e.target.value)} className="input-field">
           {ALL_FONT_NAMES.map(f => <option key={f} value={f}>{f}</option>)}
@@ -416,7 +427,7 @@ export default function Settings() {
       </div>
 
       {/* Document Numbering */}
-      <div className="card space-y-4">
+      <div hidden={tab !== 'documents'} className="card space-y-4">
         <h3 className="font-bold text-lg">Document Numbering</h3>
         <div className="grid md:grid-cols-2 gap-4">
           <div><label className="block text-sm font-medium text-white/70 mb-1">Invoice Prefix</label><input value={org.invoice_prefix || ''} onChange={e => update('invoice_prefix', e.target.value)} className="input-field" /></div>
@@ -425,7 +436,7 @@ export default function Settings() {
       </div>
 
       {/* Quotation Print Layout — ONLY affects Quotation, NOT Invoice */}
-      <div className="card space-y-4">
+      <div hidden={tab !== 'documents'} className="card space-y-4">
         <h3 className="font-bold text-lg">Quotation Print Layout</h3>
         <div>
           <label className="block text-sm font-medium text-white/70 mb-1">Letterhead Top Space: {org.print_letterhead_mm || 59}mm</label>
@@ -440,7 +451,7 @@ export default function Settings() {
       </div>
 
       {/* ═══ Email Settings (Gmail SMTP) ═══ */}
-      <div className="card space-y-4">
+      <div hidden={tab !== 'email'} className="card space-y-4">
         <h3 className="font-bold text-lg flex items-center gap-2"><Mail size={20} className="text-blue-400" /> Email Settings (Gmail SMTP)</h3>
         <p className="text-xs text-white/50 leading-relaxed">
           Configure Gmail SMTP to send invoices & quotations directly via email from the app.
@@ -486,7 +497,7 @@ export default function Settings() {
       </div>
 
       {/* Change Password */}
-      <div className="card space-y-4">
+      <div hidden={tab !== 'security'} className="card space-y-4">
         <h3 className="font-bold text-lg">Change Password</h3>
         <div className="grid md:grid-cols-2 gap-4">
           <div><label className="block text-sm font-medium text-white/70 mb-1">Current Password</label>
@@ -499,7 +510,7 @@ export default function Settings() {
 
       {/* User Management */}
       {user?.role === 'admin' && (
-        <div className="card space-y-4">
+        <div hidden={tab !== 'users'} className="card space-y-4">
           <h3 className="font-bold text-lg">User Management</h3>
           <div className="overflow-x-auto">
           <table className="nebula-table w-full">
@@ -554,9 +565,13 @@ export default function Settings() {
         </div>
       )}
 
-      <button onClick={handleSave} disabled={saving} className="btn-primary w-full flex items-center justify-center gap-2 py-3">
-        <Save size={18} /> {saving ? 'Saving...' : 'Save All Settings'}
-      </button>
+      {['business', 'branding', 'documents', 'email'].includes(tab) && (
+        <div className="settings-savebar">
+          <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center justify-center gap-2">
+            <Save size={18} /> {saving ? 'Saving…' : 'Save settings'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

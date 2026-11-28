@@ -671,7 +671,7 @@ export default function VehiclePaperForm() {
       )}
 
       {/* ═══ PRINT SETTINGS STRIP ═══ */}
-      <div className="flex flex-wrap items-center gap-3 p-3 rounded-2xl no-print" style={{ background: 'var(--bg-glass)', border: '1px solid var(--border)' }}>
+      <div className="flex flex-wrap items-center gap-3 p-3 rounded-2xl no-print" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-card)' }}>
         <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Print</span>
         {!isImageSheet && <Toggle label="Glob artwork letterhead" checked={opts.useLetterhead !== false} onChange={v => setD('useLetterhead', v)} />}
         {!isImageSheet && <Toggle label="Address strip at bottom" checked={opts.showFooterStrip !== false} onChange={v => setD('showFooterStrip', v)} />}
@@ -691,7 +691,7 @@ export default function VehiclePaperForm() {
       <div className={viewMode === 'preview' ? 'flex justify-center' : 'grid grid-cols-1 xl:grid-cols-[400px_1fr] gap-4 items-start'}>
 
         {/* ─── LEFT: editor fields ─── */}
-        <div className={viewMode === 'preview' ? 'hidden' : 'rounded-2xl p-4 space-y-4 no-print'} style={{ background: 'var(--bg-glass)', border: '1px solid var(--border)' }}>
+        <div className={viewMode === 'preview' ? 'hidden' : 'rounded-2xl p-4 space-y-4 no-print'} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-card)' }}>
 
           {!isImageSheet && <>
             <div className="grid grid-cols-2 gap-3">

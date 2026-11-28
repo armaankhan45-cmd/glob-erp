@@ -113,8 +113,13 @@ router.delete('/:id', auth, async (req, res) => {
     // Check for invoices
     const invoiceCount = await db('invoices').where({ customer_id: req.params.id }).count('id as count').first();
     if (parseInt(invoiceCount.count) > 0) {
-      return res.status(400).json({ success: false, msg: 'Cannot delete customer with invoices' });
+      return res.status(400).json({ success: false, msg: 'This customer has invoices. Delete their invoices first.' });
     }
+    const quoteCount = await db('quotations').where({ customer_id: req.params.id }).count('id as count').first();
+    if (parseInt(quoteCount.count) > 0) {
+      return res.status(400).json({ success: false, msg: 'This customer has quotations. Delete their quotations first.' });
+    }
+    await db('payments').where({ customer_id: req.params.id, organization_id: req.user.organization_id }).whereNull('invoice_id').del();
     
     await db('customers').where({ id: req.params.id }).del();
     await auditLog(req.user.id, req.user.organization_id, 'DELETE', 'customers', req.params.id, customer, null, req.ip);

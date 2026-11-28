@@ -195,8 +195,13 @@ router.delete('/:id', auth, async (req, res) => {
     const db = getDb();
     const invoice = await db('invoices').where({ id: req.params.id, organization_id: req.user.organization_id }).first();
     if (!invoice) return res.status(404).json({ success: false, msg: 'Invoice not found' });
-    await db('invoice_items').where({ invoice_id: req.params.id }).del();
-    await db('invoices').where({ id: req.params.id }).del();
+    // All-or-nothing: payments recorded against this invoice go with it; credit notes are kept but unlinked.
+    await db.transaction(async trx => {
+      await trx('payments').where({ invoice_id: invoice.id }).del();
+      if (await trx.schema.hasTable('credit_notes')) await trx('credit_notes').where({ invoice_id: invoice.id }).update({ invoice_id: null });
+      await trx('invoice_items').where({ invoice_id: invoice.id }).del();
+      await trx('invoices').where({ id: invoice.id }).del();
+    });
     await auditLog(req.user.id, req.user.organization_id, 'DELETE', 'invoices', req.params.id, invoice, null, req.ip);
     res.json({ success: true, msg: 'Invoice deleted' });
   } catch (err) { console.error('Delete invoice error:', err); res.status(500).json({ success: false, msg: 'Failed to delete' }); }

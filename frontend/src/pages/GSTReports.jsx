@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import api from '../api/client'
+import { PageHeader } from '../components/ui'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell } from 'recharts'
 import { formatCurrency, formatDate } from '../utils'
 import GSTQuarterly from './GSTQuarterly'
 import { ChevronDown, ChevronRight, ChevronLeft, FileText, ShoppingCart, ArrowRight, RefreshCw, Calendar, TrendingUp, TrendingDown, Info } from 'lucide-react'
 
-const COLORS = ['#3b82f6', '#f97316', '#ef4444', '#22c55e', '#8b5cf6', '#06b6d4']
+const COLORS = ['var(--info)', 'var(--warn)', 'var(--neg)', 'var(--pos)', 'var(--accent)', 'var(--info)']
 const MONTH_FULL = { Apr:'April', May:'May', Jun:'June', Jul:'July', Aug:'August', Sep:'September', Oct:'October', Nov:'November', Dec:'December', Jan:'January', Feb:'February', Mar:'March' }
 const FY_MONTHS = ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar']
 
@@ -122,14 +123,9 @@ export default function GSTReports() {
   if (loading) return <div className="flex justify-center py-20"><div className="animate-spin h-8 w-8 border-4 rounded-full" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}></div></div>
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-white">GST Reports</h1>
-          <p className="text-white/40 text-sm">Quarterly GST for your firm — what to file, what to pay, and every bill behind the number</p>
-        </div>
-        <button onClick={() => loadData(true)} className="btn-secondary flex items-center gap-2 text-sm"><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /></button>
-      </div>
+    <div className="space-y-5">
+      <PageHeader title="GST Reports" subtitle="What to file, what to pay, and every bill behind the number"
+        actions={<button onClick={() => loadData(true)} className="btn-secondary flex items-center gap-2" title="Refresh"><RefreshCw size={15} className={loading ? 'animate-spin' : ''} />Refresh</button>} />
 
       {/* ═══════════════════════════════════════════
           VIEW SELECTOR — Month (default, clear & simple) vs Full Year (detailed table)
@@ -271,17 +267,17 @@ function MonthView({ monthFullName, entry, monthlyBills, billsLoading, lastActiv
         <div className="card">
           <h3 className="font-bold text-white mb-4 text-sm flex items-center gap-2"><Info size={14} className="text-white/30" /> How this was calculated</h3>
           <div className="flex flex-wrap items-stretch gap-2">
-            <FlowStep label="Output GST" sub="Collected on your sales" value={outputGST} color="#3b82f6" />
+            <FlowStep label="Output GST" sub="Collected on your sales" value={outputGST} color="var(--info)" />
             <FlowOp symbol="−" />
-            <FlowStep label="Input GST" sub="Paid on your purchases" value={inputGST} color="#f97316" />
+            <FlowStep label="Input GST" sub="Paid on your purchases" value={inputGST} color="var(--warn)" />
             <FlowOp symbol="−" />
-            <FlowStep label="Carry Forward" sub="Credit from last month" value={carryForward} color="#8b5cf6" />
+            <FlowStep label="Carry Forward" sub="Credit from last month" value={carryForward} color="var(--accent)" />
             <FlowOp symbol="=" />
             <FlowStep
               label={isPayable ? 'You Pay' : 'Credit Forward'}
               sub={isPayable ? 'Net GST payable' : 'Goes to next month'}
               value={isPayable ? payable : balance}
-              color={isPayable ? '#ef4444' : '#22c55e'}
+              color={isPayable ? 'var(--neg)' : 'var(--pos)'}
               emphasize
             />
           </div>
@@ -304,7 +300,7 @@ function MonthView({ monthFullName, entry, monthlyBills, billsLoading, lastActiv
             <p className="text-lg font-bold text-purple-300">{carryForward > 0 ? formatCurrency(carryForward) : '—'}</p>
             <p className="text-xs text-white/30 mt-1">From previous month's credit</p>
           </div>
-          <div className="gst-card" style={{ background: isPayable ? 'rgba(239,68,68,0.06)' : 'rgba(34,197,94,0.06)', borderLeft: `3px solid ${isPayable ? '#ef4444' : '#22c55e'}` }}>
+          <div className="gst-card" style={{ background: isPayable ? 'rgba(239,68,68,0.06)' : 'rgba(34,197,94,0.06)', borderLeft: `3px solid ${isPayable ? 'var(--neg)' : 'var(--pos)'}` }}>
             <p className={`text-xs font-medium ${isPayable ? 'text-red-400' : 'text-green-400'}`}>{isPayable ? 'Payable' : 'Carried out'}</p>
             <p className={`text-lg font-bold ${isPayable ? 'text-red-300' : 'text-green-300'}`}>{formatCurrency(isPayable ? payable : balance)}</p>
             <p className="text-xs text-white/30 mt-1">{isPayable ? 'Due for this month' : 'Goes to next month'}</p>
@@ -481,10 +477,10 @@ function YearView({ data, g3b, monthlyPayable, activeMonths, barData, lineData, 
                 <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.35)' }} />
                 <Tooltip formatter={fmtTooltip} contentStyle={darkTooltip} />
                 <Legend wrapperStyle={{ color: 'rgba(255,255,255,0.6)' }} />
-                <Bar dataKey="Output GST" fill="#3b82f6" radius={[4,4,0,0]} />
-                <Bar dataKey="Input GST" fill="#f97316" radius={[4,4,0,0]} />
-                <Bar dataKey="Carry Forward" fill="#8b5cf6" radius={[4,4,0,0]} />
-                <Bar dataKey="Net Payable" fill="#ef4444" radius={[4,4,0,0]} />
+                <Bar dataKey="Output GST" fill="var(--info)" radius={[4,4,0,0]} />
+                <Bar dataKey="Input GST" fill="var(--warn)" radius={[4,4,0,0]} />
+                <Bar dataKey="Carry Forward" fill="var(--accent)" radius={[4,4,0,0]} />
+                <Bar dataKey="Net Payable" fill="var(--neg)" radius={[4,4,0,0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -496,8 +492,8 @@ function YearView({ data, g3b, monthlyPayable, activeMonths, barData, lineData, 
                 <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.35)' }} />
                 <Tooltip formatter={fmtTooltip} contentStyle={darkTooltip} />
                 <Legend wrapperStyle={{ color: 'rgba(255,255,255,0.6)' }} />
-                <Line type="monotone" dataKey="Sales" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} />
-                <Line type="monotone" dataKey="Purchases" stroke="#f97316" strokeWidth={2} dot={{ r: 4 }} />
+                <Line type="monotone" dataKey="Sales" stroke="var(--info)" strokeWidth={2} dot={{ r: 4 }} />
+                <Line type="monotone" dataKey="Purchases" stroke="var(--warn)" strokeWidth={2} dot={{ r: 4 }} />
               </LineChart>
             </ResponsiveContainer>
           )}
@@ -509,9 +505,9 @@ function YearView({ data, g3b, monthlyPayable, activeMonths, barData, lineData, 
                 <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.35)' }} />
                 <Tooltip formatter={fmtTooltip} contentStyle={darkTooltip} />
                 <Legend wrapperStyle={{ color: 'rgba(255,255,255,0.6)' }} />
-                <Area type="monotone" dataKey="Output GST" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.15} />
-                <Area type="monotone" dataKey="Input GST" stroke="#f97316" fill="#f97316" fillOpacity={0.15} />
-                <Area type="monotone" dataKey="Balance Carry Forward" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.15} />
+                <Area type="monotone" dataKey="Output GST" stroke="var(--info)" fill="var(--info)" fillOpacity={0.15} />
+                <Area type="monotone" dataKey="Input GST" stroke="var(--warn)" fill="var(--warn)" fillOpacity={0.15} />
+                <Area type="monotone" dataKey="Balance Carry Forward" stroke="var(--accent)" fill="var(--accent)" fillOpacity={0.15} />
               </AreaChart>
             </ResponsiveContainer>
           )}
@@ -670,7 +666,7 @@ function YearView({ data, g3b, monthlyPayable, activeMonths, barData, lineData, 
           </table>
         </div>
 
-        <div className="mt-4 p-3 rounded-lg text-xs" style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)', color: '#fbbf24' }}>
+        <div className="mt-4 p-3 rounded-lg text-xs" style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)', color: 'var(--warn)' }}>
           <p className="font-bold mb-1 text-yellow-400">How Carry-Forward Works:</p>
           <ol className="list-decimal ml-4 space-y-0.5 text-yellow-300/80">
             <li><b>Output GST</b> = Total GST collected on sales invoices for the month</li>
